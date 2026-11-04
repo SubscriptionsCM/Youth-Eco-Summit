@@ -59,10 +59,40 @@ Vercel deployment `dpl_7SFR6mU7WVofrth4WKWnK14SPjfD` reached Ready at https://yo
 
 Authenticated `vercel curl` smoke checks passed for the deployed homepage (expected title, hero and competition link) and `/api/forms/config` (`enabled:false`, `configured:false`, `emailAccounts:false`). Deployment Protection was retained. These checks do not substitute for real form, database, upload or delivery acceptance.
 
+## Supabase snapshot import and SSL verification
+
+The user supplied the pooler credentials privately and chose to remain on Supabase Free. The client verifies both the CA chain and hostname using Supabase's official Root 2021 CA. Its SHA256 certificate fingerprint is `80:70:25:AD:50:D4:ED:21:9D:2C:9C:7D:29:9C:00:4F:82:4E:B0:0C:F7:F6:5A:FE:F6:07:D0:7B:72:E6:CA:FA`, obtained from the download URL used by Supabase's official dashboard source. No certificate verification was disabled.
+
+Cloud readback confirmed 15 matching migration checksums, RLS enabled on all 50 application tables, zero grants to browser roles, and `yes-private` remaining private. After the user enabled SSL enforcement, a fresh verified connection also returned `pg_stat_ssl.ssl=true` for the pooler-to-Postgres connection.
+
+The snapshot's database records are now imported into project `doxvdfmsjqnhqdzugnmt`:
+
+| Record kind | Verified rows |
+| --- | ---: |
+| Historical entries | 5,494 |
+| Archived users | 217 |
+| Form definitions | 42 |
+| Options/configuration | 6 |
+| Source posts | 2 |
+| School identity evidence | 125 |
+| Total | 5,886 |
+
+All original payload hashes matched independent cloud readback. Repeating the import inserted zero duplicates. The batched import was reviewed before execution and tested locally for preview-only behavior, retry idempotence, source conflicts and rollback after a later SQL batch failed. It did not overwrite existing data. Private reports are `.local/migration-reports/cloud-records-1793787960783.json` and the separate verification report `.local/migration-reports/cloud-records-1793788120498.json`.
+
+The operational directory contains 125 schools and 83 aliases. All 208 identifiers resolved through the application's directory query; repeat projection created zero additional rows. Archived users have not been auto-created as active accounts: the operational user table remains empty, pending verified ownership and staff setup.
+
+All 425 attachment objects, totalling 1,529,147,267 bytes, remain deferred because the user selected Free. Their original source and private export are preserved; zero attachment objects have been migrated. A final WordPress delta is still required because the source remained live after the snapshots.
+
+Vercel now has the transaction-pooler URL, CA certificate and application session secret configured as sensitive variables for preview and production, with verified TLS enabled and a small connection pool. Protected preview `dpl_5xEmi8wghoC8RVKy3SZFcC7j1Vdk` reached Ready at https://youth-eco-summit-g5p48p2pd-rudhraksh-s-projects.vercel.app. Its form config reports `configured:true`, `enabled:false`, `emailAccounts:false`; provider/form acceptance is still required.
+
+After SSL enforcement, an authenticated request to the deployed `/api/public/schools` returned 125 total schools and 25 records on its first page. The response contained no phone or email contact fields. The existing production alias is a separate deployment; the connected preview is the review target for this configuration.
+
+An actual legacy school alias also resolved through the deployed endpoint to its expected canonical record. The Vercel project metadata still reports no linked Git repository; automatic Vercel builds require the separate GitHub app/repository connection to be completed.
+
 ## Acceptance gaps
 
-- Supply server credentials privately in ignored `.env.supabase.local`; configure Vercel environments and authorize its GitHub integration.
-- Approve a storage arrangement: the1.53GB archive and120MB film rule exceed Free's1GB storage and50MB per-file limits. No upgrade or purchase was made.
-- Transfer and verify historical records/files in Supabase, apply the school projection there, reconcile explicit account ownership and capture the final WordPress delta.
+- Authorize Vercel's GitHub integration and verify automatic builds; configure and test Supabase Auth/email delivery and staff ownership.
+- Attachment transfer and 120 MB film uploads remain deferred under the user's Free-plan decision. No upgrade or purchase was made.
+- Reconcile explicit historical account ownership, operational judging/domain records and the final WordPress delta.
 - Verify real email/recovery delivery, current and historical notification/integration workflows, judging/domain projection, private uploads, worker/scanner hosting, backup restoration, load/mobile/accessibility checks and domain cutover.
 - Registration remains disabled until staging acceptance. WordPress stays live and its existing data is retained.

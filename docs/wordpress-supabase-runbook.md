@@ -85,14 +85,18 @@ The user created Supabase project `doxvdfmsjqnhqdzugnmt` (`youth-eco-summit`, Si
 
 The reviewed code is published at commit `46935c13b8da6fcf8e803f2b7e11cf931ba783ec`. CI passed all32 test files (252 tests passed,2 skipped), TypeScript and the production build. The local Webpack production build passed too. Vercel deployment `dpl_7SFR6mU7WVofrth4WKWnK14SPjfD` is Ready at https://youth-eco-summit.vercel.app. This first deployment was assigned to the new project's production environment by Vercel and remains behind Vercel Authentication; the existing WordPress domain is unchanged. This is a review deployment with registration disabled. The subscription contact environment variable is configured for preview and production. Use ignored `.env.supabase.local` to supply target credentials privately; `.vercelignore` explicitly excludes private exports and environment files from uploads.
 
-Keep the source domain on WordPress until provider delivery, account migration, directory aliases, uploads, worker processing, backups/restore and production smoke tests pass. Do not publish a frontend-only preview as a functioning registration replacement. Preserve existing proposal/minutes URLs when eventually changing routing.
+The cloud snapshot import is now complete for database records: 5,886 hash-verified rows, including 5,494 historical entries, 217 archived users, 42 form definitions, 6 options, 2 posts and 125 school records. Retry inserted zero duplicates. The operational directory has 125 schools and 83 aliases, with all 208 identifiers verified. The 425 attachment objects remain deferred under the user's explicit decision to keep Supabase Free; the original WordPress files and private export are preserved. This is snapshot completion for database records, not final cutover or account activation.
+
+Both connection legs now use SSL: client certificate/hostname validation uses the official Supabase CA, and a fresh `pg_stat_ssl` check returned true after the user enabled SSL enforcement. All 50 application tables retain RLS, browser roles have zero table grants and the bucket remains private. Protected Vercel preview https://youth-eco-summit-g5p48p2pd-rudhraksh-s-projects.vercel.app is deployed with sensitive database URL, CA and session-secret variables. Registration and email accounts remain disabled until delivery and form acceptance. The older production alias remains a separate deployment; the WordPress custom domain is unchanged.
+
+Keep the source domain on WordPress until provider delivery, account migration, uploads, worker processing, backups/restore and production smoke tests pass. Preserve existing proposal/minutes URLs when eventually changing routing.
 
 ## Acceptance still required
 
-- Secure Supabase runtime/import credentials and target security readback; Vercel GitHub authorization, deployment and environment configuration.
-- Apply the rehearsed school projection to the cloud target; explicit verified historical-user claims, judging/domain projection and delta snapshot reconciliation.
+- Vercel GitHub authorization and automatic-build verification; Supabase Auth/email delivery and staff owner setup.
+- Explicit verified historical-user claims, judging/domain projection and delta snapshot reconciliation.
 - Current and historical form redirects, account recovery, SMTP/SMS policy, notification recipients and external integrations. The safe schema export deliberately excludes private integration settings; generic submission persistence is not a substitute for those workflows.
-- Provider-specific storage lifecycle, upload replacement/recovery, scanner/worker hosting, real email/SMS delivery and actual 120 MB uploads.
+- Attachment transfer and 120 MB uploads deferred on Free; provider-specific storage lifecycle, upload replacement/recovery, scanner/worker hosting and real email/SMS delivery.
 - Approved legal content and consent/account policy; owner review of the retained legacy forms.
 - Visual/mobile/accessibility browser comparison, production end-to-end testing, backup restoration, load testing and final domain cutover.
 

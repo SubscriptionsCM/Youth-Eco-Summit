@@ -1,4 +1,5 @@
 .git/
+.vercel/
 .local/
 .env*
 private-exports/
