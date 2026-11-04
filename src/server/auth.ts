@@ -2,6 +2,7 @@ import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, 
 import { TOTP, Secret } from 'otpauth';
 import { db as database, type Db } from './db';
 import { AppError, type Actor, audit } from './core';
+import { supabaseParticipantAction } from './supabase-auth';
 
 const derive = (value: string, salt: string, length: number, options: ScryptOptions): Promise<Buffer> =>
   new Promise((resolve, reject) => {
@@ -130,6 +131,10 @@ export function createAuth(db: Db, options: AuthOptions) {
       if (route === 'session' && request.method === 'GET') return json({ actor: await getActor(request) });
       if (request.method !== 'POST') throw new AppError(405, 'Method not allowed.');
       const input = await body(request);
+      if (['participant/signup','participant/login','participant/verify','participant/resend'].includes(route)) {
+        await rate(request,'supabase-'+route,String(input.contact||'').trim().toLowerCase(),5);
+        return supabaseParticipantAction(db,route,input,startSession);
+      }
       if (route === 'otp/request') {
         const phone = contact(input.contact, true);
         await rate(request, 'otp-send', phone, 5);

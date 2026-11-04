@@ -8,3 +8,7 @@ playwright-report/
 *.tsbuildinfo
 .local/
 .review-build/
+.vercel/
+private-exports/
+*.sql.gz
+*.dump

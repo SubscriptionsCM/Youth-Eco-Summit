@@ -3,6 +3,7 @@ import { routeEntries } from './judging';
 import { verifyAsset,purgeObjects } from './storage';
 import { executePurge } from './trash';
 import { verifyHistoricalAsset } from './historical-files';
+import { verifyPortalFile } from './portal-uploads';
 export async function runJob(db:Db){
  const job=await db.transaction<Record<string,any>|null>(async tx=>{
   await tx.query("UPDATE jobs SET status='pending',locked_at=NULL,run_after=now() WHERE status='running' AND locked_at<now()-interval '15 minutes'");
@@ -16,6 +17,7 @@ export async function runJob(db:Db){
   if(job.kind==='route')await routeEntries(db);
   else if(job.kind==='verify_asset')await verifyAsset(db,job.payload.assetId);
   else if(job.kind==='verify_historical_asset')await verifyHistoricalAsset(db,job.payload.assetId);
+  else if(job.kind==='verify_portal_file')await verifyPortalFile(db,job.payload.fileId);
   else if(job.kind==='purge')await executePurge(db,job.payload.batchId,purgeObjects);
   else throw new Error('Unrecognized job kind');
   await db.query("UPDATE jobs SET status='complete',locked_at=NULL,last_error=NULL,updated_at=now() WHERE id=$1",[job.id]);

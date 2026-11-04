@@ -4,7 +4,13 @@ export interface Db {
   transaction<T>(fn: (db: Db) => Promise<T>): Promise<T>;
 }
 const globalDb = globalThis as unknown as { yesPool?: pg.Pool };
-function pool() { return globalDb.yesPool ??= new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 10, ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: true } : undefined }); }
+function pool() {
+ const tls=process.env.DATABASE_SSL==='true';
+ let connectionString=process.env.DATABASE_URL;
+ if(tls&&connectionString){const url=new URL(connectionString);for(const key of ['sslmode','sslcert','sslkey','sslrootcert'])url.searchParams.delete(key);connectionString=url.toString();}
+ return globalDb.yesPool ??= new pg.Pool({ connectionString, max:Math.max(1,Math.min(10,Number(process.env.DATABASE_POOL_MAX)||3)),idleTimeoutMillis:10000,connectionTimeoutMillis:10000,
+ ssl:tls?{rejectUnauthorized:true,...process.env.DATABASE_CA_CERT?{ca:process.env.DATABASE_CA_CERT.replace(/\\n/g,'\n')}:{}}:undefined });
+}
 function adapter(client: pg.Pool | pg.PoolClient): Db {
   return {
     async query<T>(text: string, params: unknown[] = []) { const result = await client.query(text, params); return { rows: result.rows as T[] }; },

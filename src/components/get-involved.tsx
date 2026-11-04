@@ -5,7 +5,7 @@ import '@/app/meeting-update.css';
 
 const audiences = [
   { title: 'Students', image: 'students.jpg', text: 'Find your school, create your profile and choose a competition.', label: 'Find your school', href: '/schools', secondary: 'Have a school ID? Register', secondaryHref: '/register' },
-  { title: 'Educators & schools', image: 'workshop.jpg', text: 'Create a teacher profile linked to your school. Share the school ID and support original student work.', label: 'Register as a teacher', href: '/teachers/register', secondary: 'New school? Register once', secondaryHref: '/schools/register' },
+  { title: 'Educators & schools', image: 'workshop.jpg', text: 'Create an educator profile linked to your school. Share the school ID and support original student work.', label: 'Register as an educator', href: '/teachers/register', secondary: 'New school? Register once', secondaryHref: '/schools/register' },
   { title: 'Partner organizations', image: 'school.jpg', text: 'Support student learning, creative experiences and environmental action.', label: 'Enquire about a partnership', href: '/partners/enquire', secondary: 'Explore partnerships', secondaryHref: '/partners' },
 ];
 

@@ -44,6 +44,7 @@ export function CompetitionProgramme({ competitions = [], editions = [] }: { com
         <div className="competition-programme-copy"><p>{item.format}</p><h3>{item.title}</h3><p className="competition-programme-description">{item.description}</p><p className="competition-programme-eligibility">{guidelineClassesLabel(item)} · {item.team.allowed ? `Solo or up to ${item.team.maxMembers} students` : 'Individual'}</p>
           <details className="competition-programme-rules"><summary>Topics & submission guidelines <span aria-hidden="true">+</span></summary><CompetitionGuidelineDetails guideline={item} showTitle={false} /></details>
           {published && !item.eligibilityPending && <div className="competition-programme-entry"><p>{competitionAvailability(published, editions).label} · Closes: {date(published.closes_at || published.closesAt)}</p><Link className="text-link" href={competitionPath(published)}>Entry information <span aria-hidden="true">→</span></Link></div>}
+          <Link className="text-link" href={`/competitions/enter?competition=${item.slug}`}>Start your entry <span aria-hidden="true">→</span></Link>
         </div>
       </article>;
     })}</div>
