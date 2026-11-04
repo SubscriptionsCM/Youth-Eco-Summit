@@ -97,4 +97,8 @@ ALTER TABLE public.portal_form_records ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public.portal_form_records FROM anon, authenticated;
 ALTER TABLE public.portal_form_files ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public.portal_form_files FROM anon, authenticated;
+ALTER TABLE public.wordpress_school_links ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE public.wordpress_school_links FROM anon, authenticated;
+ALTER TABLE public.wordpress_user_links ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE public.wordpress_user_links FROM anon, authenticated;
 COMMIT;

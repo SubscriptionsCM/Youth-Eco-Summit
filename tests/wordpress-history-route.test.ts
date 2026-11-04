@@ -1,0 +1,14 @@
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+const mocks=vi.hoisted(()=>({actor:null as any,list:vi.fn(),detail:vi.fn(),link:vi.fn(),attachment:vi.fn()}));
+vi.mock('../src/server/db',()=>({db:{}}));
+vi.mock('../src/server/auth',()=>({getActor:async()=>mocks.actor,assertSameOrigin:()=>{}}));
+vi.mock('../src/server/wordpress-projection',()=>({historicalEntries:mocks.list,historicalEntry:mocks.detail,linkWordPressUser:mocks.link,historicalAttachment:mocks.attachment}));
+import {GET,POST} from '../src/app/api/forms/[...path]/route';
+const request=(path:string,method='GET',body?:unknown)=>new Request(`https://portal.example/api/forms/${path}`,{method,...body?{body:JSON.stringify(body)}:{}});
+const context=(...path:string[])=>({params:Promise.resolve({path})});
+beforeEach(()=>{vi.stubEnv('PORTAL_REFERENCE_FORMS','true');vi.stubEnv('DATABASE_URL','postgres://test');vi.clearAllMocks();mocks.actor={id:'1',role:'participant'};});
+afterEach(()=>vi.unstubAllEnvs());
+it('requires a session before requesting historical records',async()=>{mocks.actor=null;expect((await GET(request('history'),context('history'))).status).toBe(401);expect(mocks.list).not.toHaveBeenCalled();});
+it('serves only the authorization-filtered historical response with no caching',async()=>{mocks.list.mockResolvedValue({items:[{id:'entry',title:'Saved entry'}]});const response=await GET(request('history'),context('history'));expect(response.status).toBe(200);expect(response.headers.get('Cache-Control')).toBe('no-store');expect(mocks.list).toHaveBeenCalledWith({},mocks.actor);expect((await response.json()).data.items).toHaveLength(1);});
+it('delegates individual historical access to the ownership check',async()=>{mocks.detail.mockResolvedValue({id:'entry',fields:[]});expect((await GET(request('history/entry'),context('history','entry'))).status).toBe(200);expect(mocks.detail).toHaveBeenCalledWith({},mocks.actor,'entry');});
+it('validates explicit owner link inputs before passing them to the linking service',async()=>{expect((await POST(request('migration/link','POST',{source:'https://source.example',sourceId:'123',authUserId:'bad'}),context('migration','link'))).status).toBe(422);expect(mocks.link).not.toHaveBeenCalled();});

@@ -1,0 +1,10 @@
+.git/
+.local/
+.env*
+private-exports/
+.review-build/
+coverage/
+test-results/
+playwright-report/
+*.dump
+*.sql.gz

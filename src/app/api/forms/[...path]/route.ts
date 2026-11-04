@@ -5,6 +5,11 @@ import { AppError, ok } from '@/server/core';
 import { supabaseAuthConfigured } from '@/server/supabase-auth';
 import { createFormRecord, getFormRecord, saveFormRecord, submitFormRecord, FormValidationError } from '@/server/portal-forms';
 import { portalUploadAction } from '@/server/portal-uploads';
+import { historicalEntries, historicalEntry, historicalAttachment, linkWordPressUser } from '@/server/wordpress-projection';
+import { objectStore } from '@/server/storage/provider';
+import { safeDisposition } from '@/server/storage/validation';
+import { GetObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 export const runtime='nodejs';
 export const dynamic='force-dynamic';
 async function route(request:Request,context:{params:Promise<{path:string[]}>}) {
@@ -14,6 +19,22 @@ async function route(request:Request,context:{params:Promise<{path:string[]}>}) 
   if(process.env.PORTAL_REFERENCE_FORMS!=='true'||!process.env.DATABASE_URL)throw new AppError(503,'Registration services are being configured. Please use the current live website.');
   assertSameOrigin(request);
   const actor=await getActor(request),token=request.headers.get('X-Draft-Key')||undefined;
+  if(path[0]==='history'){
+   if(!actor)throw new AppError(401,'Sign in to see historical entries.');
+   if(request.method==='GET'&&path.length===1)return ok(await historicalEntries(db,actor));
+   if(request.method==='GET'&&path.length===2)return ok(await historicalEntry(db,actor,path[1]));
+   if(request.method==='POST'&&path.length===4&&path[1]==='files'&&path[3]==='download'){
+    const file=await historicalAttachment(db,actor,path[2]),store=objectStore();
+    return ok({url:await getSignedUrl(store.client,new GetObjectCommand({Bucket:store.bucket,Key:file.storage_key,ResponseContentDisposition:safeDisposition(file.mime_type,file.filename,true),ResponseContentType:file.mime_type}),{expiresIn:60})});
+   }
+  }
+  if(path.join('/')==='migration/link'&&request.method==='POST'){
+   if(!actor)throw new AppError(401,'Sign in to continue.');
+   const raw=await request.text();if(Buffer.byteLength(raw)>2000)throw new AppError(413,'The link request is too large.');
+   let input;try{input=JSON.parse(raw);}catch{throw new AppError(400,'Send valid JSON.');}
+   const data=z.object({source:z.url(),sourceId:z.string().min(1).max(250),authUserId:z.uuid()}).strict().parse(input);
+   return ok(await linkWordPressUser(db,actor,data));
+  }
   if(path[0]==='files')return await portalUploadAction(request,path.slice(1),actor,token);
   if(path[0]==='records'){
    if(path.length===1&&request.method==='GET'){

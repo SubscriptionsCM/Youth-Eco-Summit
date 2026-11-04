@@ -89,7 +89,8 @@ export function createAuth(db: Db, options: AuthOptions) {
     if (!/^[a-f0-9]{64}$/.test(token)) return null;
     const { rows } = await db.query<Actor>(`SELECT u.id,u.role,u.contact FROM auth_sessions s JOIN users u ON u.id=s.user_id
       WHERE s.token_hash=$1 AND s.revoked_at IS NULL AND s.expires_at>now() AND u.active=true
-      AND s.auth_version=u.auth_version AND (u.role='participant' OR (s.mfa_verified=true AND u.totp_secret IS NOT NULL))`, [digest(token)]);
+      AND s.auth_version=u.auth_version AND (u.role='participant' OR (s.mfa_verified=true AND u.totp_secret IS NOT NULL))
+      AND NOT EXISTS(SELECT 1 FROM supabase_identities si WHERE si.user_id=u.id AND si.recovery_nonce IS NOT NULL)`, [digest(token)]);
     return rows[0] || null;
   }
   async function rate(request: Request, purpose: string, identity: string, limit = 10) {
@@ -104,7 +105,16 @@ export function createAuth(db: Db, options: AuthOptions) {
   }
   async function startSession(user: User, mfa: boolean) {
     const token = randomBytes(32).toString('hex'), seconds = user.role === 'participant' ? 43_200 : 28_800;
-    await db.query('INSERT INTO auth_sessions(token_hash,user_id,auth_version,mfa_verified,expires_at) VALUES($1,$2,$3,$4,$5)', [digest(token), user.id, user.auth_version, mfa, new Date(Date.now() + seconds * 1000)]);
+    await db.transaction(async tx => {
+      // Serialize issuance with recovery's credential-version change. An identity
+      // lookup performed before recovery started must not create a new session.
+      const { rows: [current] } = await tx.query<User>('SELECT * FROM users WHERE id=$1 FOR UPDATE', [user.id]);
+      if (!current?.active || current.role !== user.role || current.auth_version !== user.auth_version
+        || (current.role !== 'participant' && (!mfa || !current.totp_secret))) throw new AppError(403, 'This account changed. Sign in again.');
+      const pending = await tx.query('SELECT auth_user_id FROM supabase_identities WHERE user_id=$1 AND recovery_nonce IS NOT NULL', [user.id]);
+      if (pending.rows.length) throw new AppError(403, 'Password recovery is pending. Contact support to reconcile account access.');
+      await tx.query('INSERT INTO auth_sessions(token_hash,user_id,auth_version,mfa_verified,expires_at) VALUES($1,$2,$3,$4,$5)', [digest(token), user.id, current.auth_version, mfa, new Date(Date.now() + seconds * 1000)]);
+    });
     const response = json({ actor: { id: user.id, role: user.role, contact: user.contact } });
     response.headers.set('Set-Cookie', cookie(token, seconds));
     return response;
@@ -131,9 +141,9 @@ export function createAuth(db: Db, options: AuthOptions) {
       if (route === 'session' && request.method === 'GET') return json({ actor: await getActor(request) });
       if (request.method !== 'POST') throw new AppError(405, 'Method not allowed.');
       const input = await body(request);
-      if (['participant/signup','participant/login','participant/verify','participant/resend'].includes(route)) {
+      if (['participant/signup','participant/login','participant/verify','participant/resend','participant/recovery/request','participant/recovery/complete'].includes(route)) {
         await rate(request,'supabase-'+route,String(input.contact||'').trim().toLowerCase(),5);
-        return supabaseParticipantAction(db,route,input,startSession);
+        return await supabaseParticipantAction(db,route,input,startSession);
       }
       if (route === 'otp/request') {
         const phone = contact(input.contact, true);
