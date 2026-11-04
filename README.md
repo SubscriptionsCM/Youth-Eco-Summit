@@ -1,3 +1,5 @@
+> Migration preparation update, 4 November 2026: read [the WordPress/Supabase runbook](docs/wordpress-supabase-runbook.md) and [fresh verification](docs/verification-wordpress-supabase-2026-11-04.md). Source preservation, form/auth/storage code and local migration rehearsals are prepared. Production cutover, operational account/data reconciliation and external project access are still pending. The package notes below describe the supplied baseline.
+
 > Package status 4 November 2026: read START-HERE.md and docs/current-developer-handoff-2026-11-04.md first. The local WordPress portal is 1.4.1. Historical WordPress snapshot and status evidence are dated 9 October. Next.js and WordPress are separate implementations; later live behavior requires explicit migration.
 
 # Youth Eco Summit platform

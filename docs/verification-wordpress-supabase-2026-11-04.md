@@ -39,6 +39,8 @@ Windows sandbox temporary-file rename restrictions required a workspace-local te
 
 Final verification: TypeScript passed; the full suite passed 214 tests with 2 skipped across 28 files; `npm run build -- --webpack` exited successfully and generated all routes. The two review regressions passed after failing before their fixes. Browser automation was unavailable, so visual/mobile fidelity and real-provider round trips remain unverified.
 
+The two skipped cases require installed Poppler (`pdftotext`) and FFmpeg (`ffprobe`): actual PDF text extraction and raster-dimension inspection. Install and exercise those on the worker host before upload acceptance; the successful unit suite does not substitute for those media checks.
+
 ## External access and acceptance gaps
 
 - GitHub origin is the requested repository. Connector metadata initially showed read-only access; a collaborator-permission read was also rejected by the integration. A local Git credential dry run is recorded separately. No force push is used.
