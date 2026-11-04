@@ -1,0 +1,8 @@
+.yes-email-verification { margin-top: 16px; }
+.yes-email-verification__code { margin-top: 18px; }
+.yes-email-verification__code[hidden] { display: none !important; }
+.yes-email-verification__code .forminator-button { margin-top: 12px !important; }
+.yes-email-verification__status { margin: 10px 0 0; font-size: 16px; line-height: 1.5; }
+.yes-email-verification__status:empty { display: none; }
+.yes-email-verification.is-verified .yes-email-verification__status { color: #275c3b; }
+.yes-email-verification .forminator-button:disabled { cursor: default; opacity: .7; }

@@ -1,0 +1,12 @@
+.yes-school-picker { position: relative; min-width: 240px; flex: 1 1 360px; }
+.yes-school-picker > input { width: 100%; box-sizing: border-box; min-height: 54px; padding: 12px 15px; border: 1px solid #b9b1cc; border-radius: 8px; background: #fff; color: #292437; font: inherit; font-size: 18px; }
+.yes-school-picker > input:focus { outline: 2px solid #504183; outline-offset: 2px; }
+.yes-school-picker__list { position: absolute; top: 58px; left: 0; right: 0; z-index: 100; max-height: 320px; overflow-y: auto; overscroll-behavior: contain; margin: 0 !important; padding: 5px !important; list-style: none !important; border: 1px solid #b9b1cc; border-radius: 10px; box-shadow: 0 8px 24px rgba(41,36,55,.13); background: #fff; }
+.yes-school-picker__list[hidden] { display: none !important; }
+.yes-school-picker__list > li { display: block; margin: 0; padding: 12px 14px; border-radius: 6px; cursor: pointer; color: #292437; line-height: 1.45; }
+.yes-school-picker__list > li:hover, .yes-school-picker__list > li[aria-selected="true"] { background: #f0edf7; }
+.yes-school-picker__list strong { display: block; font-size: 18px; font-weight: 600; }
+.yes-school-picker__list span { display: block; margin-top: 3px; color: #554969; font-size: 16px; overflow-wrap: anywhere; }
+.yes-school-picker__status { margin: 8px 0 0 !important; color: #554969; font-size: 16px; line-height: 1.5; }
+.yes-native__school-search:has(.yes-school-picker) { align-items: flex-start; }
+@media (max-width: 650px) { .yes-school-picker { min-width: 0; flex-basis: 100%; width: 100%; } }

@@ -1,0 +1,89 @@
+.competition-programme-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px}
+.competition-programme-card{background:#eee9f4;min-width:0;overflow:hidden;border-radius:3px}
+.competition-programme-card:nth-child(3n+2){background:#f4e8b6}
+.competition-programme-card:nth-child(3n){background:#eeeae0}
+.competition-programme-photo{position:relative;aspect-ratio:1.15;overflow:hidden}
+.competition-programme-photo img{object-fit:cover;filter:saturate(.78);transition:transform .35s ease}
+.competition-programme-card:hover .competition-programme-photo img{transform:scale(1.025)}
+.competition-programme-photo>span{position:absolute;left:18px;bottom:15px;width:35px;height:35px;display:grid;place-items:center;background:#faf8f0;color:#4d3f7f;font-size:.875rem;font-weight:800;border-radius:50%}
+.competition-programme-copy{padding:1.5rem;overflow-wrap:anywhere}
+.competition-programme-copy>p:first-child{font-size:.875rem;letter-spacing:.05em;text-transform:uppercase;font-weight:750;margin:0 0 10px;line-height:1.6}
+.competition-programme-copy h3{font-size:1.75rem;margin:0 0 16px}
+.competition-programme-copy h3 a{text-decoration:none}
+.competition-programme-copy .competition-programme-description{font-size:1.0625rem;line-height:1.75;margin:0;color:#53495e}
+.competition-programme-entry{border-top:1px solid #4d3f7f30;margin-top:20px;padding-top:16px}
+.competition-programme-entry>p{font-size:1rem;line-height:1.5;margin-bottom:12px}
+.competition-programme-entry>.text-link{font-size:1rem}
+.competition-programme-footer{display:flex;justify-content:space-between;align-items:center;gap:24px;padding-top:28px}
+.competition-programme-footer>p{font-size:1rem;color:#5c5365;margin:0}
+.competition-programme-footer>.text-link{font-size:1.0625rem}
+.competition-programme+.catalogue-grid{margin-top:40px}
+.catalogue-section-heading .competition-programme-note{font-size:1.0625rem;color:#5c5365;margin-top:14px}
+@media(max-width:1100px){.competition-programme-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.competition-programme-photo{aspect-ratio:1.42}}
+@media(max-width:600px){.competition-programme-grid{grid-template-columns:1fr;gap:20px}.competition-programme-photo{aspect-ratio:1.5}.competition-programme-footer{align-items:flex-start;flex-direction:column;gap:15px}.competition-programme-copy h3{font-size:1.75rem}}
+@media(prefers-reduced-motion:reduce){.competition-programme-photo img{transition:none}.competition-programme-card:hover .competition-programme-photo img{transform:none}}
+.competition-format-art{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:#edc119;color:#4d3f7f}
+.competition-format-art>b{font-family:Georgia,serif;font-size:clamp(60px,7vw,100px);font-weight:700;line-height:1;letter-spacing:-6px;transform:rotate(-5deg)}
+.competition-format-art>span{font-size:.875rem;letter-spacing:.05em;text-transform:uppercase}
+.competition-format-art--blog-writing{background:#d9cfea}
+.competition-format-art--blog-writing>b{font-family:inherit;font-size:clamp(40px,4.5vw,65px);letter-spacing:-4px}
+.competition-format-art--short-film-making{background:#4d3f7f;color:#faf8f0}
+.competition-format-art--short-film-making>b{font-family:inherit;font-size:clamp(46px,5vw,74px);letter-spacing:-3px;transform:none}
+.competition-format-art--short-film-making>b:before{content:'';display:inline-block;background:#edc119;width:15px;height:15px;border-radius:50%;vertical-align:middle;margin-right:12px}
+
+/* Keep full-size copy and actions readable without overflowing their cards. */
+.competition-programme-copy h3{line-height:1.25;letter-spacing:-.025em}
+.competition-programme-copy>p:first-child{color:#51455f;line-height:1.6}
+.competition-programme-entry>.text-link,.competition-programme-footer>.text-link{font-size:1rem;line-height:1.5;white-space:normal;max-width:100%;gap:1rem}
+.competition-programme-entry>.text-link>span:last-child,.competition-programme-footer>.text-link>span:last-child{flex-shrink:0}
+.competition-programme-entry>p{font-size:1rem;line-height:1.65}
+.competition-programme-footer{flex-wrap:wrap;gap:1rem 1.5rem}
+.competition-programme-footer>p,.catalogue-section-heading .competition-programme-note{font-size:.9375rem;line-height:1.7}
+.competition-format-art>span{padding-inline:1rem;text-align:center;line-height:1.5}
+@media(max-width:600px){.competition-programme-copy{padding:1.5rem}.competition-programme-copy .competition-programme-description{font-size:1.0625rem}}
+@media(max-width:360px){.competition-programme-copy{padding:1.25rem}.competition-programme-copy h3{font-size:1.625rem}}
+
+.competition-programme-eligibility{font-size:1rem;line-height:1.6;color:#4d3f7f;font-weight:700;margin:1.2rem 0}
+.competition-programme-rules{border-top:1px solid #4d3f7f35;margin-top:1rem;padding-top:1rem}
+.competition-programme-rules>summary,.guidelines-scoring>summary{cursor:pointer;font-size:1rem;font-weight:750;line-height:1.6;list-style:none;display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.4rem 0}
+.competition-programme-rules>summary::-webkit-details-marker{display:none}
+.competition-programme-rules>summary>span{font-size:1.4rem;flex-shrink:0}
+.competition-programme-rules[open]>summary>span{transform:rotate(45deg)}
+.competition-guideline-details{scroll-margin-top:110px;font-size:1rem;line-height:1.75;margin-top:1rem}
+.competition-guideline-details p,.competition-guideline-details li{font-size:1rem;line-height:1.75;color:#42374f}
+.competition-guideline-details h4{font-size:1.2rem;line-height:1.4;margin:1.8rem 0 .8rem}
+.competition-guideline-details h5{font-size:1.1rem;line-height:1.5;margin:0 0 .6rem}
+.competition-guideline-details ul{padding-left:1.2rem}
+.competition-guideline-details li+li{margin-top:.5rem}
+.guidelines-topic-group{border-top:1px solid #4d3f7f25;margin-top:1rem;padding-top:1rem}
+.guidelines-topic-group article+article{margin-top:1.5rem}
+.guidelines-topic-class{font-weight:750;color:#4d3f7f!important}
+.guidelines-reading{padding:1rem;background:#ffffff75;margin-top:1rem}
+.guidelines-reading a{color:#4d3f7f;text-decoration:underline;text-underline-offset:3px;overflow-wrap:anywhere}
+.guidelines-scoring{border-block:1px solid #4d3f7f30;margin-top:1.5rem;padding:1rem 0}
+.guidelines-table-wrap{overflow:auto;margin-top:.75rem}
+.guidelines-table-wrap table{width:100%;border-collapse:collapse;font-size:1rem;line-height:1.6}
+.guidelines-table-wrap caption{text-align:left;font-weight:700;margin-bottom:.6rem}
+.guidelines-table-wrap th,.guidelines-table-wrap td{padding:.65rem .6rem;text-align:left;border-bottom:1px solid #4d3f7f25;vertical-align:top}
+.guidelines-table-wrap td:last-child,.guidelines-table-wrap th:last-child{width:65px;text-align:right}
+.guidelines-score-note{font-size:.9375rem!important;line-height:1.7!important}
+.guidelines-essentials{display:grid;grid-template-columns:1fr 1.25fr;gap:3rem;margin:3rem 0;padding:2.5rem;background:#eee9f4;border-radius:3px}
+.guidelines-essentials h2{font-size:clamp(2rem,4vw,3rem);line-height:1.15;margin:.5rem 0 1rem}
+.guidelines-essentials p,.guidelines-essentials li{font-size:1.0625rem;line-height:1.75}
+.guidelines-essentials ul{padding-left:1.2rem;margin-top:0}
+.guidelines-essentials li+li{margin-top:.65rem}
+.guidelines-essentials code{font-family:inherit;font-size:1rem;font-weight:700;overflow-wrap:anywhere;display:block;color:#4d3f7f}
+.guidelines-example{font-size:.9375rem!important;overflow-wrap:anywhere}
+.guidelines-essentials .text-link{margin-top:1rem;font-size:1rem;white-space:normal;line-height:1.5}
+.guidelines-recognition-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1.5rem;margin-top:2.5rem}
+.guidelines-recognition-grid article{background:#eee9f4;padding:2rem;border-radius:3px}
+.guidelines-recognition-grid article:nth-child(2n){background:#f4e8b6}
+.guidelines-recognition-grid h3{font-size:1.5rem;line-height:1.3;margin-top:0}
+.guidelines-recognition-grid li{font-size:1.0625rem;line-height:1.75;margin-bottom:.75rem}
+.guidelines-recognition-grid ul{padding-left:1.2rem}
+.guidelines-recognition-grid .text-link{font-size:1rem;line-height:1.5;white-space:normal}
+@media(max-width:760px){.guidelines-essentials{grid-template-columns:1fr;gap:1.5rem;padding:1.5rem}.guidelines-recognition-grid{grid-template-columns:1fr}.guidelines-recognition-grid article{padding:1.5rem}}
+
+.competition-programme-card{scroll-margin-top:110px}.guidelines-inline-example{display:block;overflow-wrap:anywhere;font-size:1rem;margin-top:.6rem}
+
+.competition-programme-grid{align-items:start}.editorial-registration-note .text-link{margin-right:1.5rem}

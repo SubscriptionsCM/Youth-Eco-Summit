@@ -1,0 +1,24 @@
+{
+  "origin": "https://youthecosummit.com",
+  "theme": "/Users/rudhraksh/Documents/ChatGPT/Youth Eco Summit/youthecosummit-NextJS/wordpress/yes-frontend-theme",
+  "files": 335,
+  "htmlPages": 31,
+  "apiNamespace": "/wp-json/yes/v1/",
+  "liveApiTransport": true,
+  "nativeRoutes": [
+    "login",
+    "register",
+    "schools",
+    "schools/nominate",
+    "schools/register",
+    "teachers/register",
+    "dashboard",
+    "schools/dashboard",
+    "partners/enquire",
+    "partner-enquiry",
+    "competitions/enter"
+  ],
+  "participationStatusScope": "student-registration",
+  "nativeFormsHydratedByNext": false,
+  "publicAssetsAudited": true
+}

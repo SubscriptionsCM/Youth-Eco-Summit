@@ -1,0 +1,6 @@
+.participation-deadline{font-size:1rem;line-height:1.65;color:#4d3f7f;margin:1.25rem 0;max-width:65ch}
+.participation-deadline strong{font-weight:750}
+.participation-deadline--compact{font-size:1rem;line-height:1.6;margin:1rem 0}
+.participation-deadline[data-window-state=closed]{color:#62576e}
+.hero-editorial>.participation-deadline{max-width:36ch;margin:.75rem 0 1.5rem}
+@media(max-width:760px){.hero-editorial>.participation-deadline{margin:.8rem 0 1.2rem}}

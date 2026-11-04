@@ -1,0 +1,80 @@
+/* Original event photography. All framing, cropping and monochrome treatment is CSS. */
+.participation-photo-art {
+  --photo-angle: -2deg;
+  display: block;
+  position: relative;
+  isolation: isolate;
+  width: 100%;
+  min-width: 0;
+  aspect-ratio: 1;
+}
+
+.participation-photo-paper,
+.participation-photo-corner,
+.participation-photo-mat {
+  display: block;
+  position: absolute;
+}
+
+.participation-photo-paper {
+  inset: 10% 8% 9% 12%;
+  z-index: 0;
+  background: #4d3f7f;
+  transform: rotate(3deg);
+  clip-path: polygon(0 2%, 98% 0, 100% 97%, 4% 100%);
+}
+
+.participation-photo-corner {
+  right: 5%;
+  bottom: 6%;
+  z-index: 1;
+  width: 24%;
+  height: 21%;
+  background: #edc119;
+  transform: rotate(-8deg);
+  clip-path: polygon(0 8%, 91% 0, 100% 88%, 79% 93%, 56% 90%, 32% 100%, 3% 94%);
+}
+
+.participation-photo-mat {
+  inset: 8% 11% 12% 8%;
+  z-index: 2;
+  padding: clamp(3px, .5vw, 7px);
+  background: #f6f1e6;
+  box-shadow: 0 3px 12px rgb(32 24 52 / 8%);
+  transform: rotate(var(--photo-angle));
+  transition: transform 320ms cubic-bezier(.2, .65, .3, 1);
+}
+
+.participation-photo-window {
+  display: block;
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #ddd7cf;
+}
+
+.participation-photo-window img {
+  filter: grayscale(1);
+}
+
+.participation-photo-art--register { --photo-angle: 1.5deg; }
+.participation-photo-art--choose-challenge { --photo-angle: -1.5deg; }
+.participation-photo-art--submit-work { --photo-angle: 2deg; }
+.participation-photo-art--explore-summit { --photo-angle: -1deg; }
+
+/* The stage photograph keeps the entire group in a slightly wider frame. */
+.participation-photo-art--explore-summit .participation-photo-mat { inset: 17% 6% 17% 6%; }
+.participation-photo-art--explore-summit .participation-photo-paper { inset: 19% 5% 15% 9%; }
+.participation-photo-art--explore-summit .participation-photo-corner { bottom: 12%; right: 2%; }
+
+.step-art > .participation-photo-art { height: 100%; }
+.step-art .participation-photo-mat { padding: 3px; }
+.participation-tabs button:is(:hover, :focus-visible) .participation-photo-mat {
+  transform: translateY(-3px) rotate(var(--photo-angle));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .participation-photo-mat { transition: none; }
+  .participation-tabs button:is(:hover, :focus-visible) .participation-photo-mat { transform: rotate(var(--photo-angle)); }
+}

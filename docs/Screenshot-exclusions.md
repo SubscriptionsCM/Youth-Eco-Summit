@@ -1,0 +1,1 @@
+Historical form proof screenshots are omitted to avoid sharing captured contact fields or private saved links. Their dated reports remain included. Public website photography, cutouts, logos and PDFs are fully included in app/public and the historical theme export.

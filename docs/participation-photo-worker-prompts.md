@@ -1,0 +1,29 @@
+# Participation cutouts — actual event photograph edits
+
+> Historical outputs, no longer used by the participation/competition artwork. Replaced with untouched source photographs and CSS framing; see [participation-original-photos.md](participation-original-photos.md).
+
+Built-in GPT image tool mode, 30 September 2026. Exactly one call per asset; no variants or retries. No SVGs and no consumer code changed.
+
+## Choose a challenge
+
+- Target: `public/images/summit/gallery-p2176389.jpg`
+- Selected subject: foreground-left schoolgirl, blue checked uniform, braided hair, downward profile, small soil container.
+- Output: `public/images/participation/choose-challenge-real.png`
+- Generated source: `/Users/rudhraksh/.codex/generated_images/01a0ed49-0108-77e1-aed1-382c357dbc92/exec-b172470a-2fba-4794-adb9-bd86369b2de1.png`
+- Prompt:
+
+Use case: background-extraction with restrained editorial paper treatment. Asset type: square transparent PNG collage cutout for a Youth Eco Summit participation card. EDIT TARGET: the supplied genuine event photograph. Select ONLY the foreground-left schoolgirl, in a blue checked uniform with two braids, looking down toward the small pot/container of soil she actually holds. Preserve the original girl's exact face and identity: downward profile, nose, eyes, lips, hairline, braids, expression, age, proportions and camera angle. Preserve the exact original hands, arms, uniform, lanyard, backpack strap, and the actual small soil pot in her hand. Remove every other person, adult, table, background and room. Do NOT recreate or beautify her face. Do not make a new stock-photo child. This is an extraction of the original photographic subject, not a fictional portrait. Convert the retained photographic pixels to grayscale, preserving natural camera texture and detail. Add a THIN warm cream cut-paper contour closely following her silhouette. Behind this cutout put one small restrained torn-paper patch in deep purple #4d3f7f, and only one small mustard #edc119 torn-paper corner. Keep decoration subordinate to her real face. No text, no added logos, no symbols, no extra objects, no plant or sprout, no laptop or screen, no changed pose. Do not invent clothing or body parts outside the original frame: a gently torn lower crop is acceptable. Square 1:1 canvas; the whole cutout and all paper edges must fit within a generous transparent safe margin of at least 7% on every side. Keep her head and hands fully visible, with the face comfortably large. Background outside the paper and subject must have TRUE ALPHA TRANSPARENCY, with no color fill, gradient, texture, simulated checkerboard or shadow. Maintain the existing participant's photographic likeness above all else.
+
+## Submit your work
+
+- Target: `public/images/summit/gallery-p2176245.jpg`
+- Selected subject: central younger boy, white kurta, orange scarf and red backpack, looking down at his hands over the counter.
+- Output: `public/images/participation/submit-work-real.png`
+- Generated source: `/Users/rudhraksh/.codex/generated_images/01a0ed49-0108-77e1-aed1-382c357dbc92/exec-384efbc7-d939-421b-9e94-501392ff2f64.png`
+- Prompt:
+
+Use case: background-extraction with restrained editorial paper treatment. Asset type: square transparent PNG collage cutout for a Youth Eco Summit participation card. EDIT TARGET: the supplied genuine event photograph. Select ONLY the central younger schoolboy wearing the WHITE KURTA, ORANGE SCARF and RED BACKPACK, who is looking DOWN at his hands over the paper on the counter. He is the front-centre boy, immediately right of the boy wearing glasses and immediately left of the striped-shirt child; NOT the older tall boy at far right. Preserve this exact actual boy's face and identity: original downward-looking eyes, cheeks, nose, lips, ears, haircut, expression, age, proportions and camera angle. Preserve his exact actual hands in their original positions, the small craft object he is holding, the scarf and backpack straps, and a narrow sliver of the real paper and counter immediately beneath his hands. Remove all other people, room, signs and surrounding clutter. Do NOT create a new face or beautify him. Do NOT invent a laptop, phone, tablet, screen, extra pencil, trophy or new action. This must be an extraction of the photographed participant, not a fictional stock-photo model. Convert the retained photographic subject to grayscale while preserving natural camera texture and small real details. Add a THIN warm cream cut-paper contour around this subject. Behind him place a restrained small deep-purple #4d3f7f torn-paper patch, and only one small mustard #edc119 torn-paper corner. Keep paper subordinate to the actual face and hands. No added text, logos, symbols, extra people, or additional objects. Do not extend hidden anatomy outside the original frame; a slightly torn lower crop at the counter is acceptable. Square 1:1 canvas, with the full subject and every paper edge inside a generous transparent safe margin of at least 7% on every side. Actual alpha transparency outside subject and paper, no backdrop color or texture, no gradient, no checkerboard, no shadow. Preserve the original face and action above all else.
+
+## Inspection notes
+
+Both outputs are grayscale editorial cutouts with cream edges, purple paper and a mustard corner, using the selected actual event photo subjects. They have real alpha transparency and no added UI/text. The boy retains the photographed downward gaze, scarf, backpack, small marker-like object and paper/counter crop. The girl retains her downward profile, braids, uniform and soil container; the generation brings both hands closer around the container than the source photograph. These remain generated edits rather than pixel-identical background removals. The requested 7% margin is not exact in the boy output; all edges are visible, but top/bottom spacing is tighter and can be accommodated by sizing within the card.

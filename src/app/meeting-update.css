@@ -1,0 +1,124 @@
+/* September review: compact audience paths and a date-only countdown. */
+.hero-editorial{padding-top:42px;padding-bottom:34px}
+.hero-editorial h1{font-size:clamp(58px,5.8vw,86px);margin-bottom:18px}
+.hero-editorial .section-label{font-size:0.875rem;letter-spacing:1px;line-height:1.7;margin-bottom:18px!important}
+.hero-description{margin-bottom:18px}
+.hero-theme{font-size:1rem;font-weight:700;line-height:1.5!important;max-width:360px;margin:0 0 24px}
+.hero-theme>span{display:block;font-size:0.875rem;letter-spacing:1.5px;color:var(--purple);margin-bottom:5px}
+.summit-countdown{display:flex;gap:20px;align-items:center;margin-top:22px;color:var(--purple)}
+.countdown-number{display:flex;align-items:center;gap:9px;padding-right:20px;border-right:1px solid #4d3f7f30;min-width:130px}
+.countdown-number strong{font-size:34px;line-height:1.1;letter-spacing:-1.8px;font-variant-numeric:tabular-nums}
+.countdown-number>span{font-size:0.875rem;max-width:36px;line-height:1.4}
+.countdown-number .countdown-status{font-size:20px;letter-spacing:-.5px}
+.summit-countdown>div:last-child>span{font-size:0.875rem;display:block;margin-bottom:3px}
+.summit-countdown time{font-size:0.9375rem;font-weight:700}
+.hero-school-link{margin-top:18px}
+.get-involved-section{padding:64px 0;background:#eae4f1;scroll-margin-top:110px;color:var(--campaign-ink)}
+.get-involved-heading{display:flex;align-items:end;justify-content:space-between;gap:24px;margin-bottom:28px}
+.get-involved-heading h1,.get-involved-heading h2{font-size:clamp(36px,4vw,56px);line-height:1.05;letter-spacing:-2px;margin:0}
+.get-involved-heading .section-label{margin-bottom:14px!important}
+.get-involved-heading>p{font-size:1rem;margin:0}
+.audience-options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}
+.audience-option{background:var(--cream);border-radius:4px;min-width:0;overflow:hidden}
+.audience-photo{height:155px;position:relative;overflow:hidden}
+.audience-photo img{object-fit:cover;transition:transform .3s ease}
+.audience-option:hover .audience-photo img{transform:scale(1.02)}
+.audience-photo>span{position:absolute;bottom:12px;left:20px;background:var(--yellow);border-radius:50%;width:32px;height:32px;display:grid;place-items:center;font-size:0.875rem;font-weight:800}
+.audience-option-copy{padding:22px}
+.audience-option h3{font-size:22px;letter-spacing:-.6px;line-height:1.15;margin:0 0 13px}
+.audience-option-copy>p{font-size:1rem;line-height:1.7;margin:0 0 14px;min-height:42px}
+.audience-option .text-link{color:var(--purple);display:flex;justify-content:space-between;gap:10px;white-space:normal}
+.audience-secondary{display:block;font-size:0.9375rem;color:#5c506b!important;text-underline-offset:4px;line-height:1.5;padding-top:8px}
+.audience-note{font-size:0.875rem;color:#665b72;line-height:1.6;margin:20px 0 0}
+.get-involved-page{min-height:70vh;padding-block:85px}
+.get-involved-page .audience-photo{height:210px}
+.yes-button:hover>span,.text-link:hover>span{transform:translateX(3px)}
+@media(max-width:1000px){.audience-options{gap:14px}.audience-option-copy{padding:18px}.audience-option h3{font-size:19px}.get-involved-heading>p{max-width:180px}}
+@media(max-width:760px){
+  .campaign-home .section-space{padding-block:52px}
+  .campaign-home h2{font-size:36px;letter-spacing:-1.7px;margin-bottom:18px}
+  .campaign-home .section-row{gap:15px;margin-bottom:26px}
+  .campaign-home .section-row p{margin-top:0}
+  .hero-editorial{padding-top:30px;padding-bottom:8px}
+  .hero-editorial h1{font-size:61px;letter-spacing:-3.5px}
+  .hero-theme{font-size:1rem;margin-bottom:18px}
+  .hero-description{font-size:1rem;line-height:1.65!important}
+  .hero-actions{gap:12px 20px}
+  .hero-actions .text-link{font-size:1rem}
+  .hero-composition{height:320px;min-height:320px;margin-top:8px}
+  .hero-caption{display:none}
+  .hero-manifesto{padding-block:17px}
+  .hero-manifesto span{font-size:20px}
+  .summit-countdown{margin-top:18px;gap:16px}
+  .hero-school-link{margin-top:12px;font-size:0.9375rem}
+  .get-involved-section{padding-block:42px}
+  .get-involved-heading{display:block;margin-bottom:24px}
+  .get-involved-heading>p{max-width:none;margin-top:12px}
+  .audience-options{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;gap:14px;padding-bottom:14px;scrollbar-width:thin;scrollbar-color:#9785b0 transparent}
+  .audience-option{flex:0 0 84%;scroll-snap-align:start}
+  .audience-photo,.get-involved-page .audience-photo{height:150px}
+  .audience-option h3{font-size:23px}
+  .audience-option-copy>p{min-height:0}
+  .audience-secondary{min-height:36px;display:flex;align-items:center}
+  .audience-note{margin-top:10px}
+  .home-about{gap:24px}
+  .learning-grid.learning-grid-visual{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;gap:14px;min-width:0;padding-bottom:14px}
+  .learning-grid-visual article{flex:0 0 74%;scroll-snap-align:start;min-width:0}
+  .learning-grid-visual .learning-photo{aspect-ratio:1.5}
+  .campaign-home .format-grid{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;gap:14px;padding-bottom:14px}
+  .campaign-home .format-card{flex:0 0 78%;height:330px;scroll-snap-align:start;min-width:0}
+  .home-faq{padding-block:45px;gap:22px}
+  .home-final{padding-block:45px}
+  .home-final h2{font-size:54px;letter-spacing:-3px}
+  .home-final .final-bottom{gap:20px}
+  .yes-footer{padding-top:40px}
+  .footer-top{gap:28px;padding-bottom:32px}
+}
+@media(prefers-reduced-motion:reduce){.audience-photo img{transition:none}.audience-option:hover .audience-photo img{transform:none}}
+/* Shared native carousels keep controls available on small screens. */
+.audience-options,.learning-grid.home-learning-carousel{display:block;min-width:0;overflow:visible;padding:0}
+.audience-options .summit-carousel-controls,.home-learning-carousel .summit-carousel-controls,.home-format-carousel .summit-carousel-controls{display:none}
+.audience-options .summit-carousel-viewport{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;overflow:visible;padding:0;cursor:default}
+.home-learning-carousel .summit-carousel-viewport{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;overflow:visible;cursor:default;padding:0}
+.home-format-carousel .summit-carousel-viewport{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:15px;overflow:visible;cursor:default;padding:0}
+@media(max-width:760px){
+ .audience-options .summit-carousel-controls,.home-learning-carousel .summit-carousel-controls,.home-format-carousel .summit-carousel-controls{display:flex}
+ .audience-options .summit-carousel-viewport,.home-learning-carousel .summit-carousel-viewport,.home-format-carousel .summit-carousel-viewport{display:flex;overflow-x:auto;overflow-y:hidden;gap:14px;padding-bottom:14px;cursor:grab}
+ .audience-options .audience-option{flex-basis:88%}
+ .home-learning-carousel .summit-carousel-viewport>article{flex-basis:82%;min-width:0}
+ .home-format-carousel .summit-carousel-viewport>.format-card{flex-basis:82%;height:330px;min-width:0}
+}
+.format-film{background:#34284e}
+.film-type-art{position:absolute;left:24px;top:136px;font-size:50px;font-weight:800;letter-spacing:-2px;line-height:.92;color:#e7ddf4;rotate:-4deg}
+.format-film:after{display:none}
+@media(min-width:761px) and (max-width:1000px){.home-format-carousel .summit-carousel-viewport{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:360px){.yes-logo>span{display:none}.yes-header-inner{gap:14px}.yes-header-actions{gap:12px}.yes-button.compact{padding-inline:13px;gap:14px}}
+
+/* Keep the review updates on the same readable type scale as the rest of the site. */
+.hero-editorial .section-label{font-size:.875rem;letter-spacing:.06em;line-height:1.6}
+.hero-description{font-size:1.0625rem;line-height:1.7!important}
+.hero-theme{font-size:1.0625rem;line-height:1.55!important}
+.hero-theme>span{font-size:.875rem;letter-spacing:.06em}
+.hero-actions .text-link{font-size:1rem}
+.hero-school-link{font-size:.9375rem}
+.summit-countdown{gap:18px;flex-wrap:wrap}
+.countdown-number>span{font-size:.875rem;max-width:55px;line-height:1.4}
+.summit-countdown>div:last-child>span{font-size:.875rem;line-height:1.5}
+.summit-countdown time{font-size:1rem}
+.audience-option-copy>p{font-size:1rem;line-height:1.65;min-height:0}
+.audience-secondary{font-size:.9375rem;line-height:1.5;min-height:44px;display:flex;align-items:center}
+.audience-note{font-size:.875rem;line-height:1.65}
+.get-involved-heading>p{font-size:1.0625rem}
+.home-learning-carousel .learning-grid-visual p{font-size:1rem}
+.home-format-carousel .summit-carousel-viewport>.format-card{min-height:410px;height:auto}
+@media(max-width:760px){
+ .hero-description,.hero-theme{font-size:1rem}
+ .hero-actions .text-link{font-size:1rem}
+ .hero-school-link{font-size:.9375rem}
+ .summit-countdown{gap:12px}
+ .countdown-number{padding-right:12px;min-width:0}
+ .countdown-number strong{font-size:30px}
+ .audience-option-copy{padding:22px}
+ .home-format-carousel .summit-carousel-viewport>.format-card{min-height:390px;height:auto}
+}
+@media(max-width:360px){.yes-header-inner{gap:10px}.yes-button.compact{padding-inline:11px;gap:10px}}

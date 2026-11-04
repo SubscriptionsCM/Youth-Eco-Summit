@@ -1,0 +1,3 @@
+.local-preview-notice{display:flex;justify-content:center;align-items:center;gap:12px;padding:9px 24px;background:#eee8f5;color:#4d3f7f;font-size:0.875rem;line-height:1.5;text-align:center;border-bottom:1px solid #d8d0e3}
+.local-preview-notice strong{font-weight:800;white-space:nowrap}
+@media(max-width:600px){.local-preview-notice{display:block;font-size:0.875rem;padding:8px 20px}.local-preview-notice strong{display:block}}

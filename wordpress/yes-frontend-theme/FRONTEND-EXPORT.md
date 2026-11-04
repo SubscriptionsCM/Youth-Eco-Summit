@@ -1,0 +1,1 @@
+The generated frontend is retained once in the package at wordpress-reference/themes/yes-frontend-theme/frontend. This is the captured 9 October export. Custom theme source here is the current local copy; compare with production and preserve later server patches before rebuilding. A source folder without a frontend export is not an independently installable WordPress theme ZIP.

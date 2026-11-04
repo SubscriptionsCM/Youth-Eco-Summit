@@ -1,0 +1,20 @@
+.yes-challenge-status{padding:18px 22px;background:#eee9f4;border-left:4px solid #50417e;border-radius:6px;font-size:18px;line-height:1.6;margin:0 0 28px;color:#292439}
+.competition-programme-card{display:flex;flex-direction:column;scroll-margin-top:115px}
+.competition-programme-photo img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.competition-programme-copy{flex:1;display:flex;flex-direction:column}
+.competition-programme-copy .competition-programme-description{font-size:18px}
+.yes-challenge-eligibility{font-size:18px;line-height:1.6;font-weight:650;margin:16px 0}
+.yes-challenge-start{display:flex;justify-content:center;align-items:center;min-height:50px;padding:12px 20px;background:#50417e;border:1px solid #50417e;border-radius:6px;color:white;text-decoration:none;font-size:18px;font-weight:700;transition:background .15s ease}
+.yes-challenge-start:hover{background:#3f3266}.yes-challenge-start:focus-visible,.yes-challenge-rules>summary:focus-visible{outline:3px solid #7b6b9f;outline-offset:3px}
+.yes-challenge-rules{margin-top:18px;border-top:1px solid #50417e40;padding-top:12px;font-size:18px;line-height:1.65}
+.yes-challenge-rules>summary{cursor:pointer;min-height:44px;font-weight:650;padding:8px 0}
+.yes-challenge-rules h4{font-size:20px;line-height:1.4;margin:22px 0 10px}
+.yes-challenge-rules p,.yes-challenge-rules li{font-size:18px;line-height:1.7;margin-top:12px}.yes-challenge-rules ul{padding-left:22px}
+.yes-challenge-rules a{color:#50417e;text-decoration:underline;overflow-wrap:anywhere}
+.yes-challenge-art{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:#edc119;color:#50417e}
+.yes-challenge-art b{font-size:76px;font-family:Georgia,serif;line-height:1.2}
+.yes-challenge-art>span{font-size:18px}.yes-challenge-art--blog-writing{background:#d9cfea}.yes-challenge-art--short-film-making{background:#50417e;color:#faf8f0}
+[data-yes-enter]{opacity:0;transform:translateY(8px);transition:opacity .28s ease,transform .28s ease}[data-yes-enter].is-visible{opacity:1;transform:none}
+@media(prefers-reduced-motion:reduce){[data-yes-enter]{opacity:1;transform:none;transition:none}.yes-challenge-start{transition:none}}
+
+.competition-programme-copy>a.yes-challenge-start{color:#fff!important;display:flex;font-size:18px;line-height:1.4;margin-top:auto;text-decoration:none}

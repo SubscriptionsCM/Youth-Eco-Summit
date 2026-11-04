@@ -1,0 +1,12 @@
+CREATE INDEX student_participation_student ON student_participations(student_id,edition_id);
+CREATE INDEX school_contact_access ON school_contacts(user_id,school_id);
+CREATE INDEX member_participation ON submission_members(participation_id);
+CREATE INDEX asset_owner ON assets(uploader_id,submission_id);
+CREATE INDEX consent_lookup ON consents(student_id,edition_id,purpose,created_at DESC);
+CREATE INDEX review_assignment ON reviews(assignment_id,revision,status);
+CREATE INDEX revision_entry ON submission_revisions(submission_id,version DESC);
+CREATE INDEX school_directory_prefix ON schools(lower(name) text_pattern_ops,lower(city) text_pattern_ops) WHERE trashed_at IS NULL AND status='active';
+CREATE INDEX student_name_prefix ON students(lower(name) text_pattern_ops) WHERE trashed_at IS NULL;
+CREATE UNIQUE INDEX school_exact_identity ON schools(lower(btrim(name)),lower(btrim(address)),lower(btrim(city)),lower(btrim(state)),lower(btrim(postal_code))) WHERE trashed_at IS NULL;
+CREATE INDEX historical_file_asset ON historical_file_refs(asset_id) WHERE asset_id IS NOT NULL;
+CREATE TABLE team_invitations(id uuid PRIMARY KEY,token_hash text UNIQUE NOT NULL,submission_id uuid NOT NULL REFERENCES submissions(id),contact text NOT NULL,issued_by uuid NOT NULL REFERENCES users(id),expires_at timestamptz NOT NULL,accepted_participation_id uuid REFERENCES student_participations(id),created_at timestamptz NOT NULL DEFAULT now());

@@ -1,0 +1,67 @@
+'use client';
+
+import Link from 'next/link';
+import { CampaignMotion } from './campaign-motion';
+import { ParticipationArt } from './participation-art';
+import { CompetitionProgramme, CompetitionGuidelineDetails, GuidelinesDownload, GuidelinesEssentials } from './competition-programme';
+import { competitionGuidelines2027 } from '../data/guidelines-2027';
+import { competitionProgramme2027 } from '../data/competition-programme';
+import { contentFor, date, type PublicConfig, type Row } from './api';
+import { Empty, PageTitle, ResourceState, useResource } from './shared';
+import { AboutPage, EditorialClosing, FAQPage, ParticipationPage } from './editorial-pages';
+import { catalogueCompetitions, competitionAvailability, competitionExcerpt, competitionPath, findProgrammeCompetition, findPublicCompetition } from './competition-public';
+import '../app/editorial.css';
+
+const arrow = <span aria-hidden="true">→</span>;
+// Kept for existing imports; the campaign homepage is mounted by the root route.
+export function HomePage() {
+  return <div className="editorial-page"><section className="editorial-container editorial-simple-hero"><p className="editorial-eyebrow">Youth Eco Summit 2027</p><h1>Your ideas.<br />Bigger stage.</h1><p className="editorial-lead">A national platform where students turn environmental ideas into stories, projects, conversations and action.</p><Link className="yes-button" href="/register">Take part {arrow}</Link></section></div>;
+}
+
+function CompetitionList({ config }: { config: PublicConfig | null }) {
+  const editions = config?.editions || [];
+  const competitions = catalogueCompetitions(config?.competitions || [], editions);
+  const displayedIds = new Set(competitionProgramme2027.map(item => findProgrammeCompetition(competitions, editions, item.slug)?.id));
+  const additional = competitions.filter(item => !displayedIds.has(item.id));
+  return <><CompetitionProgramme competitions={competitions} editions={editions} />{additional.length > 0 && <div className="catalogue-grid">{additional.map((competition,index) => {
+    const availability = competitionAvailability(competition, config?.editions || []);
+    const edition = config?.editions.find(item => item.id === (competition.edition_id || competition.editionId));
+    const excerpt = competitionExcerpt(competition);
+    return <article key={competition.id} className="catalogue-card catalogue-card-visual"><div className={`catalogue-card-art catalogue-card-art--${index%3}`}><ParticipationArt name={index%2===0?'choose-challenge':'submit-work'} /><span aria-hidden="true">{String(index+1).padStart(2,'0')}</span></div><div className="catalogue-card-copy"><span className="catalogue-card-number">{edition?.label || `CHALLENGE ${String(index+1).padStart(2,'0')}`} · {availability.label}</span><h3><Link href={competitionPath(competition)}>{competition.title}</Link></h3>{excerpt && <p>{excerpt}</p>}<p className="catalogue-card-date">Closes: {date(competition.closesAt || competition.closes_at)}</p><Link className="text-link" href={competitionPath(competition)}>Guidelines & eligibility {arrow}</Link></div></article>;
+  })}</div>}</>;
+}
+function CompetitionsContent({ id }: { id?: string }) {
+  const config = useResource<PublicConfig>('/api/public/config');
+  const competition = id && config.data ? findPublicCompetition(config.data.competitions, id) : undefined;
+  const availability = competition ? competitionAvailability(competition, config.data?.editions || []) : null;
+  const competitionEdition = competition && config.data?.editions.find(item => item.id === (competition.edition_id || competition.editionId));
+  const sourceGuideline = competition && /\b2027\b/.test(String(competitionEdition?.label || '')) ? competitionGuidelines2027.find(item => item.slug === competition.slug) : undefined;
+  if (!id) return <div className="catalogue-page catalogue-visual-page">
+    <section className="catalogue-collage-hero"><div className="editorial-container catalogue-collage-grid"><div className="catalogue-collage-copy" data-reveal><p className="editorial-eyebrow">Youth Eco Summit · The competitions</p><h1>Find your<br /><em>way in.</em></h1><p className="editorial-lead">Writing. Art. Film. Performance. Innovation.<br />Explore the 2027 topics for your class.</p><a className="yes-button" href="#challenges">Pick your challenge {arrow}</a><p className="catalogue-hero-footnote">Your perspective. Your medium. Your work.</p></div><div className="catalogue-collage-art" data-layer-scene><span className="catalogue-collage-word" data-layer="-10" aria-hidden="true">CREATE</span><ParticipationArt name="choose-challenge" priority /><span className="participation-paper-label">Make your idea count.</span></div></div></section>
+    <section className="catalogue-expression editorial-container"><div className="catalogue-expression-heading" data-reveal><p className="editorial-eyebrow">There is more than one way</p><h2>Make it your own.</h2><p>Start with something you care about. Find a way to show what you think.</p></div><div className="catalogue-expression-grid">
+      <article className="catalogue-expression-panel expression-write" data-reveal><div className="catalogue-expression-title"><span>Words & ideas</span><h3>Write it.</h3></div><ParticipationArt name="register" /><span className="expression-caption">A new perspective starts with you.</span></article>
+      <article className="catalogue-expression-panel expression-make" data-reveal><div className="catalogue-expression-title"><span>Art & imagination</span><h3>Make it.</h3></div><ParticipationArt name="choose-challenge" /><span className="expression-caption">Give an environmental idea a form.</span></article>
+      <article className="catalogue-expression-panel expression-share" data-reveal><div className="catalogue-expression-title"><span>Film, voices & stories</span><h3>Share it.</h3></div><ParticipationArt name="explore-summit" /><span className="expression-caption">Let other people see what you see.</span></article>
+    </div><p className="catalogue-format-note">These are ways to express an idea. Explore the competition formats below.</p></section>
+    <section className="editorial-container catalogue-body" id="challenges" aria-labelledby="competition-programme-title"><div className="catalogue-section-heading" data-reveal><div><p className="editorial-eyebrow">2027 competition lineup</p><h2 id="competition-programme-title">Pick your challenge.</h2></div><div><p>Ten competition formats. This year’s summit theme is <strong>Waste Segregation: The Need of the Hour.</strong></p><p className="competition-programme-note">Topics and submission requirements are now available in the team’s 2027 guidelines. Waste to Art includes the four class bands: 5–6, 7–8, 9–10 and 11–12.</p></div></div><ResourceState {...config} retry={config.reload} /><GuidelinesEssentials /><CompetitionList config={config.error ? null : config.data} /></section>
+    <section className="catalogue-recognition"><div className="editorial-container catalogue-recognition-grid"><div className="catalogue-recognition-photo" data-enter-media><img src="/images/summit/gallery-dsc05186.jpg" width="1024" height="683" alt="Students receiving awards together on the Youth Eco Summit stage" loading="lazy" /><span>Recognition at a previous summit</span></div><div className="catalogue-recognition-copy" data-reveal><p className="editorial-eyebrow">Youth Eco Summit Awards</p><div className="catalogue-award-number">15<span>awards</span></div><h2>Good work<br />deserves notice.</h2><p>Ideas. Effort. Originality. Explore the published guidelines for each competition’s eligibility and recognition details.</p><Link className="text-link" href="/awards">Explore awards & recognition {arrow}</Link></div></div></section>
+    <section className="catalogue-ready"><div className="editorial-container"><div data-reveal><p className="editorial-eyebrow">Your next step</p><h2>Ready when you are.</h2><p>Find your school. Register. Choose your challenge.</p></div><Link className="yes-button yellow" href="/how-to-participate">Your participation guide {arrow}</Link></div></section>
+  </div>;
+  return <div className="catalogue-page"><section className="catalogue-detail-heading"><div className="editorial-container"><Link href="/competitions">← All competitions</Link><h1>{sourceGuideline?.title || competition?.title || 'Competition details'}</h1>{competition?.summary && <p className="editorial-lead">{competition.summary}</p>}<div className="catalogue-status"><ResourceState {...config} retry={config.reload} /></div></div></section>{competition ? <div className="editorial-container catalogue-detail-body"><div><h2>Guidelines</h2>{sourceGuideline && <><CompetitionGuidelineDetails guideline={sourceGuideline} /><GuidelinesDownload /></>}<div className="prose">{competition.guidelines || competition.description || 'Guidelines are not yet available.'}</div><h2>Eligible categories</h2>{competition.config?.categories?.length ? <div>{competition.config.categories.map((category:Row)=><p key={category.id}><strong>{category.label}</strong>{category.classes?.length ? ` · Classes ${category.classes.join(', ')}` : ''}</p>)}</div> : <p>Eligible categories have not been published.</p>}<h2>Submission requirements</h2><p>Allowed files: {competition.config?.files?.types?.join(', ') || 'No file types published'}.</p>{competition.config?.files && <p>Files per entry: {competition.config.files.minCount}–{competition.config.files.maxCount}. Maximum per file: {Math.round(competition.config.files.maxBytes / 1048576)} MB.</p>}</div><aside><ParticipationArt name="choose-challenge" /><p className="editorial-eyebrow">Before you enter</p><dl><dt>Opens</dt><dd>{date(competition.opensAt || competition.opens_at)}</dd><dt>Closes</dt><dd>{date(competition.closesAt || competition.closes_at)}</dd><dt>Mode</dt><dd>{competition.config?.mode || 'Not announced'}</dd></dl><p className="editorial-small-note"><strong>{availability?.label}</strong></p>{availability?.open ? <><Link className="yes-button" href={`/dashboard?${new URLSearchParams({ competitionId: competition.id })}`}>Start or continue an entry {arrow}</Link><p className="editorial-small-note">New here? <Link href={`/register?${new URLSearchParams({ competitionId: competition.id })}`}>Register a student</Link> first. A registered, active school is required.</p></> : <><p className="editorial-small-note">{availability?.label === 'Opening soon' ? 'Entry creation begins at the opening time shown above.' : 'New entries are not currently being accepted for this competition.'}</p><Link className="text-link" href="/dashboard">View saved entries {arrow}</Link></>}</aside></div> : !config.loading && !config.error && <div className="editorial-container catalogue-detail-unavailable"><Empty>This competition is not available. <Link href="/competitions">Browse published competitions</Link>.</Empty></div>}</div>;
+}
+export function CompetitionsPage({ id }: { id?: string }) {
+  return <CampaignMotion><CompetitionsContent id={id} /></CampaignMotion>;
+}
+const titles: Record<string,string> = { contact:'Contact and support',privacy:'Privacy',terms:'Participation terms' };
+function ApprovedContentPage({ slug }: { slug: string }) {
+  const config = useResource<PublicConfig>('/api/public/config');
+  const content = contentFor(config.data,slug);
+  if(slug==='contact') return <div className="editorial-page"><section className="editorial-container editorial-simple-hero"><p className="editorial-eyebrow">Contact & support</p><h1>Need a hand?</h1><p className="editorial-lead">Questions about registration, competitions, schools or participation?</p></section><section className="editorial-container editorial-support-grid"><Link href="/how-to-participate"><h3>Getting started</h3><p>Follow the participation guide, step by step.</p>{arrow}</Link><Link href="/schools"><h3>Your school</h3><p>Find a registered school or nominate one for review.</p>{arrow}</Link><Link href="/faq"><h3>Quick answers</h3><p>Read answers to common registration and submission questions.</p>{arrow}</Link></section><section className="editorial-container editorial-approved-content"><p className="editorial-eyebrow">Contact the team</p><h2>We’re here to help.</h2><p>Tell us what you need and the Youth Eco Summit team will help you find the right next step.</p><ResourceState {...config} retry={config.reload} />{content?.body ? <div className="prose">{content.body}</div> : !config.loading && !config.error && <Empty>Support contact details have not been published. In the meantime, explore the participation guide and frequently asked questions above.</Empty>}</section><EditorialClosing title="Your next step starts here." text="Explore how you can participate in Youth Eco Summit." href="/how-to-participate" label="Participation guide" /></div>;
+  return <div className="editorial-page"><div className="editorial-container editorial-simple-hero"><PageTitle title={content?.title || titles[slug] || slug} /><ResourceState {...config} retry={config.reload} />{content?.body ? <div className="prose">{content.body}</div> : !config.loading && !config.error && <Empty>Approved information has not been published yet.</Empty>}</div></div>;
+}
+export function ContentPage({ slug }: { slug: string }) {
+  if(slug==='about') return <AboutPage />;
+  if(slug==='how-to-participate') return <ParticipationPage />;
+  if(slug==='faq') return <FAQPage />;
+  return <ApprovedContentPage slug={slug} />;
+}
