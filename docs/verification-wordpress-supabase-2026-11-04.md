@@ -53,6 +53,12 @@ Historical-entry and attachment reads require a matching verified participant, a
 
 Targeted verification observed21 projection tests,15 recovery/identity tests and4 history route tests passing. Earlier staff-auth/recovery regression checks passed26 tests before the final pending-attempt policy adjustment. A later UI worker failed to start; no assertion failure was reported. The desktop homepage rendered with zero broken images. Full responsive, provider and production browser acceptance remains pending.
 
+Final code verification for commit `46935c13b8da6fcf8e803f2b7e11cf931ba783ec`: [GitHub CI run41803939953](https://github.com/SubscriptionsCM/Youth-Eco-Summit/actions/runs/41803939953) passed dependency installation, TypeScript, all32 test files (252 passed,2 skipped) and the production build. The Linux test run took66.17seconds. The local Webpack production build also exited0 and generated the history route. The duplicate local full test run was stopped after CI passed; Windows worker startup was unreliable on a machine with about513MB free RAM.
+
+Vercel deployment `dpl_7SFR6mU7WVofrth4WKWnK14SPjfD` reached Ready at https://youth-eco-summit-cdc50lwj8-rudhraksh-s-projects.vercel.app, with alias https://youth-eco-summit.vercel.app. Vercel assigned this first deployment to the new project's production environment automatically; it remains protected by Vercel Authentication. The WordPress custom domain was not changed. Registration remains disabled and the database/provider credentials are not configured. `SUBSCRIPTION_CONTACT_EMAIL=subscriptions@compactummedia.com` was created for preview and production without overwriting existing values.
+
+Authenticated `vercel curl` smoke checks passed for the deployed homepage (expected title, hero and competition link) and `/api/forms/config` (`enabled:false`, `configured:false`, `emailAccounts:false`). Deployment Protection was retained. These checks do not substitute for real form, database, upload or delivery acceptance.
+
 ## Acceptance gaps
 
 - Supply server credentials privately in ignored `.env.supabase.local`; configure Vercel environments and authorize its GitHub integration.
