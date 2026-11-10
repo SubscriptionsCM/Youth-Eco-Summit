@@ -9,6 +9,7 @@ playwright-report/
 .local/
 .review-build/
 .vercel/
+.hostinger/
 private-exports/
 *.sql.gz
 *.dump
