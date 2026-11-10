@@ -49,7 +49,8 @@
 .summit-carousel-viewport a:focus-visible{outline:3px solid var(--purple);outline-offset:-3px;border-radius:4px}
 .summit-partners-heading{margin-bottom:4px}
 .summit-partner-carousel .summit-carousel-controls{margin-bottom:10px}
-.summit-partner-carousel .summit-carousel-viewport{gap:32px}
+.summit-partner-carousel .summit-carousel-viewport{gap:32px;scrollbar-width:none}
+.summit-partner-carousel .summit-carousel-viewport::-webkit-scrollbar{display:none}
 .summit-partner-carousel .summit-partner-logo{flex-basis:340px;width:340px;height:144px}
 .summit-partner-carousel .summit-partner-logo img{padding:0}
 .summit-expectation-carousel .summit-expectation-card{flex-basis:calc((100% - 40px)/3)}

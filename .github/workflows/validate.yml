@@ -17,7 +17,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
-          node-version: '24'
+          node-version: '22'
           cache: npm
       - run: npm ci --no-audit --no-fund
       - run: npm run typecheck
@@ -25,3 +25,27 @@ jobs:
       - run: npm run build
         env:
           NEXT_TELEMETRY_DISABLED: '1'
+      - name: Package Hostinger standalone release
+        if: github.event_name == 'push'
+        env:
+          RELEASE_COMMIT: ${{ github.sha }}
+        run: |
+          cp -a public .next/standalone/public
+          mkdir -p .next/standalone/.next/static
+          cp -a .next/static/. .next/standalone/.next/static/
+          printf '%s\n' "$RELEASE_COMMIT" > .next/standalone/REVISION
+          if find .next/standalone -type f -name '.env*' -print -quit | grep -q .; then
+            echo 'Unexpected environment file in standalone release'
+            exit 1
+          fi
+          tar -czf hostinger-standalone.tar.gz -C .next/standalone .
+          sha256sum hostinger-standalone.tar.gz > hostinger-standalone.sha256
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: github.event_name == 'push'
+        with:
+          name: hostinger-standalone
+          path: |
+            hostinger-standalone.tar.gz
+            hostinger-standalone.sha256
+          if-no-files-found: error
+          retention-days: 1
