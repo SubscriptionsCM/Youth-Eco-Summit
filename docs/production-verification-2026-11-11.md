@@ -27,7 +27,7 @@ All 29 audited public routes returned HTTP 200 on both source and destination. T
 
 ## Remaining acceptance
 
-- Independent existing-password login and password-recovery acceptance. Human signup, emailed-code verification and dashboard access passed after the correction below. Browser automation timed out while attaching or evaluating pages, so current visual and mobile acceptance remain unverified.
+- Post-reset login acceptance. Human signup, emailed-code verification, initial dashboard access and the password-reset change passed after the corrections below. Browser automation timed out while attaching or evaluating pages, so current visual and mobile acceptance remain unverified.
 - Real student/educator submissions, all ten competition workflows, a film at the source allowance, final receipts and notifications. Test delivery to the additional native team addresses still needs authorization; the legacy student administrator destination needs an owner decision.
 - Staff owner/admin/judge invitation and MFA acceptance using approved operator accounts.
 - Approved legal text remains unavailable from the source's public configuration. Existing source content was preserved; no replacement policy was invented.
@@ -54,3 +54,5 @@ Source inspection found Ultimate Member's strong-password rules (8–30 characte
 The final independent review found no Important or Critical issues after cache/replay and alias-resolution regressions were corrected. Full CI passed 452 tests, two existing skips, type checking, production build and packaging. Hostinger activation verified the new page and a real invalid-key rejection; rollback and the prior release are retained.
 
 At `2026-11-11T07:22:48Z`, one request through the production API generated a native reset key, advanced the source request counter to one and returned a successful mail confirmation for the authorized subscriptions mailbox. The agent did not change the password. Browser controls again failed to attach, so clickable email, visual reset-form acceptance, human password change and subsequent successful login are pending the user's confirmation.
+
+The user subsequently confirmed that resetting the password worked. A read-only database check verified that the account remains an active participant with no local password, its previous session is revoked, and the account authentication version has advanced beyond that session. No current sign-in session was present at that check, so login with the new password and return to the dashboard remain pending.
