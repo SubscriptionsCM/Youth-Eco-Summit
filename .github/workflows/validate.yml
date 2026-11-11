@@ -34,11 +34,21 @@ jobs:
           mkdir -p .next/standalone/.next/static
           cp -a .next/static/. .next/standalone/.next/static/
           printf '%s\n' "$RELEASE_COMMIT" > .next/standalone/REVISION
-          node --input-type=module -e "import { build } from 'esbuild'; await build({ entryPoints: ['scripts/worker.ts'], bundle: true, platform: 'node', format: 'esm', packages: 'external', outfile: '.next/standalone/worker.mjs' });"
+          node scripts/package-hostinger-worker.mjs
           mkdir -p .next/standalone/wordpress-bridge
           cp wordpress/yes-next-account-bridge/{bridge,notifications,delivery}.php .next/standalone/wordpress-bridge/
           if find .next/standalone -type f -name '.env*' -print -quit | grep -q .; then
             echo 'Unexpected environment file in standalone release'
+            exit 1
+          fi
+          smoke=$(mktemp -d)
+          cp -a .next/standalone/. "$smoke/"
+          if output=$(cd "$smoke" && env -u DATABASE_URL node --v8-pool-size=1 worker.mjs 2>&1); then
+            echo 'Worker unexpectedly started without database configuration'
+            exit 1
+          fi
+          if ! printf '%s' "$output" | grep -q 'DATABASE_URL is required.'; then
+            printf '%s\n' "$output"
             exit 1
           fi
           tar -czf hostinger-standalone.tar.gz -C .next/standalone .
