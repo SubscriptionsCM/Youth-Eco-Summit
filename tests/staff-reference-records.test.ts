@@ -52,6 +52,16 @@ describe('staff access to retained reference forms',()=>{
    await expect(historicalEntry(fixture.db,owner,historyId)).rejects.toMatchObject({status:401});
   }finally{await fixture.db.query('UPDATE users SET active=true WHERE id=$1',[owner.id]);}
  });
+ it('shows only known scalar name and address parts from archived entries without rewriting source records',async()=>{
+  await archiveWordPress(fixture.db,{format:'yes-wordpress-export/v1',source:'https://structured-source.example',capturedAt:'2026-11-11T00:00:00Z',counts:{records:1,attachments:0},records:[{kind:'entry',sourceId:'structured',payload:{form_id:12146,meta:[{meta_key:'name-3',meta_value:{'last-name':'Singh','first-name':'<b>Asha</b>',secret:'PRIVATE_SECRET','middle-name':{secret:'PRIVATE_NESTED'}}}]}}],attachments:[]},{commit:true});
+  const original=(await fixture.db.query("SELECT * FROM wordpress_records WHERE source_id='structured'")).rows[0];
+  const detail=await historicalEntry(fixture.db,owner,original.id);
+  expect(detail.fields).toContainEqual({id:'name-3',type:'name',label:'Name',value:{'first-name':'Asha','last-name':'Singh'}});expect(JSON.stringify(detail)).not.toContain('PRIVATE_');
+  expect((await fixture.db.query('SELECT checksum,payload FROM wordpress_records WHERE id=$1',[original.id])).rows[0]).toEqual({checksum:original.checksum,payload:original.payload});
+  await archiveWordPress(fixture.db,{format:'yes-wordpress-export/v1',source:'https://structured-source.example',capturedAt:'2026-11-11T00:00:00Z',counts:{records:1,attachments:0},records:[{kind:'entry',sourceId:'address',payload:{form_id:9188,meta:[{meta_key:'address-1',meta_value:{street_address:'10 QA Road',city:'Delhi',zip:'110001',secret:'PRIVATE_SECRET',country:{private:'PRIVATE_NESTED'}}}]}}],attachments:[]},{commit:true});
+  const address=(await fixture.db.query("SELECT id FROM wordpress_records WHERE source_id='address'")).rows[0];const addressDetail=await historicalEntry(fixture.db,owner,address.id);
+  expect(addressDetail.fields).toContainEqual({id:'address-1',type:'address',label:'Address',value:{street_address:'10 QA Road',city:'Delhi',zip:'110001'}});expect(JSON.stringify(addressDetail)).not.toContain('PRIVATE_');
+ });
  it('fails closed on a damaged archive checksum and never opens an archived user as an entry',async()=>{
   const original=(await fixture.db.query('SELECT checksum FROM wordpress_records WHERE id=$1',[historyId])).rows[0].checksum;
   await fixture.db.query('UPDATE wordpress_records SET checksum=$2 WHERE id=$1',[historyId,'b'.repeat(64)]);

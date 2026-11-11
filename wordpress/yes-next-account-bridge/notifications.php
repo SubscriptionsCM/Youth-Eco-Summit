@@ -149,6 +149,21 @@ function yes_bridge_notification_input($input) {
     return $input;
 }
 
+/** Adapt app address aliases for native formatting without changing the retained answers. */
+function yes_bridge_native_field_value($field, $value) {
+    if (($field['type'] ?? '') !== 'address' || !is_array($value)) { return $value; }
+    foreach (array('city', 'state', 'zip', 'country') as $key) {
+        $alias = 'address_' . $key;
+        if (!array_key_exists($alias, $value)) { continue; }
+        if (array_key_exists($key, $value) && $value[$key] !== $value[$alias]) {
+            throw new RuntimeException('Conflicting native address aliases.');
+        }
+        $value[$key] = $value[$alias];
+        unset($value[$alias]);
+    }
+    return $value;
+}
+
 /** Return native envelopes only. This function never delivers or persists them. */
 function yes_bridge_notification_plan($input) {
     yes_bridge_notification_renderer_guard();
@@ -180,7 +195,7 @@ function yes_bridge_notification_plan($input) {
     foreach ($fields as $field_id => $field) {
         if (in_array($field['type'], array('password', 'captcha', 'recaptcha'), true)) { $hidden[] = $field_id; continue; }
         if ($field['type'] !== 'upload' && array_key_exists($field_id, $input['normalizedAnswers'])) {
-            $entry->meta_data[$field_id] = array('value' => $input['normalizedAnswers'][$field_id]);
+            $entry->meta_data[$field_id] = array('value' => yes_bridge_native_field_value($field, $input['normalizedAnswers'][$field_id]));
             if (in_array($field['type'], array('select', 'radio', 'checkbox'), true)) {
                 $choice_values[$field_id] = $input['normalizedAnswers'][$field_id];
             }

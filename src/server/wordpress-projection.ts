@@ -4,6 +4,7 @@ import type { Db } from './db';
 import { AppError, audit, type Actor } from './core';
 import { fingerprint } from './wordpress-migration';
 import { referenceForms, plainText, isFieldVisible } from '../domain/wordpress-forms';
+import {structuredAnswerKeys} from '../domain/reference-values';
 
 export type SourceRecord = { id:string; source:string; source_id:string; checksum:string; payload:Record<string,unknown> };
 function verify(record:SourceRecord) {
@@ -119,18 +120,27 @@ function entryOwner(record:SourceRecord){
  return values.every(value=>value&&value===values[0])?values[0]:null;
 }
 const allowedTypes=new Set(['text','name','email','phone','textarea','number','select','radio','checkbox','date','time','url','consent','address']);
-function safeValue(raw:unknown):string|number|boolean|string[]|undefined {
+function safeValue(raw:unknown,type?:string):string|number|boolean|string[]|Record<string,string|number|boolean>|undefined {
  if(typeof raw==='string')return plainText(raw).slice(0,20000);
  if(typeof raw==='number'&&Number.isFinite(raw)||typeof raw==='boolean')return raw as number|boolean;
  if(Array.isArray(raw)&&raw.length<=100&&raw.every(value=>typeof value==='string'||typeof value==='number'))return raw.map(value=>plainText(value).slice(0,20000));
+ if(raw&&typeof raw==='object'&&!Array.isArray(raw)&&type&&structuredAnswerKeys[type]){
+  const result:Record<string,string|number|boolean>={};
+  for(const key of structuredAnswerKeys[type]){
+   const value=(raw as Record<string,unknown>)[key];
+   if(typeof value==='string')result[key]=plainText(value).slice(0,1000);
+   else if(typeof value==='number'&&Number.isFinite(value)||typeof value==='boolean')result[key]=value as number|boolean;
+  }
+  return Object.keys(result).length?result:undefined;
+ }
  return undefined;
 }
 function present(record:SourceRecord){
  const form=referenceForms.find(form=>String(form.id)===String(record.payload.form_id));
  const answers:Record<string,unknown>=Object.create(null);
- for(const item of metadata(record)){const value=safeValue(item.meta_value);if(value!==undefined)answers[item.meta_key]=value;}
+ for(const item of metadata(record)){const type=form?.fields.find(field=>field.id===item.meta_key)?.type;const value=safeValue(item.meta_value,type);if(value!==undefined)answers[item.meta_key]=value;}
  const fields=(form?.fields??[]).filter(field=>allowedTypes.has(field.type)&&!field.id.startsWith('_')&&!/password|upload|hidden/i.test(field.id)&&isFieldVisible(field,answers)).flatMap(field=>{
-  const value=safeValue(answers[field.id]);return value===undefined?[]:[{id:field.id,label:plainText(field.field_label||field.id),value}];
+  const value=safeValue(answers[field.id],field.type);return value===undefined?[]:[{id:field.id,type:field.type,label:plainText(field.field_label||field.id),value}];
  });
  const formTitle=form?plainText(form.title):'Historical entry';
  return {id:record.id,sourceId:record.source_id,formKey:form?.key??null,title:formTitle,formTitle,status:text(record.payload.status),createdAt:text(record.payload.date_created),fields};

@@ -1,6 +1,7 @@
 import snapshot from '../data/wordpress-forms.json';
 import { competitionGuidelines2027 } from '../data/guidelines-2027';
 import { participationWindow, participationWindowStatus } from '../data/participation-window';
+import {nameParts} from './reference-values';
 
 export type Answers = Record<string, unknown>;
 export type ReferenceField = Record<string, any> & { id: string; type: string; field_label?: string; conditions?: { element_id: string; rule: string; value: string }[] };
@@ -55,6 +56,19 @@ export function validateReferenceAnswers(form: ReferenceForm, input: Answers, op
   if (controls.has(field.type) || !isFieldVisible(field, input)) continue;
   if (field.type === 'consent' && !final) continue;
   const raw = input[field.id], label = fieldLabel(field,input) || field.id;
+  if(field.type==='name'&&enabled(field.multiple_name)){
+   const parts=nameParts(field),values:Record<string,string>={};
+   if(raw!==undefined&&raw!==null&&(typeof raw!=='object'||Array.isArray(raw))){errors[field.id]='Enter each name part separately.';continue;}
+   for(const part of parts){
+    const value=(raw as Record<string,unknown>|null)?.[part.key];
+    if(value!==undefined&&typeof value!=='string'){errors[field.id]=`Enter a valid ${part.label.toLowerCase()}.`;continue;}
+    const cleaned=String(value??'').trim();
+    if(cleaned.length>1000||(final&&part.required&&!cleaned))errors[field.id]=`${part.label} is required.`;
+    values[part.key]=cleaned;
+   }
+   if(raw!==undefined&&raw!==null)answers[field.id]=values;
+   continue;
+  }
   const missing = raw === undefined || raw === null || (typeof raw==='string'&&raw.trim()==='') || (Array.isArray(raw) && (!raw.length||raw.every(value=>String(value).trim()==='')));
   if (missing) { if (final && (enabled(field.required) || (field.type==='address'&&['street_address','address_city','address_state'].some(part=>enabled(field[`${part}_required`]))))) errors[field.id] = `${label} is required.`; continue; }
   if (field.type === 'consent') {
@@ -76,7 +90,11 @@ export function validateReferenceAnswers(form: ReferenceForm, input: Answers, op
   const value = Array.isArray(raw) ? raw.map(v=>String(v).trim()) : String(raw).trim();
   if ((Array.isArray(value) ? value.join('') : value).length > 20000) { errors[field.id] = 'This answer is too long.'; continue; }
   if (field.type === 'email' && (typeof value !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) || value.length > 254)) errors[field.id] = 'Enter a valid email address.';
-  if (field.type === 'phone' && (typeof value !== 'string' || !/^\+?\d{10,15}$/.test(value.replace(/[\s().-]/g,'')))) errors[field.id] = 'Enter a phone number with 10–15 digits.';
+  if(field.type==='phone'){
+   const mode=field.validation??(enabled(field.phone_validation)?'':'none');
+   const pattern=mode==='international'?/^\+?[\d\s()\-]{10,20}$/:mode==='standard'?/^[\d\s()\-.+]{5,20}$/:null;
+   if(typeof value!=='string'||(mode!=='none'&&((mode==='character_limit'&&new TextEncoder().encode(value).length>Number(field.limit??10))||(pattern&&!pattern.test(value))||/[a-z]|[^\w\-()+. ]|[\-()+.]{2,}/i.test(value))))errors[field.id]=plainText(field.validation_message)||'Enter a valid phone number in the required format.';
+  }
   if (field.type === 'number') {
    const n = Number(value);
    if (!Number.isFinite(n) || (field.limit_min !== undefined && field.limit_min !== '' && n < Number(field.limit_min)) || (field.limit_max !== undefined && field.limit_max !== '' && n > Number(field.limit_max))) errors[field.id] = 'Enter a number within the permitted range.';
