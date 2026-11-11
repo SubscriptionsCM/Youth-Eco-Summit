@@ -1,52 +1,34 @@
 # Live parity verification and remediation plan
 
-## Goal
+## Goal and authorized architecture
 
-Test the Hostinger application against the current WordPress website, correct confirmed discrepancies, and record any workflow that remains unverified or blocked.
+Verify the Hostinger application against the current WordPress site while preserving original data. Use Supabase Free for database metadata and private Hostinger filesystem storage for files. Keep native WordPress account/mail behavior and source notification recipients. Test accounts and artifacts must remain labeled and private.
 
-## Authorized choices
+## Completed
 
-The user selected private Hostinger file storage with metadata in Supabase and authorized test email to `subscriptions@compactummedia.com`. Published WordPress content and current source behavior are authoritative. Existing production records and source files must be preserved.
+- [x] Inspect the existing project and capture source public routes, form definitions, deadline and native account/mail rules.
+- [x] Correct request-time form configuration, provider selection and the 15 November 2026 deadline.
+- [x] Implement private immutable multipart storage, scoped downloads and malware/media verification with a durable worker.
+- [x] Migrate the historical archive and append new observations without replacing original records; retain changed records as immutable versions.
+- [x] Verify participant signup, confirmation, recovery and post-reset sign-in with the authorized test account.
+- [x] Submit all 16 active workflows through production APIs; verify receipts, persistence, notifications and the 120 MiB film allowance.
+- [x] Verify conditional student/educator, two-member and permitted three-member branches without sending additional notifications.
+- [x] Match native split-name controls, ordered structured values, address mail formatting and configured phone modes.
+- [x] Create the approved owner, verify password/MFA and replay protection, and receive user confirmation of authenticator enrollment.
+- [x] Deploy staff submitted-form and archive collections; verify permissions, historic download hashes and QA-school approval/deactivation without modifying real schools.
+- [x] Build and deploy reviewed commit 61df1ce59add154473f2d4daa99a7f41204dc08c; full CI passed 481 tests with two existing skips.
+- [x] Recheck all 29 destination routes and desktop/mobile contact controls after deployment.
+- [x] Complete the latest append-only source reconciliation, final record/version/file checksum sweep, and idempotent retry.
+- [x] Save [the current verification report](../../production-verification-2026-11-11.md).
 
-## Architecture
+## Pending sign-off
 
-The Next.js application continues to use server-mediated Supabase data access. A provider-neutral object-store interface retains the existing S3 implementation and adds private filesystem objects outside the web root. Multipart transfer uses short-lived scoped signatures, bounded streaming and immutable publication. Download handlers retain current record ownership checks. Malware and media verification remain required before files are available.
+- [ ] Complete broader visual/mobile acceptance and resolve or identify the observed homepage horizontal overflow.
+- [ ] Confirm approved legal content if the site is to publish new privacy or participation terms.
+- [ ] Configure and accept any additional staff/judge workflows and explicit judging edition/rule mappings.
+- [ ] Configure automatic Hostinger deployment if required.
+- [ ] Take the final incremental source capture at cutover. Retain WordPress until its account/mail dependencies have an accepted replacement.
 
-WordPress account compatibility needs current source identity verification and source-ID ownership. Existing staff roles confer no new application privileges. Existing provider confirmation and recovery checks must be preserved.
+## Evidence boundary
 
-## Independent tasks
-
-- [x] Capture the current public route inventory on both sites.
-- [x] Check first-party links, static assets, anchors and linked PDFs.
-- [x] Confirm the active WordPress deadline from server-side validation.
-- [x] Correct deadline configuration, UI copy and server validation with boundary regressions.
-- [x] Make runtime-gated form/dashboard pages evaluate the configured mode at request time.
-- [x] Route configured email account sign-in through the existing account component while retaining SMS and staff MFA behavior.
-- [x] Implement and test private filesystem multipart storage, immutable objects, pinned reads and signed transfer claims.
-- [x] Integrate storage with ordinary uploads, reference forms, historical imports and authorized downloads.
-- [ ] Configure real malware/media verification and durable worker execution on Hostinger.
-- [ ] Transfer the historical attachment archive into the new private store and verify hashes, sizes and idempotent readback.
-- [ ] Verify actual account migration, signup, verification, recovery, draft save/resume, final submission, notifications and staff access with authorized test accounts.
-- [ ] Rebuild through GitHub Actions and deploy the verified bundle over SSH.
-- [ ] Repeat public browser/API tests and reconcile test-only records without touching existing records.
-- [ ] Save the final pass/fail/blocked report with evidence and pending requirements.
-
-## Verification boundaries
-
-HTTP 200 and a passing unit suite do not establish completion of a form workflow. Static HTML inventories do not establish the state of a client-rendered form. Tests must exercise the normal public UI/API, persistent records, permissions, worker verification and resulting receipts or messages. Test-only data must be uniquely identifiable. Passwords, credentials, OTPs and private draft capabilities must be excluded from reports and Git.
-
-## Current evidence
-
-The read-only baseline covers 29 routes on each site, 410 first-party linked targets and seven matching PDF pairs. The new educator registration page is blocked by missing legal-content configuration, while WordPress renders its Forminator flow. The active WordPress server enforces the 15 November deadline. The new runtime currently has reference forms disabled and email accounts unconfigured.
-
-## Execution
-
-Use systematic debugging, test-driven changes and fresh verification before deployment. Independent reviewers own nonoverlapping deadline, account-navigation and storage-foundation files. The primary agent integrates API routes, runtime configuration, migration, production tests and the final report.
-
-## Verification checkpoint — 11 November 2026
-
-The full local suite passed 398 tests with two explicitly skipped cases. Subsequent focused checks passed 27 tests, covering the current-source delta builder, terminal file-verification feedback, runtime contact entry and entry catalogue. PHP lint and native WordPress notification rendering passed. These are implementation checks; normal production account creation, message delivery, uploads and staff access still require acceptance after deployment.
-
-The original snapshot has 3,670 records and 425 immutable attachments (1,529,147,267 bytes), all retained with matching size and SHA-256. A read-only current source capture at 2026-11-11T03:47:55Z contains 3,942 records and 579 attachments with zero exporter issues. Incremental reconciliation is pending. Changed existing source identities must be reported and preserved, never silently replaced.
-
-The WordPress account and native mail bridges remain private server-side dependencies. An authorized plain WordPress delivery test reached subscriptions@compactummedia.com; native workflow delivery to other source recipients has not been authorized. Full malware signatures and a clean PDF scan passed on Hostinger. Positive-detection acceptance remains under investigation.
+The final source capture is dated 2026-11-11T12:48:58Z. The archive contains 6,195 originals, 13 immutable changed-record versions and 593 attachments (4,173,605,797 bytes). The final independent sweep passed every checksum and file size; a repeat import inserted zero records. Production acceptance includes 17 labeled submissions spanning 16 form types and 19 native mail acceptances. These are not claims of human inbox receipt for all native recipients or full browser-only/visual acceptance. Detailed exports, sessions, capabilities, credentials and evidence remain Git-ignored.
