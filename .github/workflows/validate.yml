@@ -34,7 +34,7 @@ jobs:
           mkdir -p .next/standalone/.next/static
           cp -a .next/static/. .next/standalone/.next/static/
           printf '%s\n' "$RELEASE_COMMIT" > .next/standalone/REVISION
-          node node_modules/esbuild/bin/esbuild scripts/worker.ts --bundle --platform=node --format=esm --packages=external --outfile=.next/standalone/worker.mjs
+          node --input-type=module -e "import { build } from 'esbuild'; await build({ entryPoints: ['scripts/worker.ts'], bundle: true, platform: 'node', format: 'esm', packages: 'external', outfile: '.next/standalone/worker.mjs' });"
           mkdir -p .next/standalone/wordpress-bridge
           cp wordpress/yes-next-account-bridge/{bridge,notifications,delivery}.php .next/standalone/wordpress-bridge/
           if find .next/standalone -type f -name '.env*' -print -quit | grep -q .; then
