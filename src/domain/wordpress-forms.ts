@@ -33,7 +33,7 @@ export function fieldLabel(field: ReferenceField, answers: Answers): string {
  return solo ? label.replace(/^Student 1\b/, 'Student') : label;
 }
 export function formTitle(form: ReferenceForm) {
- return ({ student: 'Student registration', teacher: 'Educator registration', school: 'School registration', partner: 'Partner enquiry', nomination: 'Nominate your school' } as Record<string,string>)[form.key] || competitionGuidelines2027.find(g=>g.slug===form.key)?.title || form.title;
+ return ({ student: 'Student registration', teacher: 'Educator registration', school: 'School registration', partner: 'Partner enquiry', nomination: 'Nominate your school', 'legacy-12146': 'Contact us' } as Record<string,string>)[form.key] || competitionGuidelines2027.find(g=>g.slug===form.key)?.title || form.title;
 }
 export function formSteps(form: ReferenceForm) {
  const steps: { label: string; fields: ReferenceField[] }[] = [];
