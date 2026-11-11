@@ -27,7 +27,7 @@ All 29 audited public routes returned HTTP 200 on both source and destination. T
 
 ## Remaining acceptance
 
-- Post-reset login acceptance. Human signup, emailed-code verification, initial dashboard access and the password-reset change passed after the corrections below. Browser automation timed out while attaching or evaluating pages, so current visual and mobile acceptance remain unverified.
+- Human signup, emailed-code verification, initial dashboard access, password reset and post-reset login have passed. Browser automation timed out while attaching or evaluating pages, so broader visual and mobile acceptance remain unverified.
 - Real student/educator submissions, all ten competition workflows, a film at the source allowance, final receipts and notifications. Test delivery to the additional native team addresses still needs authorization; the legacy student administrator destination needs an owner decision.
 - Staff owner/admin/judge invitation and MFA acceptance using approved operator accounts.
 - Approved legal text remains unavailable from the source's public configuration. Existing source content was preserved; no replacement policy was invented.
@@ -56,3 +56,5 @@ The final independent review found no Important or Critical issues after cache/r
 At `2026-11-11T07:22:48Z`, one request through the production API generated a native reset key, advanced the source request counter to one and returned a successful mail confirmation for the authorized subscriptions mailbox. The agent did not change the password. Browser controls again failed to attach, so clickable email, visual reset-form acceptance, human password change and subsequent successful login are pending the user's confirmation.
 
 The user subsequently confirmed that resetting the password worked. A read-only database check verified that the account remains an active participant with no local password, its previous session is revoked, and the account authentication version has advanced beyond that session. No current sign-in session was present at that check, so login with the new password and return to the dashboard remain pending.
+
+The user then confirmed that signing in with the new password opens the dashboard. The account recovery acceptance path is passed. A labeled synthetic contact draft (`YES-12146-BF09EEE1-1BC`) has been validated and saved without submission or notifications. Remaining signed-in form automation awaits dedicated credentials in a Git-ignored local configuration file; additional team-address notification tests await authorization.
