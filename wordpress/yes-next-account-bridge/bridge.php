@@ -7,6 +7,8 @@ $yes_bridge_sent = false;
 ob_start();
 class YES_Bridge_Credentials extends RuntimeException {}
 class YES_Bridge_Conflict extends RuntimeException {}
+class YES_Bridge_Reset extends RuntimeException {}
+class YES_Bridge_Password extends RuntimeException {}
 function yes_bridge_reply($data = null, $error = null) {
     global $yes_bridge_sent;
     $yes_bridge_sent = true;
@@ -104,11 +106,18 @@ function yes_bridge_request_dispatcher() {
     if (strlen($raw) > 1048576 || !is_array($request) || !isset($request['action'], $request['input']) || !is_string($request['action']) || !is_array($request['input'])) { yes_bridge_reply(null, 'unavailable'); }
     $notification = in_array($request['action'], array('notification-plan', 'notification-mail'), true);
     if (!$notification && strlen($raw) > 32768) { yes_bridge_reply(null, 'unavailable'); }
-    if (!in_array($request['action'], array('login', 'status', 'mail', 'recovery', 'create', 'notification-plan', 'notification-mail'), true)) { yes_bridge_reply(null, 'unavailable'); }
+    if (!in_array($request['action'], array('login', 'status', 'mail', 'recovery', 'reset', 'create', 'notification-plan', 'notification-mail'), true)) { yes_bridge_reply(null, 'unavailable'); }
     // Capture by value before WordPress/plugins populate the global scope.
     return static function () use ($request) {
         $action = $request['action'];
         $input = $request['input'];
+        if ($action === 'recovery' || $action === 'reset') {
+            require __DIR__ . '/recovery.php';
+            if ($action === 'reset') { yes_bridge_reply(yes_bridge_reset($input)); }
+            $contact = $input['contact'] ?? null;
+            if (!is_string($contact) || $contact === '' || strlen($contact) > 254) { yes_bridge_reply(null, 'credentials'); }
+            yes_bridge_reply(yes_bridge_recovery($contact));
+        }
         if ($action === 'notification-plan' || $action === 'notification-mail') {
             require __DIR__ . '/notifications.php';
             if ($action === 'notification-plan') { yes_bridge_reply(yes_bridge_notification_plan($input)); }
@@ -129,13 +138,6 @@ function yes_bridge_request_dispatcher() {
             $source_id = $input['sourceUserId'] ?? null;
             if (!is_string($source_id) || !preg_match('/^[1-9][0-9]{0,19}$/D', $source_id)) { yes_bridge_reply(null, 'credentials'); }
             yes_bridge_reply(yes_bridge_identity(get_userdata((int) $source_id)));
-        }
-        if ($action === 'recovery') {
-            $contact = $input['contact'] ?? null;
-            if (!is_string($contact) || $contact === '' || strlen($contact) > 254) { yes_bridge_reply(null, 'credentials'); }
-            // Keep account existence and native reset tokens out of the response.
-            retrieve_password($contact);
-            yes_bridge_reply(array('sent' => true));
         }
         if ($action === 'mail') {
             $to = $input['to'] ?? null;
@@ -167,4 +169,7 @@ try {
     ini_set('log_errors', '0');
     if (untrailingslashit(home_url()) !== rtrim((string) getenv('WORDPRESS_ORIGIN'), '/')) { yes_bridge_reply(null, 'unavailable'); }
     $yes_bridge_dispatch();
-} catch (Throwable $error) { yes_bridge_reply(null, $error instanceof YES_Bridge_Credentials ? 'credentials' : ($error instanceof YES_Bridge_Conflict ? 'conflict' : 'unavailable')); }
+} catch (Throwable $error) {
+    $code = $error instanceof YES_Bridge_Reset ? 'reset' : ($error instanceof YES_Bridge_Password ? 'password' : ($error instanceof YES_Bridge_Credentials ? 'credentials' : ($error instanceof YES_Bridge_Conflict ? 'conflict' : 'unavailable')));
+    yes_bridge_reply(null, $code);
+}

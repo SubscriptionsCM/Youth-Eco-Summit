@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { AppError, audit, id, type Actor } from './core';
 import type { Db } from './db';
 
-export type WordPressAction = 'login' | 'status' | 'mail' | 'recovery' | 'create' | 'notification-plan' | 'notification-mail';
+export type WordPressAction = 'login' | 'status' | 'mail' | 'recovery' | 'reset' | 'create' | 'notification-plan' | 'notification-mail';
 export interface WordPressBridge {
   call(action: WordPressAction, input: Record<string, unknown>): Promise<unknown>;
 }
@@ -21,6 +21,7 @@ const unavailable = () => new AppError(503, 'Account services are temporarily un
 async function accountCall(bridge: WordPressBridge, action: WordPressAction, input: Record<string, unknown>) {
   try { return await bridge.call(action, input); }
   catch (error) {
+    if (action === 'reset' && error instanceof AppError && error.status === 400) throw error;
     if (error instanceof AppError && error.status === 401) throw new AppError(401, 'The account details were not accepted. Check your username or email and password.');
     if (error instanceof AppError && error.status === 409) throw new AppError(409, 'Registration could not be completed with these details. Sign in or contact support.');
     throw unavailable();
@@ -48,16 +49,18 @@ export function createWordPressBridge(config: { bridgePath: string; root: string
       const output = await new Promise<string>((resolve, reject) => {
         const child = execFile('php', [config.bridgePath], {
           encoding: 'utf8', shell: false, windowsHide: true, timeout: 15_000, maxBuffer: notification ? 2_097_152 : 16_384,
-          env: { NODE_ENV: process.env.NODE_ENV, PATH: process.env.PATH, SystemRoot: process.env.SystemRoot, WORDPRESS_ROOT: config.root, WORDPRESS_ORIGIN: origin.origin, WORDPRESS_MAIL_TEMP_ROOT: process.env.WORDPRESS_MAIL_TEMP_ROOT },
+          env: { NODE_ENV: process.env.NODE_ENV, PATH: process.env.PATH, SystemRoot: process.env.SystemRoot, WORDPRESS_ROOT: config.root, WORDPRESS_ORIGIN: origin.origin, WORDPRESS_MAIL_TEMP_ROOT: process.env.WORDPRESS_MAIL_TEMP_ROOT, YES_APP_ORIGIN: process.env.APP_ORIGIN },
         }, (error, stdout) => { if (error) reject(unavailable()); else resolve(stdout); });
         child.stdin?.on('error', () => reject(unavailable()));
         child.stdin?.end(body);
       });
       let response: unknown;
       try { response = JSON.parse(output); } catch { throw unavailable(); }
-      const result = z.object({ ok: z.boolean(), data: z.unknown().optional(), error: z.enum(['credentials', 'unavailable', 'conflict']).optional() }).strict().safeParse(response);
+      const result = z.object({ ok: z.boolean(), data: z.unknown().optional(), error: z.enum(['credentials', 'unavailable', 'conflict', 'reset', 'password']).optional() }).strict().safeParse(response);
       if (!result.success) throw unavailable();
       if (!result.data.ok) {
+        if (result.data.error === 'reset') throw new AppError(400, 'This password-reset link is invalid or expired. Request a new one.');
+        if (result.data.error === 'password') throw new AppError(400, 'The account password policy did not accept this password. Choose another password or contact support.');
         if (result.data.error === 'credentials') throw new AppError(401, 'The account details were not accepted. Check your username or email and password.');
         if (result.data.error === 'conflict') throw new AppError(409, 'Registration could not be completed with these details. Sign in or contact support.');
         throw unavailable();
@@ -208,6 +211,20 @@ export async function wordPressParticipantAction(db: Db, route: string, input: R
     if (!profile.success) throw new AppError(400, 'Enter your registration username, email and student or educator form.');
     if (route !== 'participant/verify') return sendRegistrationCode(db, profile.data, registration, route === 'participant/resend');
     return startSession(await verifyRegistration(db, profile.data, input, bridge, registration), false);
+  }
+  if (route === 'participant/recovery/complete') {
+    const reset = z.object({contact:z.string().min(1).max(60),key:z.string().regex(/^[a-z0-9]{1,256}$/i),password:z.string().min(1).max(4096).refine(value=>Buffer.byteLength(value)<=4096),confirmPassword:z.string().min(1).max(4096)}).strict().safeParse(input);
+    if (!reset.success || reset.data.password !== reset.data.confirmPassword) throw new AppError(400, 'Enter matching passwords and use the complete reset link from your email.');
+    let identity:WordPressIdentity;
+    try { identity=parseIdentity(await accountCall(bridge,'reset',{login:reset.data.contact,key:reset.data.key,password:reset.data.password})); }
+    catch(error){if(error instanceof AppError && error.status===400)throw error;throw new AppError(503,'The password change could not be confirmed. Try signing in with your new password or request a fresh reset link.');}
+    try {
+      await db.transaction(async tx=>{
+        const {rows:[binding]}=await tx.query<Binding>('SELECT * FROM wordpress_account_identities WHERE source=$1 AND source_user_id=$2 FOR UPDATE',[identity.source,identity.sourceUserId]);
+        if(binding)await revokeSessions(tx,binding.user_id);
+      });
+    } catch { throw new AppError(503,'The password change could not be confirmed. Try signing in with your new password or request a fresh reset link.'); }
+    return Response.json({data:{recovered:true,message:'Password updated. Sign in with your new password.'}},{headers:{'Cache-Control':'no-store'}});
   }
   if (!['participant/login', 'participant/recovery/request'].includes(route)) throw new AppError(400, 'Follow the emailed password-reset link, then return to sign in.');
   const contact = z.string().trim().min(1).max(254).safeParse(input.contact);

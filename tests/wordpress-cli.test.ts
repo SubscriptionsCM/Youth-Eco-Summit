@@ -53,6 +53,8 @@ function retrieve_password($contact) {
    || ($_SERVER['SERVER_NAME'] ?? '') !== 'wordpress.example.org' || ($_SERVER['SERVER_PORT'] ?? '') !== '443') { throw new RuntimeException(); }
  return true;
 }
+function add_filter($name, $callback, $priority = 10, $count = 1) {}
+function remove_filter($name, $callback, $priority = 10) {}
 function validate_username($username) { return $username === 'synthetic-user'; }
 function sanitize_user($username, $strict) { return $username; }
 function yes_native_config() { return array('student' => 48441, 'teacher' => 48437); }
@@ -98,7 +100,7 @@ function wp_insert_user($values) {
   function call(action: string, input: Record<string, unknown>, origin = source) {
     return new Promise<Record<string, any>>((resolve, reject) => {
       const child = execFile(php!, [bridgePath], { encoding: 'utf8', timeout: 10000, maxBuffer: 16384, windowsHide: true,
-        env: { NODE_ENV: 'test', PATH: process.env.PATH, SystemRoot: process.env.SystemRoot, WORDPRESS_ROOT: wordpressRoot, WORDPRESS_ORIGIN: origin },
+        env: { NODE_ENV: 'test', PATH: process.env.PATH, SystemRoot: process.env.SystemRoot, WORDPRESS_ROOT: wordpressRoot, WORDPRESS_ORIGIN: origin, YES_APP_ORIGIN:'https://new.wordpress.example.org' },
       }, (error, stdout) => {
         if (error) { reject(error); return; }
         try { resolve(JSON.parse(stdout)); } catch (parseError) { reject(parseError); }

@@ -36,7 +36,7 @@ jobs:
           printf '%s\n' "$RELEASE_COMMIT" > .next/standalone/REVISION
           node scripts/package-hostinger-worker.mjs
           mkdir -p .next/standalone/wordpress-bridge
-          cp wordpress/yes-next-account-bridge/{bridge,notifications,delivery}.php .next/standalone/wordpress-bridge/
+          cp wordpress/yes-next-account-bridge/{bridge,notifications,delivery,recovery}.php .next/standalone/wordpress-bridge/
           if find .next/standalone -type f -name '.env*' -print -quit | grep -q .; then
             echo 'Unexpected environment file in standalone release'
             exit 1

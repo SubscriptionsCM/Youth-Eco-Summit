@@ -139,6 +139,34 @@ describe('private WordPress participant authentication', () => {
     expect((await fixture.db.query('SELECT * FROM users')).rows).toHaveLength(0);
   });
 
+  it('completes a native reset without auto-login and revokes existing application sessions', async () => {
+    const signedIn=await login();
+    const cookie=signedIn!.headers.get('set-cookie')!;
+    bridge.call.mockResolvedValue({...identity,credentialFingerprint:'b'.repeat(64)});
+    const response=await action('participant/recovery/complete',{contact:'participant',key:'FixtureNativeKey12345',password:'new synthetic password',confirmPassword:'new synthetic password'});
+    expect(response?.status).toBe(200);expect(await response!.json()).toMatchObject({data:{recovered:true}});
+    expect(response!.headers.get('set-cookie')).toBeNull();
+    expect(bridge.call).toHaveBeenCalledWith('reset',{login:'participant',key:'FixtureNativeKey12345',password:'new synthetic password'});
+    expect((await fixture.db.query('SELECT revoked_at IS NOT NULL AS revoked FROM auth_sessions')).rows[0].revoked).toBe(true);
+    expect(await auth.getActor(new Request(`${origin}/api/auth/session`,{headers:{cookie}}))).toBeNull();
+  });
+
+  it('does not create an application identity merely because an unbound native password was reset', async () => {
+    const response=await action('participant/recovery/complete',{contact:'participant',key:'FixtureNativeKey12345',password:'new synthetic password',confirmPassword:'new synthetic password'});
+    expect(response?.status).toBe(200);expect((await fixture.db.query('SELECT * FROM users')).rows).toHaveLength(0);
+  });
+
+  it('rejects mismatched reset passwords before calling WordPress', async () => {
+    const response=await action('participant/recovery/complete',{contact:'participant',key:'FixtureNativeKey12345',password:'new synthetic password',confirmPassword:'different'});
+    expect(response?.status).toBe(400);expect(bridge.call).not.toHaveBeenCalled();
+  });
+
+  it('keeps native invalid-key errors actionable without echoing the key', async () => {
+    bridge.call.mockRejectedValue(new AppError(400,'This password-reset link is invalid or expired. Request a new one.'));
+    const response=await action('participant/recovery/complete',{contact:'participant',key:'FixtureNativeKey12345',password:'new synthetic password',confirmPassword:'new synthetic password'});
+    expect(response?.status).toBe(400);const body=await response!.text();expect(body).toMatch(/invalid or expired/);expect(body).not.toContain('FixtureNativeKey12345');
+  });
+
   it('issues a bound hashed registration challenge without retaining passwords or creating accounts', async () => {
     const response = await action('participant/signup', { contact: 'new@example.org', username: 'new-participant', formKey: 'student' });
     expect(response?.status).toBe(200);
