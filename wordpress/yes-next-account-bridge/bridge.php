@@ -54,8 +54,11 @@ function yes_bridge_create($input) {
     foreach ($required as $key => $value) { if (($model->settings[$key] ?? null) !== $value) { throw new RuntimeException(); } }
     $subscriber = get_role('subscriber');
     if (!$subscriber) { throw new RuntimeException(); }
+    // Match the existing native subscriber role, including Events Manager readers.
+    // Any additional enabled capability still requires explicit operator review.
+    $reader_capabilities = array('read', 'level_0', 'read_private_locations', 'read_private_events');
     foreach ((array) $subscriber->capabilities as $capability => $enabled) {
-        if ($enabled && $capability !== 'read' && $capability !== 'level_0') { throw new RuntimeException(); }
+        if ($enabled && !in_array($capability, $reader_capabilities, true)) { throw new RuntimeException(); }
     }
     $engines = $wpdb->get_col($wpdb->prepare('SELECT ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN (%s,%s)', $wpdb->users, $wpdb->usermeta));
     if (count($engines) !== 2 || count(array_filter($engines, function ($engine) { return strtoupper($engine) === 'INNODB'; })) !== 2) { throw new RuntimeException(); }

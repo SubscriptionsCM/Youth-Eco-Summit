@@ -36,10 +36,14 @@ class WP_User {
 function get_userdata($id) {
  global $yes_fixture_boot_marker;
  if ($yes_fixture_boot_marker !== 'loaded') { throw new RuntimeException(); }
+ if ($id === 124) { return $GLOBALS['yes_fixture_created_user'] ?? false; }
  return $id === 123 ? new WP_User() : false;
 }
 function is_email($email) { return filter_var($email, FILTER_VALIDATE_EMAIL); }
-function get_user_meta($id, $key, $single) { return $key === 'account_status' ? 'approved' : ''; }
+function get_user_meta($id, $key, $single) {
+ if ($key === '_yes_next_registration_nonce') { return $GLOBALS['yes_fixture_nonce'] ?? ''; }
+ return $key === 'account_status' ? 'approved' : '';
+}
 function wp_salt($scheme) { return 'synthetic-private-salt'; }
 function wp_mail($to, $subject, $body) {
  return $to === 'synthetic@example.org' && $subject === 'Synthetic subject' && $body === 'Synthetic body';
@@ -48,6 +52,41 @@ function retrieve_password($contact) {
  if (($_SERVER['HTTPS'] ?? '') !== 'on' || ($_SERVER['HTTP_HOST'] ?? '') !== 'wordpress.example.org'
    || ($_SERVER['SERVER_NAME'] ?? '') !== 'wordpress.example.org' || ($_SERVER['SERVER_PORT'] ?? '') !== '443') { throw new RuntimeException(); }
  return true;
+}
+function validate_username($username) { return $username === 'synthetic-user'; }
+function sanitize_user($username, $strict) { return $username; }
+function yes_native_config() { return array('student' => 48441, 'teacher' => 48437); }
+function is_multisite() { return false; }
+function is_wp_error($value) { return false; }
+function get_post_status($id) { return 'publish'; }
+class Forminator_API {
+ public static function get_form($id) {
+  return (object) array('settings' => array('form-type' => 'registration', 'registration-username-field' => 'text-1',
+   'registration-email-field' => 'email-1', 'registration-password-field' => 'password-1', 'registration-first-name-field' => 'text-1',
+   'registration-user-role' => 'fixed', 'registration-role-field' => 'subscriber', 'activation-method' => 'default'));
+ }
+}
+function get_role($name) {
+ return $name === 'subscriber' ? (object) array('capabilities' => json_decode(file_get_contents(__DIR__ . '/capabilities.json'), true)) : false;
+}
+define('DB_NAME', 'synthetic');
+class YES_Fixture_DB {
+ public $users = 'wp_users'; public $usermeta = 'wp_usermeta';
+ public function prepare($query, ...$args) { return $query; }
+ public function get_col($query) { return strpos($query, 'SELECT ENGINE') !== false ? array('InnoDB', 'InnoDB') : array(); }
+ public function get_var($query) { return '1'; }
+ public function query($query) { return 1; }
+}
+$wpdb = new YES_Fixture_DB();
+function clean_user_cache($id) {}
+function username_exists($name) { return false; }
+function email_exists($email) { return false; }
+function wp_insert_user($values) {
+ if ($values['role'] !== 'subscriber') { throw new RuntimeException(); }
+ $user = new WP_User(); $user->ID = 124; $user->roles = array($values['role']);
+ $user->user_login = $values['user_login']; $user->user_email = $values['user_email'];
+ $GLOBALS['yes_fixture_created_user'] = $user; $GLOBALS['yes_fixture_nonce'] = $values['meta_input']['_yes_next_registration_nonce'];
+ file_put_contents(__DIR__ . '/created.txt', '1'); return 124;
 }
 `);
   });
@@ -92,5 +131,19 @@ function retrieve_password($contact) {
 
   it('establishes the configured HTTPS context before native password recovery', async () => {
     expect(await call('recovery', { contact: 'synthetic-user' })).toEqual({ ok: true, data: { sent: true } });
+  });
+
+  it.each(['student','teacher'])('creates a %s subscriber with the current native events-reader permissions', async formKey => {
+    await writeFile(path.join(wordpressRoot, 'capabilities.json'), JSON.stringify({read:true,level_0:true,read_private_events:true,read_private_locations:true}));
+    await writeFile(path.join(wordpressRoot, 'created.txt'), '0');
+    expect(await call('create', { username:'synthetic-user',email:'synthetic@example.org',password:'synthetic chosen password',formKey,registrationNonce:'3b772634-90af-4dcf-a8fc-c2a94d97713d' })).toMatchObject({ok:true,data:{sourceUserId:'124',username:'synthetic-user'}});
+    expect(await import('node:fs/promises').then(fs=>fs.readFile(path.join(wordpressRoot,'created.txt'),'utf8'))).toBe('1');
+  });
+
+  it.each(['manage_options','promote_users','edit_others_posts','read_private_posts','unknown_new_capability'])('blocks an enabled unexpected subscriber capability: %s', async capability => {
+    await writeFile(path.join(wordpressRoot, 'capabilities.json'), JSON.stringify({read:true,level_0:true,read_private_events:true,read_private_locations:true,[capability]:true}));
+    await writeFile(path.join(wordpressRoot, 'created.txt'), '0');
+    expect(await call('create', { username:'synthetic-user',email:'synthetic@example.org',password:'synthetic chosen password',formKey:'student',registrationNonce:'3b772634-90af-4dcf-a8fc-c2a94d97713d' })).toEqual({ok:false,error:'unavailable'});
+    expect(await import('node:fs/promises').then(fs=>fs.readFile(path.join(wordpressRoot,'created.txt'),'utf8'))).toBe('0');
   });
 });
