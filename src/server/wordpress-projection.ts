@@ -5,7 +5,7 @@ import { AppError, audit, type Actor } from './core';
 import { fingerprint } from './wordpress-migration';
 import { referenceForms, plainText, isFieldVisible } from '../domain/wordpress-forms';
 
-type SourceRecord = { id:string; source:string; source_id:string; checksum:string; payload:Record<string,unknown> };
+export type SourceRecord = { id:string; source:string; source_id:string; checksum:string; payload:Record<string,unknown> };
 function verify(record:SourceRecord) {
  if (fingerprint(record.payload)!==record.checksum) throw new AppError(409,'Archived source checksum does not verify.');
 }
@@ -135,9 +135,26 @@ function present(record:SourceRecord){
  const formTitle=form?plainText(form.title):'Historical entry';
  return {id:record.id,sourceId:record.source_id,formKey:form?.key??null,title:formTitle,formTitle,status:text(record.payload.status),createdAt:text(record.payload.date_created),fields};
 }
+/** Staff collections expose a verified entry summary, never the raw source payload. */
+export function archivedEntrySummary(record:SourceRecord){
+ verify(record);
+ const {fields,...summary}=present(record);
+ return {...summary,source:record.source,reference:record.source_id};
+}
 type HistoricalFile={id:string;entry_record_id:string;storage_key:string;filename:string;mime_type:string;byte_size:number|string;checksum:string};
 const fileName=(value:string)=>plainText(value.split(/[/\\]/).pop()||'Attachment').slice(0,250);
+async function historyPresentation(db:Db,entries:SourceRecord[]){
+ const {rows:files}=await db.query<HistoricalFile>('SELECT a.* FROM wordpress_attachments a JOIN wordpress_records r ON r.id=a.entry_record_id AND r.source=a.source WHERE a.entry_record_id=ANY($1::uuid[]) AND a.verified_at IS NOT NULL',[entries.map(entry=>entry.id)]);
+ return entries.map(entry=>({...present(entry),attachments:files.filter(file=>file.entry_record_id===entry.id).map(file=>({id:file.id,filename:fileName(file.filename),mimeType:file.mime_type,bytes:Number(file.byte_size)}))}));
+}
 async function authorizedHistory(db:Db,actor:Actor,entryId?:string){
+ if(['owner','admin'].includes(actor.role)&&entryId){
+  const {rows:staff}=await db.query('SELECT id FROM users WHERE id=$1 AND role=$2 AND active=true',[actor.id,actor.role]);
+  if(!staff.length)throw new AppError(401,'Your staff account is unavailable.');
+  const {rows:entries}=await db.query<SourceRecord>("SELECT * FROM wordpress_records WHERE id=$1 AND kind='entry'",[entryId]);
+  entries.forEach(verify);
+  return historyPresentation(db,entries);
+ }
  if(actor.role!=='participant')return [];
  const {rows:links}=await db.query<SourceRecord&{source_checksum:string;verified_contact:string;contact:string}>("SELECT r.*,l.source_checksum,i.verified_contact,u.contact FROM wordpress_user_links l JOIN wordpress_records r ON r.id=l.record_id JOIN supabase_identities i ON i.auth_user_id=l.auth_user_id AND i.user_id=l.user_id JOIN users u ON u.id=l.user_id WHERE l.user_id=$1 AND u.role='participant' AND u.active=true",[actor.id]);
  const identities=new Map<string,Set<string>>();
@@ -149,8 +166,7 @@ async function authorizedHistory(db:Db,actor:Actor,entryId?:string){
  if(!identities.size)return [];
  const {rows:entries}=await db.query<SourceRecord>("SELECT * FROM wordpress_records WHERE kind='entry' AND source=ANY($1::text[])"+(entryId?' AND id=$2':'')+' ORDER BY source_id',entryId?[[...identities.keys()],entryId]:[[...identities.keys()]]);
  const authorized=entries.filter(entry=>fingerprint(entry.payload)===entry.checksum&&identities.get(entry.source)?.has(entryOwner(entry)??''));
- const {rows:files}=await db.query<HistoricalFile>('SELECT a.* FROM wordpress_attachments a JOIN wordpress_records r ON r.id=a.entry_record_id AND r.source=a.source WHERE a.entry_record_id=ANY($1::uuid[]) AND a.verified_at IS NOT NULL',[authorized.map(entry=>entry.id)]);
- return authorized.map(entry=>({...present(entry),attachments:files.filter(file=>file.entry_record_id===entry.id).map(file=>({id:file.id,filename:fileName(file.filename),mimeType:file.mime_type,bytes:Number(file.byte_size)}))}));
+ return historyPresentation(db,authorized);
 }
 export async function historicalEntries(db:Db,actor:Actor){return {items:await authorizedHistory(db,actor)};}
 export async function historicalEntry(db:Db,actor:Actor,entryId:string){

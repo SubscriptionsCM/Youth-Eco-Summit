@@ -46,7 +46,8 @@ export async function getFormRecord(db:Db,actor:Actor|null,recordId:string,token
  const {rows:files}=await db.query(`SELECT f.id,f.field_id,f.filename,f.status,f.expected_size,f.mime_type,f.metadata,
   (f.status='uploaded' AND EXISTS(SELECT 1 FROM jobs j WHERE j.kind='verify_portal_file' AND j.payload->>'fileId'=f.id::text AND j.status='failed')) AS verification_failed
   FROM portal_form_files f WHERE f.record_id=$1 ORDER BY f.created_at`,[recordId]);
- return {...safeRecord(record),files};
+ const school=record.form_key==='school'&&record.school_id?(await db.query('SELECT status FROM schools WHERE id=$1',[record.school_id])).rows[0]:undefined;
+ return {...safeRecord(record),files,...school?{current_school_status:school.status}:{}};
 }
 export async function saveFormRecord(db:Db,actor:Actor|null,recordId:string,input:unknown,token?:string) {
  const v=saveSchema.parse(input);

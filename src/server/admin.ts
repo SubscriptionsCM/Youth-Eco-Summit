@@ -3,8 +3,14 @@ import type { Db } from './db';
 import { AppError,type Actor,id,audit,requireAdmin } from './core';
 import { competitionSchema,rubricSchema } from '../domain/rules';
 import { assign,recordDecision } from './judging';
+import { archivedEntrySummary, type SourceRecord } from './wordpress-projection';
 export async function overview(db:Db,edition:string){
  const {rows:[counts]}=await db.query(`SELECT
+ (SELECT count(*)::int FROM portal_form_records WHERE status='submitted') reference_submissions_all_editions,
+ (SELECT count(*)::int FROM portal_form_files f JOIN portal_form_records r ON r.id=f.record_id WHERE r.status='submitted' AND f.status='ready') reference_ready_files_all_editions,
+ (SELECT count(*)::int FROM wordpress_records WHERE kind='entry') archived_source_entries_all_editions,
+ (SELECT count(*)::int FROM wordpress_attachments) archived_source_files_all_editions,
+ (SELECT coalesce(sum(byte_size),0)::text FROM wordpress_attachments) archived_source_bytes_all_editions,
  (SELECT count(*)::int FROM school_participations p JOIN schools s ON s.id=p.school_id WHERE ($1='' OR p.edition_id::text=$1) AND p.trashed_at IS NULL AND s.trashed_at IS NULL) registered_school_participations,
  (SELECT count(*)::int FROM student_participations p JOIN students s ON s.id=p.student_id WHERE ($1='' OR p.edition_id::text=$1) AND p.trashed_at IS NULL AND s.trashed_at IS NULL) student_participations,
  (SELECT count(*)::int FROM submissions s JOIN competitions c ON c.id=s.competition_id WHERE ($1='' OR c.edition_id::text=$1) AND s.trashed_at IS NULL AND s.state<>'draft') finalized_entries,
@@ -81,6 +87,8 @@ const resources:Record<string,{from:string;select:string;search:string;where?:st
  audit:{from:'audit_events t',select:'t.*',search:"t.entity_id||' '||t.action",order:'t.created_at'},
  jobs:{from:'jobs t',select:'t.*',search:'t.kind',order:'t.created_at'},
  imports:{from:'import_rows t',select:'t.*',search:"t.source||' '||t.source_id",order:'t.created_at'},
+ 'reference-forms':{from:'portal_form_records t LEFT JOIN schools s ON s.id=t.school_id',select:'t.id,t.form_key,t.reference,t.status,t.submitter_role,t.school_id,t.submitted_at,t.updated_at,s.name school_name,s.status school_status,(SELECT count(*)::int FROM portal_form_files f WHERE f.record_id=t.id AND f.status=\'ready\') file_count',search:"t.reference||' '||t.form_key||' '||coalesce(s.name,'')",where:"t.status='submitted'",order:'t.submitted_at'},
+ 'wordpress-history':{from:'wordpress_records t',select:'t.*',search:"t.source_id||' '||coalesce(t.payload->>'form_id','')",where:"t.kind='entry'",order:'t.imported_at'},
  files:{from:'assets t JOIN submissions s ON s.id=t.submission_id',select:'t.id,t.submission_id,t.original_name,t.mime_type,t.byte_size,t.status,t.revision,t.trashed_at,t.error,t.created_at,s.reference,(t.trashed_at IS NOT NULL AND t.revision<=s.revision) can_recover_archival',search:"t.original_name||' '||s.reference",order:'t.created_at'},
  repairs:{from:'historical_file_refs t JOIN submissions s ON s.id=t.submission_id',select:'t.*,s.reference',search:'s.reference',order:'t.created_at'},
  editions:{from:'editions t',select:'t.*',search:'t.label',order:'t.created_at'},
@@ -91,10 +99,18 @@ const resources:Record<string,{from:string;select:string;search:string;where?:st
 export async function adminList(db:Db,actor:Actor,resource:string,params:URLSearchParams){
  requireAdmin(actor);if(resource==='overview')return overview(db,params.get('editionId')??'');
  const r=resources[resource];if(!r)throw new AppError(404,'Resource not found.');
+ if(['reference-forms','wordpress-history'].includes(resource)){
+  const {rows}=await db.query('SELECT id FROM users WHERE id=$1 AND role=$2 AND active=true',[actor.id,actor.role]);
+  if(!rows.length)throw new AppError(401,'Your staff account is unavailable.');
+ }
  const page=Math.max(1,Math.min(100000,Math.floor(Number(params.get('page'))||1)));const pageSize=Math.max(1,Math.min(100,Math.floor(Number(params.get('pageSize'))||25)));
  const values:unknown[]=[];const where=[r.where??'true'];const add=(clause:string,value:unknown)=>{values.push(value);where.push(clause.replace('?',`$${values.length}`));};
  if(params.get('q'))add(`(${r.search}) ILIKE '%'||?||'%'`,params.get('q')!.slice(0,200));
  if(params.get('id'))add('t.id::text=?',params.get('id'));
+ if(resource==='reference-forms'){
+  if(params.get('formKey'))add('t.form_key=?',params.get('formKey'));
+  if(params.get('schoolId'))add('t.school_id::text=?',params.get('schoolId'));
+ }
  if(resource==='entries'){
   for(const [param,col] of Object.entries({editionId:'c.edition_id',competitionId:'t.competition_id',categoryId:'t.category_id',schoolId:'p.school_id',class:'p.class',state:'t.state'}))if(params.get(param))add(`${col}::text=?`,params.get(param));
   if(params.get('judgeId'))add('EXISTS(SELECT 1 FROM judge_assignments a WHERE a.submission_id=t.id AND a.judge_id::text=? AND a.active AND a.revoked_at IS NULL)',params.get('judgeId'));
@@ -116,7 +132,8 @@ export async function adminList(db:Db,actor:Actor,resource:string,params:URLSear
  }
  if(resource==='schools'&&params.get('city'))add("t.city ILIKE '%'||?||'%'",params.get('city'));
  const filter=where.join(' AND ');const {rows:[count]}=await db.query(`SELECT count(*)::int total FROM ${r.from} WHERE ${filter}`,values);
- const {rows:items}=await db.query(`SELECT ${r.select} FROM ${r.from} WHERE ${filter} ORDER BY ${r.order} DESC LIMIT $${values.length+1} OFFSET $${values.length+2}`,[...values,pageSize,(page-1)*pageSize]);return {items,total:count.total,page,pageSize};
+ const stableOrder=['reference-forms','wordpress-history'].includes(resource)?',t.id DESC':'';
+ const {rows:items}=await db.query(`SELECT ${r.select} FROM ${r.from} WHERE ${filter} ORDER BY ${r.order} DESC${stableOrder} LIMIT $${values.length+1} OFFSET $${values.length+2}`,[...values,pageSize,(page-1)*pageSize]);return {items:resource==='wordpress-history'?items.map(item=>archivedEntrySummary(item as SourceRecord)):items,total:count.total,page,pageSize};
 }
 const iso=z.iso.datetime({offset:true});
 export async function adminCreate(db:Db,actor:Actor,resource:string,input:unknown){

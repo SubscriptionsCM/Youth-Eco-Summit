@@ -3,12 +3,13 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { api, date, json, label, type Row } from './api';
 import { HistoricalImport } from './imports';
+import { ReferenceInbox } from './reference-inbox';
 import { EditionConfiguration, PublicationEditor, RoundPrerequisites, parseRoundConfiguration } from './admin-config';
 import { AdminRecordActions } from './admin-record';
 import { AdminRecordDetails } from './admin-details';
 import { AuthGate, Empty, Errors, Field, Notice, PageTitle, Pagination, ResourceState, useResource } from './shared';
 
-const sections = ['overview', 'files', 'repairs', 'schools', 'nominations', 'partner-enquiries', 'teachers', 'students', 'entries', 'judges', 'assignments', 'rules', 'rounds', 'reviews', 'results', 'editions', 'competitions', 'content', 'trash', 'audit', 'jobs', 'imports'];
+const sections = ['overview', 'reference-forms', 'wordpress-history', 'files', 'repairs', 'schools', 'nominations', 'partner-enquiries', 'teachers', 'students', 'entries', 'judges', 'assignments', 'rules', 'rounds', 'reviews', 'results', 'editions', 'competitions', 'content', 'trash', 'audit', 'jobs', 'imports'];
 const actionOptions: Record<string, string[]> = { teachers: ['approved', 'declined'], 'partner-enquiries': ['new', 'contacted', 'closed'], schools: ['approve', 'deactivate', 'activate'], nominations: ['review'], judges: ['activate', 'deactivate'], rules: ['pause', 'resume'], assignments: ['revoke'], rounds: ['open', 'close'], competitions: ['approve', 'close'], editions: ['open', 'close', 'archive'], entries: ['reopen'], reviews: ['reopen', 'eligibility'], jobs: ['retry'] };
 const examples: Record<string, Row> = {
   editions: { label: '', state: 'draft', registrationOpens: null, registrationCloses: null, eventDate: null, config: { registrationApproved: false, consentVersion: '', consentText: '', publicationConsentVersion: '', publicationConsentText: '' } },
@@ -19,7 +20,7 @@ const examples: Record<string, Row> = {
 };
 export function AdminPage({ section = 'overview', initialFilters = '' }: { section?: string; initialFilters?: string }) { return <AuthGate roles={['admin', 'owner']}>{actor => <AdminWorkspace section={sections.includes(section) ? section : 'overview'} actor={actor} initialFilters={initialFilters} />}</AuthGate>; }
 function AdminWorkspace({ section, actor, initialFilters }: { section: string; actor: Row; initialFilters: string }) {
-  return <><PageTitle title={`Administration: ${section === "partner-enquiries" ? "Partner enquiries" : label(section)}`} /><nav className="admin-nav" aria-label="Administration">{sections.map(s => <Link key={s} href={s === 'overview' ? '/admin' : `/admin/${s}`} aria-current={section === s ? 'page' : undefined}>{s === "partner-enquiries" ? "Partner enquiries" : label(s)}</Link>)}</nav>{section === 'overview' ? <Overview /> : <AdminRecords key={`${section}:${initialFilters}`} resource={section} actor={actor} initialFilters={initialFilters} />}</>;
+  return <><PageTitle title={`Administration: ${section === "partner-enquiries" ? "Partner enquiries" : section==='reference-forms'?'Forms inbox':section==='wordpress-history'?'WordPress archive':label(section)}`} /><nav className="admin-nav" aria-label="Administration">{sections.map(s => <Link key={s} href={s === 'overview' ? '/admin' : `/admin/${s}`} aria-current={section === s ? 'page' : undefined}>{s === "partner-enquiries" ? "Partner enquiries" : s==='reference-forms'?'Forms inbox':s==='wordpress-history'?'WordPress archive':label(s)}</Link>)}</nav>{section === 'overview' ? <Overview /> : section==='reference-forms'||section==='wordpress-history' ? <ReferenceInbox key={section+initialFilters} resource={section} initialFilters={initialFilters}/> : <AdminRecords key={`${section}:${initialFilters}`} resource={section} actor={actor} initialFilters={initialFilters} />}</>;
 }
 function Overview() { const resource = useResource<Row>('/api/admin/overview'); return <><ResourceState {...resource} retry={resource.reload} />{resource.data && <div className="grid">{Object.entries(resource.data.counts || resource.data).map(([key, count]) => <article className="card" key={key}><h2>{label(key)}</h2><p>{typeof count === 'object' ? JSON.stringify(count) : String(count)}</p></article>)}</div>}</>; }
 function AdminRecords({ resource, actor, initialFilters }: { resource: string; actor: Row; initialFilters: string }) {
