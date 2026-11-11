@@ -35,5 +35,6 @@ export function afterLoginPath(role: string, destination?: unknown): string {
   if (/^\/(?:register|dashboard|teams)(?:\/|$)/.test(pathname) && role !== 'participant') return dashboardPath(role);
   if (/^\/schools\/register(?:\/|$)/.test(pathname) && role !== 'participant') return dashboardPath(role);
   if (/^\/entries(?:\/|$)/.test(pathname) && role === 'judge') return dashboardPath(role);
+  if (/^\/files(?:\/|$)/.test(pathname) && !['participant','owner','admin'].includes(role)) return dashboardPath(role);
   return next;
 }

@@ -4,6 +4,7 @@ import type { Db } from './db';
 import { AppError, id, audit, type Actor } from './core';
 import { referenceForms, formSteps, validateReferenceAnswers, type Answers } from '../domain/wordpress-forms';
 import { fingerprint } from './wordpress-migration';
+import { enqueueFormNotifications } from './form-notifications';
 
 export class FormValidationError extends AppError {
  constructor(public fields: Record<string,string>) { super(422,'Please check the highlighted information.'); }
@@ -27,24 +28,30 @@ export async function createFormRecord(db:Db,actor:Actor|null,input:unknown) {
  return {record:safeRecord(record),...(!actor?{token}:{})};
 }
 function safeRecord(record:Record<string,any>) { const {draft_token_hash,...safe}=record;return safe; }
-async function owned(db:Db,actor:Actor|null,recordId:string,token?:string,lock=false) {
+async function owned(db:Db,actor:Actor|null,recordId:string,token?:string,options:{lock?:boolean;allowStaffRead?:boolean}={}) {
  z.uuid().parse(recordId);
- const {rows:[record]}=await db.query(`SELECT * FROM portal_form_records WHERE id=$1${lock?' FOR UPDATE':''}`,[recordId]);
+ const {rows:[record]}=await db.query(`SELECT * FROM portal_form_records WHERE id=$1${options.lock?' FOR UPDATE':''}`,[recordId]);
  const owner=actor&&record?.owner_id===actor.id;
  const bearer=!record?.owner_id&&record?.draft_token_hash&&token&&hash(token)===record.draft_token_hash;
- if(!record||(!owner&&!bearer))throw new AppError(404,'Saved form not found. Sign in with its account or use the private saved-form link.');
- if(actor&&owner){const {rows}=await db.query('SELECT id FROM users WHERE id=$1 AND active',[actor.id]);if(!rows.length)throw new AppError(401,'Your account is unavailable.');}
+ const staffRead=options.allowStaffRead&&record?.status==='submitted'&&actor&&['owner','admin'].includes(actor.role);
+ if(!record||(!owner&&!bearer&&!staffRead))throw new AppError(404,'Saved form not found. Sign in with its account or use the private saved-form link.');
+ if(actor&&(owner||staffRead)){
+  const {rows}=await db.query(`SELECT id FROM users WHERE id=$1 AND active${staffRead?' AND role=$2':''}`,staffRead?[actor.id,actor.role]:[actor.id]);
+  if(!rows.length)throw new AppError(401,'Your account is unavailable.');
+ }
  return record;
 }
 export async function getFormRecord(db:Db,actor:Actor|null,recordId:string,token?:string):Promise<Record<string,any>> {
- const record=await owned(db,actor,recordId,token);
- const {rows:files}=await db.query('SELECT id,field_id,filename,status,expected_size,mime_type,metadata FROM portal_form_files WHERE record_id=$1 ORDER BY created_at',[recordId]);
+ const record=await owned(db,actor,recordId,token,{allowStaffRead:true});
+ const {rows:files}=await db.query(`SELECT f.id,f.field_id,f.filename,f.status,f.expected_size,f.mime_type,f.metadata,
+  (f.status='uploaded' AND EXISTS(SELECT 1 FROM jobs j WHERE j.kind='verify_portal_file' AND j.payload->>'fileId'=f.id::text AND j.status='failed')) AS verification_failed
+  FROM portal_form_files f WHERE f.record_id=$1 ORDER BY f.created_at`,[recordId]);
  return {...safeRecord(record),files};
 }
 export async function saveFormRecord(db:Db,actor:Actor|null,recordId:string,input:unknown,token?:string) {
  const v=saveSchema.parse(input);
  return db.transaction(async tx=>{
-  const record=await owned(tx,actor,recordId,token,true);
+  const record=await owned(tx,actor,recordId,token,{lock:true});
   if(record.status!=='draft'||record.lock_version!==v.lockVersion)throw new AppError(409,'This form changed in another tab or was already submitted. Reload before continuing.');
   const form=referenceForms.find(f=>f.key===record.form_key)!;
   if(v.currentStep>=formSteps(form).length)throw new AppError(422,'Choose a valid form step.');
@@ -57,7 +64,7 @@ export async function saveFormRecord(db:Db,actor:Actor|null,recordId:string,inpu
 export async function submitFormRecord(db:Db,actor:Actor|null,recordId:string,input:unknown,token?:string,now=new Date()) {
  const v=z.object({lockVersion:z.number().int().min(0),answers:z.record(z.string(),z.unknown())}).strict().parse(input);
  return db.transaction(async tx=>{
-  const record=await owned(tx,actor,recordId,token,true);
+  const record=await owned(tx,actor,recordId,token,{lock:true});
   if(record.status==='submitted')return record.receipt;
   if(record.lock_version!==v.lockVersion)throw new AppError(409,'Reload the latest saved form before submitting.');
   const form=referenceForms.find(f=>f.key===record.form_key)!;
@@ -100,11 +107,12 @@ export async function submitFormRecord(db:Db,actor:Actor|null,recordId:string,in
   const receipt={id:record.id,reference:record.reference,formKey:form.key,submittedAt:now.toISOString(),status:'submitted',...(schoolId?{schoolId}:{}),...(form.key==='school'?{schoolStatus:'pending'}:{})};
   await tx.query("UPDATE portal_form_records SET status='submitted',answers=$2,school_id=$3,identity_key=$4,submitter_role=$5,form_snapshot=$6,receipt=$7,submitted_at=$8,updated_at=now(),lock_version=lock_version+1 WHERE id=$1",[recordId,JSON.stringify(answers),schoolId,identityKey,form.competition?answers['hidden-yes-submitter']:null,JSON.stringify(form),JSON.stringify(receipt),now]);
   if(actor)await audit(tx,actor,'reference-form.submit','portal_form_records',recordId,{formKey:form.key,reference:record.reference});
+  await enqueueFormNotifications(tx,recordId);
   return receipt;
  });
 }
 export async function writableFormRecord(db:Db,actor:Actor|null,recordId:string,token?:string) {
- const record=await owned(db,actor,recordId,token,true);
+ const record=await owned(db,actor,recordId,token,{lock:true});
  if(record.status!=='draft')throw new AppError(409,'Submitted forms cannot be edited.');
  return record;
 }

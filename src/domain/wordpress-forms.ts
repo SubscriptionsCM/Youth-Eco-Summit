@@ -1,6 +1,6 @@
 import snapshot from '../data/wordpress-forms.json';
 import { competitionGuidelines2027 } from '../data/guidelines-2027';
-import { participationWindowStatus } from '../data/participation-window';
+import { participationWindow, participationWindowStatus } from '../data/participation-window';
 
 export type Answers = Record<string, unknown>;
 export type ReferenceField = Record<string, any> & { id: string; type: string; field_label?: string; conditions?: { element_id: string; rule: string; value: string }[] };
@@ -112,6 +112,6 @@ export function validateReferenceAnswers(form: ReferenceForm, input: Answers, op
   }
  }
  if(['student','teacher'].includes(form.key)&&typeof input['registered-school-id']==='string')answers['registered-school-id']=input['registered-school-id'];
- if (final && options.step===undefined && (form.competition || form.key === 'student') && !participationWindowStatus(options.now || new Date()).isOpen) errors._form = 'Student registration and competition submissions are closed. The deadline is 5 November 2026, 11:59 p.m. IST.';
+ if (final && options.step===undefined && (form.competition || form.key === 'student') && !participationWindowStatus(options.now || new Date()).isOpen) errors._form = `Student registration and competition submissions are closed. The deadline is ${participationWindow.deadlineLabel}.`;
  return { answers, errors };
 }

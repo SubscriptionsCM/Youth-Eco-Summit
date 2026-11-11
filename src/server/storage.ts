@@ -60,7 +60,7 @@ export async function storageAction(request: Request, actor: Actor, path: string
       validateFileSelection(files,[...existing,{role:input.role??null,expected_size:input.byteSize}],false);
       const id = randomUUID(), key = `submissions/${entry.id}/${id}`;
       const partSize = Math.max(8 * 1024 ** 2, Math.ceil(input.byteSize / 10000 / (1024 ** 2)) * 1024 ** 2);
-      const uploadId = await store.begin(key);
+      const uploadId = await store.begin(key, { expectedSize: input.byteSize, checksum: input.checksum.toLowerCase(), partSize });
       const result = await tx.query<Asset>(`INSERT INTO assets(id,submission_id,revision,uploader_id,original_name,storage_key,expected_size,expected_checksum,part_size,upload_id,role) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`, [id, entry.id, entry.revision + 1, actor.id, input.originalName, key, input.byteSize, input.checksum.toLowerCase(), partSize, uploadId,input.role??null]);
       await audit(tx, actor, 'upload.started', 'asset', id, { submissionId: entry.id, byteSize: input.byteSize });
       return ok(summary(result.rows[0]), 201);

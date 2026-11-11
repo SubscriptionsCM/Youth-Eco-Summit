@@ -1,10 +1,25 @@
 import { S3Client, CreateMultipartUploadCommand, UploadPartCommand, ListPartsCommand, CompleteMultipartUploadCommand, GetObjectCommand, HeadObjectCommand, DeleteObjectsCommand, ListObjectVersionsCommand, ListMultipartUploadsCommand, AbortMultipartUploadCommand, type Part } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { AppError } from '../core';
+import { FileSystemStore } from './filesystem';
 
-export class S3Store {
+export type MultipartDeclaration = { expectedSize: number; checksum: string; partSize: number };
+export type StorageHead = { ContentLength?: number; ETag?: string; VersionId?: string };
+export type StorageRead = StorageHead & { Body?: AsyncIterable<Uint8Array> };
+export interface ObjectStore {
+  begin(key: string, declaration?: MultipartDeclaration): Promise<string>;
+  sign(key: string, uploadId: string, partNumber: number, contentLength: number): Promise<string>;
+  uploadPart(key: string, uploadId: string, partNumber: number, body: Uint8Array): Promise<unknown>;
+  parts(key: string, uploadId: string): Promise<Part[]>;
+  complete(key: string, uploadId: string, parts: Part[]): Promise<unknown>;
+  head(key: string, version?: string): Promise<StorageHead>;
+  read(key: string, version?: string, etag?: string, range?: string): Promise<StorageRead>;
+  purge(keys: string[]): Promise<void>;
+}
+
+export class S3Store implements ObjectStore {
   constructor(readonly client: S3Client, readonly bucket: string) {}
-  async begin(key: string) {
+  async begin(key: string, _declaration?: MultipartDeclaration) {
     const result = await this.client.send(new CreateMultipartUploadCommand({ Bucket: this.bucket, Key: key, ContentType: 'application/octet-stream' }));
     if (!result.UploadId) throw new Error('Storage did not create an upload');
     return result.UploadId;
@@ -30,8 +45,9 @@ export class S3Store {
     return this.client.send(new CompleteMultipartUploadCommand({ Bucket: this.bucket, Key: key, UploadId: uploadId, MultipartUpload: { Parts: parts.map(p => ({ PartNumber: p.PartNumber, ETag: p.ETag })) } }));
   }
   async head(key: string, version?: string) { return this.client.send(new HeadObjectCommand({ Bucket: this.bucket, Key: key, VersionId: version })); }
-  async read(key: string, version?: string, etag?: string, range?: string) {
-    return this.client.send(new GetObjectCommand({ Bucket: this.bucket, Key: key, VersionId: version, IfMatch: etag, Range: range }));
+  async read(key: string, version?: string, etag?: string, range?: string): Promise<StorageRead> {
+    // This provider executes in Node, where the SDK returns an iterable stream.
+    return this.client.send(new GetObjectCommand({ Bucket: this.bucket, Key: key, VersionId: version, IfMatch: etag, Range: range })) as Promise<StorageRead>;
   }
   async purge(keys: string[]) {
     for (const key of new Set(keys)) {
@@ -69,7 +85,12 @@ export function isMissing(error: unknown): boolean {
   return e.name === 'NoSuchKey' || e.name === 'NotFound' || e.$metadata?.httpStatusCode === 404;
 }
 
-export function objectStore(): S3Store {
+export function objectStore(): ObjectStore {
+  if (process.env.STORAGE_PROVIDER === 'filesystem') {
+    const root = process.env.STORAGE_LOCAL_ROOT, secret = process.env.AUTH_SECRET, origin = process.env.APP_ORIGIN;
+    if (!root || !secret || !origin) throw new AppError(503, 'Private filesystem storage requires STORAGE_LOCAL_ROOT, AUTH_SECRET and APP_ORIGIN.');
+    return new FileSystemStore(root, secret, origin);
+  }
   const bucket = process.env.S3_BUCKET;
   const region = process.env.S3_REGION;
   if (!bucket || !region) throw new AppError(503, 'Private storage is not configured. Set S3_BUCKET and S3_REGION before opening uploads.');

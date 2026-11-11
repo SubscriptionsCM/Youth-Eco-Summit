@@ -63,7 +63,7 @@ export async function importHistoricalFile(database: Db, actor: Actor, input: { 
     }
     const assetId = id(), key = `submissions/${ref.submission_id}/${assetId}`;
     const partSize = Math.max(8 * 1024 ** 2,Math.ceil(file.size / 10000 / 1024 ** 2) * 1024 ** 2);
-    const uploadId = await store.begin(key);
+    const uploadId = await store.begin(key, { expectedSize: file.size, checksum: file.checksum, partSize });
     await tx.query(`INSERT INTO assets(id,submission_id,revision,uploader_id,original_name,storage_key,expected_size,expected_checksum,part_size,upload_id)
       VALUES($1,$2,1,$3,$4,$5,$6,$7,$8,$9)`,[assetId,ref.submission_id,actor.id,file.name,key,file.size,file.checksum,partSize,uploadId]);
     await tx.query("UPDATE historical_file_refs SET asset_id=$2,status='missing',last_error=NULL WHERE id=$1",[fileRefId,assetId]);

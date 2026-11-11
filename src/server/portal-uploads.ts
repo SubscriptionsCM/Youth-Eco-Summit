@@ -1,13 +1,12 @@
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { GetObjectCommand } from '@aws-sdk/client-s3';
 import { z } from 'zod';
 import { db, type Db } from './db';
 import { AppError, id, ok, type Actor } from './core';
 import { getFormRecord, writableFormRecord } from './portal-forms';
 import { referenceForms, enabled, type ReferenceForm } from '../domain/wordpress-forms';
 import { competitionGuidelines2027 } from '../data/guidelines-2027';
-import { objectStore, isMissing, type S3Store } from './storage/provider';
-import { ContentRejected, inspectContent, inspectFileMetadata, safeDisposition, type FileRules } from './storage/validation';
+import { objectStore, isMissing, type ObjectStore } from './storage/provider';
+import { portalDownloadUrl, type PortalFile } from './storage/downloads';
+import { ContentRejected, inspectContent, inspectFileMetadata, type FileRules } from './storage/validation';
 import { scanContent } from './storage/scanner';
 
 export function referenceFileRules(form:ReferenceForm,fieldId:string):FileRules {
@@ -25,12 +24,12 @@ export function referenceFileRules(form:ReferenceForm,fieldId:string):FileRules 
 }
 async function fileAccess(actor:Actor|null,fileId:string,token?:string,write=false) {
  z.uuid().parse(fileId);
- const {rows:[file]}=await db.query('SELECT * FROM portal_form_files WHERE id=$1',[fileId]);
+ const {rows:[file]}=await db.query<PortalFile & Record<string, any>>('SELECT * FROM portal_form_files WHERE id=$1',[fileId]);
  if(!file)throw new AppError(404,'File not found.');
  if(write)await writableFormRecord(db,actor,file.record_id,token);else await getFormRecord(db,actor,file.record_id,token);
  return file;
 }
-export async function completePortalMultipart(store:Pick<S3Store,'head'|'parts'|'complete'>,file:{storage_key:string;upload_id:string;expected_size:number|string;part_size:number}) {
+export async function completePortalMultipart(store:Pick<ObjectStore,'head'|'parts'|'complete'>,file:{storage_key:string;upload_id:string;expected_size:number|string;part_size:number}) {
  const assembled=async()=>{
   try{const object=await store.head(file.storage_key);if(object.ContentLength!==Number(file.expected_size))throw new AppError(409,'The retained object has an unexpected size. Contact support.');return true;}
   catch(error){if(isMissing(error))return false;throw error;}
@@ -56,7 +55,7 @@ export async function portalUploadAction(request:Request,path:string[],actor:Act
    if(v.size>rules.maxBytes)throw new AppError(422,'This file exceeds the form’s size limit.');
    const {rows:[old]}=await tx.query('SELECT * FROM portal_form_files WHERE record_id=$1 AND field_id=$2',[v.recordId,v.fieldId]);
    if(old){if(old.expected_checksum!==v.checksum||Number(old.expected_size)!==v.size)throw new AppError(409,'A different file is already retained in this field. Keep it or start a new draft.');return ok({id:old.id,partSize:old.part_size,status:old.status});}
-   const fileId=id(),key=`submissions/${v.recordId}/${fileId}`,uploadId=await store.begin(key);
+   const fileId=id(),key=`submissions/${v.recordId}/${fileId}`,uploadId=await store.begin(key,{expectedSize:v.size,checksum:v.checksum,partSize:5242880});
    await tx.query('INSERT INTO portal_form_files(id,record_id,field_id,filename,storage_key,expected_size,expected_checksum,upload_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',[fileId,v.recordId,v.fieldId,v.filename.replace(/[\r\n\0]/g,''),key,v.size,v.checksum,uploadId]);
    return ok({id:fileId,partSize:5242880,status:'pending'},201);
   });
@@ -80,7 +79,7 @@ export async function portalUploadAction(request:Request,path:string[],actor:Act
  }
  if(path[1]==='download'){
   if(file.status!=='ready')throw new AppError(409,'File verification is still pending.');
-  return ok({url:await getSignedUrl(store.client,new GetObjectCommand({Bucket:store.bucket,Key:file.storage_key,ResponseContentDisposition:safeDisposition(file.mime_type,file.filename,true),ResponseContentType:file.mime_type}),{expiresIn:60})});
+  return ok({url:await portalDownloadUrl(db,store,actor,file,token)});
  }
  throw new AppError(404,'Upload action not found.');
 }
@@ -90,11 +89,13 @@ export async function verifyPortalFile(database:Db,fileId:string) {
  if(file.status!=='uploaded')throw new Error('Upload is not complete.');
  const form=referenceForms.find(f=>f.key===file.form_key)!;
  const rules=referenceFileRules(form,file.field_id),store=objectStore();
- const stream=async()=>{const result=await store.read(file.storage_key);if(!result.Body)throw new Error('Private file missing.');return result.Body as AsyncIterable<Uint8Array>;};
+ const identity=await store.head(file.storage_key);
+ if(identity.ContentLength!==Number(file.expected_size)||(!identity.VersionId&&!identity.ETag))throw new Error('Private file identity could not be verified.');
+ const stream=async()=>{const result=await store.read(file.storage_key,identity.VersionId,identity.ETag);if(!result.Body)throw new Error('Private file missing.');return result.Body as AsyncIterable<Uint8Array>;};
  try{
   const verified=await inspectContent(await stream(),{size:Number(file.expected_size),checksum:file.expected_checksum,maxBytes:rules.maxBytes,types:rules.types});
   const scan=await scanContent(await stream(),verified,rules.maxDurationSeconds);
   const metadata=await inspectFileMetadata(await stream(),verified.mimeType,rules);
-  await database.query("UPDATE portal_form_files SET status='ready',mime_type=$2,metadata=$3,verified_at=now() WHERE id=$1 AND status='uploaded'",[file.id,verified.mimeType,JSON.stringify({...metadata,scan})]);
+  await database.query("UPDATE portal_form_files SET status='ready',mime_type=$2,metadata=$3,verified_at=now() WHERE id=$1 AND status='uploaded'",[file.id,verified.mimeType,JSON.stringify({...metadata,scan,storageVersion:identity.VersionId,storageEtag:identity.ETag})]);
  }catch(error){if(error instanceof ContentRejected){await database.query("UPDATE portal_form_files SET status='rejected',metadata=$2 WHERE id=$1",[file.id,JSON.stringify({error:error.message})]);return;}throw error;}
 }

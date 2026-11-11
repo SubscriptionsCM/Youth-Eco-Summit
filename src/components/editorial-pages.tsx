@@ -7,6 +7,7 @@ import { AboutCopy } from './about-copy';
 import { GuidelinesEssentials, GuidelinesRecognition } from './competition-programme';
 import { guidelines2027Source } from '../data/guidelines-2027';
 import { ParticipationDeadline } from './participation-deadline';
+import { participationWindow } from '../data/participation-window';
 import '../app/editorial.css';
 
 const arrow = <span aria-hidden="true">→</span>;
@@ -61,9 +62,9 @@ export const participationQuestions = [
   {question:'Is a school ID required?',answer:<>Yes. Student registration requires a registered, active school. <Link href="/schools">Find your school</Link> or nominate it for review. A school ID does not grant access to private school records.</>},
   {question:'Can I save and return to an entry?',answer:<>Yes. Sign in using your verified contact to save registration and entry forms step by step and return to your drafts. Final submissions are locked unless an administrator reopens them.</>},
   {question:'Does registration include event attendance?',answer:<>Competition registration and physical summit attendance are separate. An entry does not confirm a seat at the summit.</>},
-  {question:'Where can I find competition rules and deadlines?',answer:<>The <Link href="/competitions">2027 competition page</Link> lists class topics, word counts, group limits and file requirements. You can also download the original guidelines. The student-registration and competition-submission deadline is 5 November 2026, 11:59 p.m. IST.</>},
+  {question:'Where can I find competition rules and deadlines?',answer:<>The <Link href="/competitions">2027 competition page</Link> lists class topics, word counts, group limits and file requirements. You can also download the original guidelines. The student-registration and competition-submission deadline is {participationWindow.deadlineLabel}.</>},
   {question:'When do student registration and competition submissions close?',answer:<ParticipationDeadline />},
-  {question:'Do school and teacher registrations also close on 5 November?',answer:<>No. School and teacher registration remain available after 5 November. Schools keep their lifetime school ID; teachers can create a profile linked to their school. The deadline applies to student registration and competition submissions for this edition.</>},
+  {question:`Do school and teacher registrations also close on ${participationWindow.dateLabel}?`,answer:<>No. School and teacher registration remain available after {participationWindow.dateLabel}. Schools keep their lifetime school ID; teachers can create a profile linked to their school. The deadline applies to student registration and competition submissions for this edition.</>},
   {question:'Can I use AI in my submission?',answer:<>AI may be used for research or reference. AI-generated content in your submission receives a 15-point deduction. Credit sources used or inspiring your work, and follow the separate rules for original work and plagiarism.</>},
   {question:'Can we enter as a group?',answer:<>Case Study, Short Film, Waste to Art and Eco-Business allow up to three students. Monologue allows up to two. Open Letter, Blog, Article, Painting and Digital Art are individual entries.</>},
   {question:'Which classes can enter Waste to Art?',answer:<>Students in Classes 5–12 can enter Waste to Art in four bands: 5–6, 7–8, 9–10 and 11–12. Read the <Link href="/competitions#guidelines-waste-to-art">craft guidelines</Link> for materials, supervision and required videos.</>},

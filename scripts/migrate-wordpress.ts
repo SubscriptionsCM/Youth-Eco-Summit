@@ -4,6 +4,8 @@ import { createHash } from 'node:crypto';
 import { resolve, dirname, relative, isAbsolute } from 'node:path';
 import { db } from '../src/server/db';
 import { archiveWordPress, validateWordPressExport, verifyWordPressArchive, type Attachment } from '../src/server/wordpress-migration';
+import { objectStore } from '../src/server/storage/provider';
+import { retainWordPressAttachment } from './lib/wordpress-storage';
 
 const args=process.argv.slice(2),manifest=args.find(arg=>!arg.startsWith('--'));
 if(!manifest)throw new Error('Usage: npm run wordpress:migrate -- .local/export/export.json [--offline | --commit | --verify]');
@@ -24,6 +26,7 @@ const target=new URL(process.env.DATABASE_URL);
 if(args.includes('--commit')&&process.env.WORDPRESS_MIGRATION_TARGET!==target.hostname)throw new Error('Set WORDPRESS_MIGRATION_TARGET to the reviewed database hostname before committing.');
 const bucket=process.env.SUPABASE_STORAGE_BUCKET||'yes-private';
 async function object(file:Attachment,copy:boolean) {
+ if(process.env.STORAGE_PROVIDER==='filesystem')return retainWordPressAttachment(objectStore(),data.source,file,copy?await localFile(file):undefined);
  const service=process.env.SUPABASE_SERVICE_ROLE_KEY,url=process.env.SUPABASE_URL;
  if(!service||!url)throw new Error('Private Supabase storage credentials are required for attachment transfer.');
  const base=new URL(url);if(base.protocol!=='https:')throw new Error('Supabase storage must use HTTPS.');

@@ -26,7 +26,7 @@ export const guidelines2027Source = {
   href: '/documents/guidelines/YOUTH ECO SUMMIT TOPICS AND GUIDELINES-2027.pdf',
   theme: 'Waste segregation, the need of the hour',
   edition: 4,
-  dates: 'Student registrations and competition submissions run from 1 October to 5 November 2026. The deadline is 5 November 2026, 11:59 p.m. IST. School and teacher registration remain available after this deadline.',
+  dates: `Student registrations and competition submissions run from 1 October to ${participationWindow.dateLabel}. The deadline is ${participationWindow.deadlineLabel}. School and teacher registration remain available after this deadline.`,
   participationWindow,
   aiPolicy: { treatment: 'deduction', penaltyPoints: 15, scope: 'ai-generated-submission-content', researchReferenceAllowed: true, confirmedOn: '2026-10-06', confirmedBy: 'user' },
   titlePattern: 'SchoolName_Class_Category_ProjectTitle_Authors',

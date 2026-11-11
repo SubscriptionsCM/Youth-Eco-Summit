@@ -9,6 +9,15 @@ const context=(...path:string[])=>({params:Promise.resolve({path})});
 beforeEach(()=>{vi.stubEnv('PORTAL_REFERENCE_FORMS','true');vi.stubEnv('DATABASE_URL','postgres://test');vi.clearAllMocks();mocks.actor={id:'1',role:'participant'};});
 afterEach(()=>vi.unstubAllEnvs());
 it('requires a session before requesting historical records',async()=>{mocks.actor=null;expect((await GET(request('history'),context('history'))).status).toBe(401);expect(mocks.list).not.toHaveBeenCalled();});
+it('reports the selected WordPress provider only when its private configuration is ready',async()=>{
+ vi.stubEnv('AUTH_PARTICIPANT_PROVIDER','wordpress');
+ vi.stubEnv('WORDPRESS_BRIDGE_PATH','');
+ expect((await(await GET(request('config'),context('config'))).json()).data).toMatchObject({accountProvider:'wordpress',emailAccounts:false});
+ vi.stubEnv('WORDPRESS_BRIDGE_PATH','/private/bridge.php');vi.stubEnv('WORDPRESS_ROOT','/public/wordpress');vi.stubEnv('WORDPRESS_ORIGIN','https://source.example');
+ const response=await GET(request('config'),context('config'));
+ expect((await response.json()).data).toMatchObject({accountProvider:'wordpress',emailAccounts:true});
+ expect(response.headers.get('cache-control')).toBe('no-store');
+});
 it('serves only the authorization-filtered historical response with no caching',async()=>{mocks.list.mockResolvedValue({items:[{id:'entry',title:'Saved entry'}]});const response=await GET(request('history'),context('history'));expect(response.status).toBe(200);expect(response.headers.get('Cache-Control')).toBe('no-store');expect(mocks.list).toHaveBeenCalledWith({},mocks.actor);expect((await response.json()).data.items).toHaveLength(1);});
 it('delegates individual historical access to the ownership check',async()=>{mocks.detail.mockResolvedValue({id:'entry',fields:[]});expect((await GET(request('history/entry'),context('history','entry'))).status).toBe(200);expect(mocks.detail).toHaveBeenCalledWith({},mocks.actor,'entry');});
 it('validates explicit owner link inputs before passing them to the linking service',async()=>{expect((await POST(request('migration/link','POST',{source:'https://source.example',sourceId:'123',authUserId:'bad'}),context('migration','link'))).status).toBe(422);expect(mocks.link).not.toHaveBeenCalled();});

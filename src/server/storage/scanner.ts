@@ -1,9 +1,11 @@
 import { Readable } from 'node:stream';
 import { AppError } from '../core';
 import { ContentRejected } from './validation';
+import { scanLocalContent } from './local-scanner';
 
 export async function scanContent(body: AsyncIterable<Uint8Array>, metadata: { checksum: string; mimeType: string; byteSize: number }, maxDuration?: number) {
   if (process.env.STORAGE_DEV_SKIP_SCAN === 'true' && process.env.NODE_ENV !== 'production' && process.env.APP_ENV === 'development') return { status: 'dev_bypass', detail: { warning: 'Development-only scan bypass' } };
+  if (process.env.FILE_SCAN_COMMAND) return scanLocalContent(body, metadata, { command: process.env.FILE_SCAN_COMMAND, database: process.env.FILE_SCAN_DATABASE || undefined, timeoutMs: Number(process.env.FILE_SCAN_TIMEOUT_MS || 600000) }, maxDuration);
   const endpoint = process.env.FILE_SCAN_URL;
   if (!endpoint) throw new AppError(503, 'File verification service is not configured');
   const url = new URL(endpoint);

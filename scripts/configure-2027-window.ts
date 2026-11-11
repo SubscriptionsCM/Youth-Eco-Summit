@@ -32,7 +32,7 @@ export async function configure2027Window(database: Db) {
   if (editionChanged) await tx.query('UPDATE editions SET registration_opens=$2,registration_closes=$3,updated_at=now() WHERE id=$1', [edition.id, participationWindow.opensAt, participationWindow.closesAt]);
   for (const competition of changed) await tx.query('UPDATE competitions SET opens_at=$2,closes_at=$3 WHERE id=$1', [competition.id, participationWindow.opensAt, participationWindow.closesAt]);
   if (editionChanged || changed.length) await tx.query('INSERT INTO audit_events(id,action,entity_type,entity_id,detail) VALUES($1,$2,$3,$4,$5)', [id(), 'programme.confirm_dates', 'editions', edition.id, JSON.stringify({
-   source: 'User confirmed on 6 October 2026 that registrations and submissions are currently open and close on 5 November. Opening follows the previously confirmed 1 October launch. End-of-day Asia/Kolkata cutoff is the stated implementation assumption.',
+   source: `The current WordPress student-registration and competition-submission deadline is ${participationWindow.deadlineLabel}, verified on 10 November 2026. Opening follows the previously confirmed 1 October launch. The exclusive closing boundary is midnight after the stated deadline in Asia/Kolkata.`,
    opensAt: participationWindow.opensAt, closesAt: participationWindow.closesAt, timezone: participationWindow.timezone,
    previousRegistrationDates: { opensAt: iso(edition.registration_opens), closesAt: iso(edition.registration_closes) },
    changedCompetitionDates: changed.map(c => ({ id: c.id, slug: c.slug, version: c.version, opensAt: iso(c.opens_at), closesAt: iso(c.closes_at) })),

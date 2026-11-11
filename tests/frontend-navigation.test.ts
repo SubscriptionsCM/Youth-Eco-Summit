@@ -3,6 +3,12 @@ import { afterLoginPath, dashboardLabel, dashboardPath, loginPath, safeReturnPat
 import { catalogueCompetitions, competitionAvailability, competitionExcerpt, competitionPath, findProgrammeCompetition, findPublicCompetition } from '../src/components/competition-public';
 
 describe('authenticated navigation', () => {
+  it('preserves shared file links for their permitted account roles',()=>{
+    const path='/files/123e4567-e89b-42d3-a456-426614174000';
+    for(const role of ['participant','owner','admin'])expect(afterLoginPath(role,path)).toBe(path);
+    expect(afterLoginPath('judge',path)).toBe('/judge');
+    expect(new URL(loginPath(path),'https://local.test').searchParams.get('next')).toBe(path);
+  });
   it('preserves private team invitation and competition query values through login', () => {
     const destination = '/teams/join?token=private%2Btoken%2Fvalue&edition=2027#confirmation';
     const href = new URL(loginPath(destination), 'https://local.test');

@@ -1,9 +1,9 @@
-/** Student-registration and competition-submission dates confirmed by the user on 6 October 2026; separate from the summit event date. */
+/** Current WordPress participation cutoff verified on 10 November 2026; separate from the summit event date. */
 export const participationWindow = {
   opensAt: '2026-09-30T18:30:00.000Z',
-  closesAt: '2026-11-05T18:30:00.000Z',
-  dateLabel: '5 November 2026',
-  deadlineLabel: '5 November 2026, 11:59 p.m. IST',
+  closesAt: '2026-11-15T18:30:00.000Z',
+  dateLabel: '15 November 2026',
+  deadlineLabel: '15 November 2026, 11:59 p.m. IST',
   timezone: 'Asia/Kolkata',
   scope: 'student-registration-and-competition-submissions',
 } as const;

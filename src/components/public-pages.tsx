@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
 import { CampaignMotion } from './campaign-motion';
 import { ParticipationArt } from './participation-art';
 import { CompetitionProgramme, CompetitionGuidelineDetails, GuidelinesDownload, GuidelinesEssentials } from './competition-programme';
@@ -10,6 +11,7 @@ import { contentFor, date, type PublicConfig, type Row } from './api';
 import { Empty, PageTitle, ResourceState, useResource } from './shared';
 import { AboutPage, EditorialClosing, FAQPage, ParticipationPage } from './editorial-pages';
 import { catalogueCompetitions, competitionAvailability, competitionExcerpt, competitionPath, findProgrammeCompetition, findPublicCompetition } from './competition-public';
+import { participationWindow, participationWindowStatus } from '../data/participation-window';
 import '../app/editorial.css';
 
 const arrow = <span aria-hidden="true">→</span>;
@@ -19,11 +21,26 @@ export function HomePage() {
 }
 
 function CompetitionList({ config }: { config: PublicConfig | null }) {
+  const forms = useResource<{ enabled: boolean; configured: boolean }>('/api/forms/config');
+  const [participationStatus, setParticipationStatus] = useState(() => participationWindowStatus());
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    function refresh() {
+      const now = Date.now();
+      const status = participationWindowStatus(now);
+      setParticipationStatus(status);
+      const boundary = status.state === 'upcoming' ? Date.parse(participationWindow.opensAt) : status.state === 'open' ? Date.parse(participationWindow.closesAt) : null;
+      if (boundary !== null) timer = setTimeout(refresh, Math.min(Math.max(boundary - now + 1, 1), 2_147_483_000));
+    }
+    refresh();
+    return () => { if (timer !== undefined) clearTimeout(timer); };
+  }, []);
+  const referenceFormsEnabled = !forms.loading && !forms.error && forms.data?.enabled === true && forms.data.configured === true;
   const editions = config?.editions || [];
   const competitions = catalogueCompetitions(config?.competitions || [], editions);
   const displayedIds = new Set(competitionProgramme2027.map(item => findProgrammeCompetition(competitions, editions, item.slug)?.id));
   const additional = competitions.filter(item => !displayedIds.has(item.id));
-  return <><CompetitionProgramme competitions={competitions} editions={editions} />{additional.length > 0 && <div className="catalogue-grid">{additional.map((competition,index) => {
+  return <>{forms.error && <ResourceState {...forms} retry={forms.reload} />}<CompetitionProgramme competitions={competitions} editions={editions} referenceFormsEnabled={referenceFormsEnabled} participationStatus={participationStatus} />{additional.length > 0 && <div className="catalogue-grid">{additional.map((competition,index) => {
     const availability = competitionAvailability(competition, config?.editions || []);
     const edition = config?.editions.find(item => item.id === (competition.edition_id || competition.editionId));
     const excerpt = competitionExcerpt(competition);
@@ -53,15 +70,15 @@ export function CompetitionsPage({ id }: { id?: string }) {
   return <CampaignMotion><CompetitionsContent id={id} /></CampaignMotion>;
 }
 const titles: Record<string,string> = { contact:'Contact and support',privacy:'Privacy',terms:'Participation terms' };
-function ApprovedContentPage({ slug }: { slug: string }) {
+function ApprovedContentPage({ slug, contactFormEnabled = false }: { slug: string; contactFormEnabled?: boolean }) {
   const config = useResource<PublicConfig>('/api/public/config');
   const content = contentFor(config.data,slug);
-  if(slug==='contact') return <div className="editorial-page"><section className="editorial-container editorial-simple-hero"><p className="editorial-eyebrow">Contact & support</p><h1>Need a hand?</h1><p className="editorial-lead">Questions about registration, competitions, schools or participation?</p></section><section className="editorial-container editorial-support-grid"><Link href="/how-to-participate"><h3>Getting started</h3><p>Follow the participation guide, step by step.</p>{arrow}</Link><Link href="/schools"><h3>Your school</h3><p>Find a registered school or nominate one for review.</p>{arrow}</Link><Link href="/faq"><h3>Quick answers</h3><p>Read answers to common registration and submission questions.</p>{arrow}</Link></section><section className="editorial-container editorial-approved-content"><p className="editorial-eyebrow">Contact the team</p><h2>We’re here to help.</h2><p>Tell us what you need and the Youth Eco Summit team will help you find the right next step.</p><ResourceState {...config} retry={config.reload} />{content?.body ? <div className="prose">{content.body}</div> : !config.loading && !config.error && <Empty>Support contact details have not been published. In the meantime, explore the participation guide and frequently asked questions above.</Empty>}</section><EditorialClosing title="Your next step starts here." text="Explore how you can participate in Youth Eco Summit." href="/how-to-participate" label="Participation guide" /></div>;
+  if(slug==='contact') return <div className="editorial-page"><section className="editorial-container editorial-simple-hero"><p className="editorial-eyebrow">Contact & support</p><h1>Need a hand?</h1><p className="editorial-lead">Questions about registration, competitions, schools or participation?</p></section><section className="editorial-container editorial-support-grid"><Link href="/how-to-participate"><h3>Getting started</h3><p>Follow the participation guide, step by step.</p>{arrow}</Link><Link href="/schools"><h3>Your school</h3><p>Find a registered school or nominate one for review.</p>{arrow}</Link><Link href="/faq"><h3>Quick answers</h3><p>Read answers to common registration and submission questions.</p>{arrow}</Link></section><section className="editorial-container editorial-approved-content"><p className="editorial-eyebrow">Contact the team</p><h2>We’re here to help.</h2><p>Tell us what you need and the Youth Eco Summit team will help you find the right next step.</p><ResourceState {...config} retry={config.reload} />{content?.body ? <div className="prose">{content.body}</div> : !contactFormEnabled && !config.loading && !config.error && <Empty>Support contact details have not been published. In the meantime, explore the participation guide and frequently asked questions above.</Empty>}{contactFormEnabled&&<p><Link className="yes-button" href="/forms/legacy-12146">Send a message {arrow}</Link></p>}</section><EditorialClosing title="Your next step starts here." text="Explore how you can participate in Youth Eco Summit." href="/how-to-participate" label="Participation guide" /></div>;
   return <div className="editorial-page"><div className="editorial-container editorial-simple-hero"><PageTitle title={content?.title || titles[slug] || slug} /><ResourceState {...config} retry={config.reload} />{content?.body ? <div className="prose">{content.body}</div> : !config.loading && !config.error && <Empty>Approved information has not been published yet.</Empty>}</div></div>;
 }
-export function ContentPage({ slug }: { slug: string }) {
+export function ContentPage({ slug, contactFormEnabled = false }: { slug: string; contactFormEnabled?: boolean }) {
   if(slug==='about') return <AboutPage />;
   if(slug==='how-to-participate') return <ParticipationPage />;
   if(slug==='faq') return <FAQPage />;
-  return <ApprovedContentPage slug={slug} />;
+  return <ApprovedContentPage slug={slug} contactFormEnabled={contactFormEnabled} />;
 }

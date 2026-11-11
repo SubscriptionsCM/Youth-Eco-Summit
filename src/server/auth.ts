@@ -3,6 +3,7 @@ import { TOTP, Secret } from 'otpauth';
 import { db as database, type Db } from './db';
 import { AppError, type Actor, audit } from './core';
 import { supabaseParticipantAction } from './supabase-auth';
+import { environmentWordPressBridge, verifyWordPressActor, wordPressParticipantAction, type WordPressBridge } from './wordpress-auth';
 
 const derive = (value: string, salt: string, length: number, options: ScryptOptions): Promise<Buffer> =>
   new Promise((resolve, reject) => {
@@ -23,6 +24,7 @@ export interface AuthOptions {
   secureCookies?: boolean;
   sendOtp?: Delivery;
   sendEmail?: (contact: string, subject: string, body: string) => Promise<void>;
+  wordpressBridge?: WordPressBridge;
   /** Configure only behind a proxy that overwrites this header. */
   trustedIpHeader?: string;
 }
@@ -82,16 +84,28 @@ export function assertSameOrigin(request: Request, configuredOrigin = process.en
 }
 
 export function createAuth(db: Db, options: AuthOptions) {
+  const wordpressBridge = options.wordpressBridge ?? environmentWordPressBridge();
   const cookie = (value: string, seconds: number) => `${COOKIE}=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${seconds}${options.secureCookies !== false ? '; Secure' : ''}`;
   const otpHash = (phone: string, code: string) => createHmac('sha256', key(options.secret)).update(`${phone}:${code}`).digest('hex');
   async function getActor(request: Request): Promise<Actor | null> {
     const token = sessionToken(request);
     if (!/^[a-f0-9]{64}$/.test(token)) return null;
-    const { rows } = await db.query<Actor>(`SELECT u.id,u.role,u.contact FROM auth_sessions s JOIN users u ON u.id=s.user_id
+    const query = `SELECT u.id,u.role,u.contact,EXISTS(SELECT 1 FROM wordpress_account_identities w WHERE w.user_id=u.id) AS wordpress_bound
+      FROM auth_sessions s JOIN users u ON u.id=s.user_id
       WHERE s.token_hash=$1 AND s.revoked_at IS NULL AND s.expires_at>now() AND u.active=true
       AND s.auth_version=u.auth_version AND (u.role='participant' OR (s.mfa_verified=true AND u.totp_secret IS NOT NULL))
-      AND NOT EXISTS(SELECT 1 FROM supabase_identities si WHERE si.user_id=u.id AND si.recovery_nonce IS NOT NULL)`, [digest(token)]);
-    return rows[0] || null;
+      AND NOT EXISTS(SELECT 1 FROM supabase_identities si WHERE si.user_id=u.id AND si.recovery_nonce IS NOT NULL)`;
+    const tokenHash = digest(token);
+    const { rows: [found] } = await db.query<Actor & {wordpress_bound: boolean}>(query, [tokenHash]);
+    if (!found) return null;
+    const { wordpress_bound: wordpressBound, ...actor } = found;
+    if (!wordpressBound) return actor;
+    if (!await verifyWordPressActor(db, actor, wordpressBridge)) return null;
+    // Source checks cross a process boundary. Recheck local revocation/version
+    // after that wait so a concurrent logout or password reset takes effect.
+    const { rows: [current] } = await db.query<Actor & {wordpress_bound: boolean}>(query, [tokenHash]);
+    if (!current?.wordpress_bound || current.id !== actor.id || current.role !== actor.role || current.contact !== actor.contact) return null;
+    return actor;
   }
   async function rate(request: Request, purpose: string, identity: string, limit = 10) {
     const network = options.trustedIpHeader ? request.headers.get(options.trustedIpHeader)?.split(',')[0]?.trim() || 'unknown' : 'untrusted';
@@ -128,7 +142,7 @@ export function createAuth(db: Db, options: AuthOptions) {
   }
   async function body(request: Request): Promise<Record<string, unknown>> {
     const raw = await request.text();
-    if (Buffer.byteLength(raw) > 16_384) throw new AppError(413, 'Request is too large.');
+    if (Buffer.byteLength(raw) > 32_768) throw new AppError(413, 'Request is too large.');
     try { const parsed = JSON.parse(raw); if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error(); return parsed; }
     catch { throw new AppError(400, 'A JSON object is required.'); }
   }
@@ -142,7 +156,9 @@ export function createAuth(db: Db, options: AuthOptions) {
       if (request.method !== 'POST') throw new AppError(405, 'Method not allowed.');
       const input = await body(request);
       if (['participant/signup','participant/login','participant/verify','participant/resend','participant/recovery/request','participant/recovery/complete'].includes(route)) {
-        await rate(request,'supabase-'+route,String(input.contact||'').trim().toLowerCase(),5);
+        const participantProvider = process.env.AUTH_PARTICIPANT_PROVIDER === 'wordpress' ? 'wordpress' : 'supabase';
+        await rate(request,participantProvider+'-'+route,String(input.contact||'').trim().toLowerCase(),5);
+        if (process.env.AUTH_PARTICIPANT_PROVIDER === 'wordpress') return await wordPressParticipantAction(db,route,input,wordpressBridge,startSession,{...options,request});
         return await supabaseParticipantAction(db,route,input,startSession);
       }
       if (route === 'otp/request') {
@@ -279,8 +295,15 @@ function environmentOptions(): AuthOptions {
     if (!result.ok) throw new Error('Delivery failed');
   };
   const sms = enabled && process.env.SMS_WEBHOOK_URL && process.env.SMS_WEBHOOK_TOKEN ? deliver(process.env.SMS_WEBHOOK_URL,process.env.SMS_WEBHOOK_TOKEN) : null;
-  const email = enabled && process.env.EMAIL_WEBHOOK_URL && process.env.EMAIL_WEBHOOK_TOKEN ? deliver(process.env.EMAIL_WEBHOOK_URL,process.env.EMAIL_WEBHOOK_TOKEN) : null;
+  const wordpressBridge = environmentWordPressBridge();
+  let email: ((payload: unknown) => Promise<void>) | null = null;
+  if (enabled) {
+    if (process.env.AUTH_PARTICIPANT_PROVIDER === 'wordpress') {
+      if (wordpressBridge) email = async (payload: unknown) => { await wordpressBridge.call('mail', payload as Record<string, unknown>); };
+    } else if (process.env.EMAIL_WEBHOOK_URL && process.env.EMAIL_WEBHOOK_TOKEN) email = deliver(process.env.EMAIL_WEBHOOK_URL,process.env.EMAIL_WEBHOOK_TOKEN);
+  }
   return { secret: process.env.AUTH_SECRET || '', origin: process.env.APP_ORIGIN || '', secureCookies: process.env.NODE_ENV === 'production', trustedIpHeader: process.env.AUTH_TRUSTED_IP_HEADER,
+    wordpressBridge,
     ...(sms ? {sendOtp: async (contact: string, code: string) => sms({to:contact,code,expiresIn:300})} : {}),
     ...(email ? {sendEmail: async (contact: string, subject: string, body: string) => email({to:contact,subject,body})} : {}),
   };

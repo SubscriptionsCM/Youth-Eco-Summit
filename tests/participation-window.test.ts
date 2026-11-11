@@ -11,7 +11,7 @@ import { testDb } from './helpers/db';
 
 const opens=Date.parse(participationWindow.opensAt),closes=Date.parse(participationWindow.closesAt);
 
-describe('5 November 2026 participation cutoff',()=>{
+describe('15 November 2026 participation cutoff',()=>{
  let store:Awaited<ReturnType<typeof testDb>>,actor:Actor,school:string,edition:string,student:string,participation:string,competition:string;
  const at=(time:number)=>vi.spyOn(Date,'now').mockReturnValue(time);
  const input=()=>({name:'Boundary Student',schoolId:school,editionId:edition,class:5,guardianContact:actor.contact!,consent:true,consentVersion:'fixture-consent'});
@@ -31,12 +31,21 @@ describe('5 November 2026 participation cutoff',()=>{
  afterEach(()=>vi.restoreAllMocks());
  afterAll(async()=>await store?.close());
  it('represents the last day in India with an exclusive midnight cutoff',()=>{
-  expect(participationWindow.closesAt).toBe('2026-11-05T18:30:00.000Z');
+  expect(participationWindow.closesAt).toBe('2026-11-15T18:30:00.000Z');
   expect(participationWindowStatus(opens-1).isOpen).toBe(false);
   expect(participationWindowStatus(opens).isOpen).toBe(true);
   expect(participationWindowStatus(closes-1).isOpen).toBe(true);
   expect(participationWindowStatus(closes).state).toBe('closed');
   expect(participationWindowStatus(closes+1).isOpen).toBe(false);
+ });
+ it.each([
+  ['2026-11-05T18:30:00.000Z', 'open'],
+  ['2026-11-10T12:00:00.000Z', 'open'],
+  ['2026-11-15T18:29:59.999Z', 'open'],
+  ['2026-11-15T18:30:00.000Z', 'closed'],
+  ['2026-11-15T18:30:00.001Z', 'closed'],
+ ] as const)('reports the current WordPress participation state at %s', (timestamp, state) => {
+  expect(participationWindowStatus(new Date(timestamp)).state).toBe(state);
  });
  it('accepts student registration at opening and until the last millisecond, then rejects it exactly at closing',async()=>{
   const clock=at(opens-1);

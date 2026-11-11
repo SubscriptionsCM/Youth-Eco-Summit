@@ -135,13 +135,17 @@ function present(record:SourceRecord){
  const formTitle=form?plainText(form.title):'Historical entry';
  return {id:record.id,sourceId:record.source_id,formKey:form?.key??null,title:formTitle,formTitle,status:text(record.payload.status),createdAt:text(record.payload.date_created),fields};
 }
-type HistoricalFile={id:string;entry_record_id:string;storage_key:string;filename:string;mime_type:string;byte_size:number|string};
+type HistoricalFile={id:string;entry_record_id:string;storage_key:string;filename:string;mime_type:string;byte_size:number|string;checksum:string};
 const fileName=(value:string)=>plainText(value.split(/[/\\]/).pop()||'Attachment').slice(0,250);
 async function authorizedHistory(db:Db,actor:Actor,entryId?:string){
  if(actor.role!=='participant')return [];
  const {rows:links}=await db.query<SourceRecord&{source_checksum:string;verified_contact:string;contact:string}>("SELECT r.*,l.source_checksum,i.verified_contact,u.contact FROM wordpress_user_links l JOIN wordpress_records r ON r.id=l.record_id JOIN supabase_identities i ON i.auth_user_id=l.auth_user_id AND i.user_id=l.user_id JOIN users u ON u.id=l.user_id WHERE l.user_id=$1 AND u.role='participant' AND u.active=true",[actor.id]);
  const identities=new Map<string,Set<string>>();
  for(const link of links){if(link.source_checksum!==link.checksum||fingerprint(link.payload)!==link.checksum||!sourceEmail(link)||sourceEmail(link)!==link.verified_contact.trim().toLowerCase()||sourceEmail(link)!==link.contact.trim().toLowerCase())continue;const ids=identities.get(link.source)??new Set<string>();ids.add(link.source_id);identities.set(link.source,ids);}
+ const {rows:direct}=await db.query<SourceRecord>(`SELECT r.* FROM wordpress_account_identities w JOIN users u ON u.id=w.user_id
+  JOIN wordpress_records r ON r.source=w.source AND r.kind='user' AND r.source_id=w.source_user_id
+  WHERE w.user_id=$1 AND u.role='participant' AND u.active=true`,[actor.id]);
+ for(const record of direct){if(fingerprint(record.payload)!==record.checksum)continue;const ids=identities.get(record.source)??new Set<string>();ids.add(record.source_id);identities.set(record.source,ids);}
  if(!identities.size)return [];
  const {rows:entries}=await db.query<SourceRecord>("SELECT * FROM wordpress_records WHERE kind='entry' AND source=ANY($1::text[])"+(entryId?' AND id=$2':'')+' ORDER BY source_id',entryId?[[...identities.keys()],entryId]:[[...identities.keys()]]);
  const authorized=entries.filter(entry=>fingerprint(entry.payload)===entry.checksum&&identities.get(entry.source)?.has(entryOwner(entry)??''));
@@ -162,5 +166,5 @@ export async function historicalAttachment(db:Db,actor:Actor,attachmentId:string
  if(!file)throw new AppError(404,'Historical file not found.');
  const entry=await historicalEntry(db,actor,file.entry_record_id);
  if(!entry.attachments.some(attachment=>attachment.id===file.id))throw new AppError(404,'Historical file not found.');
- return {storage_key:file.storage_key,filename:fileName(file.filename),mime_type:file.mime_type};
+ return {id:file.id,storage_key:file.storage_key,filename:fileName(file.filename),mime_type:file.mime_type,byte_size:Number(file.byte_size),checksum:file.checksum};
 }

@@ -3,19 +3,21 @@ import { db } from '@/server/db';
 import { getActor, assertSameOrigin } from '@/server/auth';
 import { AppError, ok } from '@/server/core';
 import { supabaseAuthConfigured } from '@/server/supabase-auth';
+import { wordPressAuthConfigured } from '@/server/wordpress-auth';
 import { createFormRecord, getFormRecord, saveFormRecord, submitFormRecord, FormValidationError } from '@/server/portal-forms';
 import { portalUploadAction } from '@/server/portal-uploads';
-import { historicalEntries, historicalEntry, historicalAttachment, linkWordPressUser } from '@/server/wordpress-projection';
+import { historicalEntries, historicalEntry, linkWordPressUser } from '@/server/wordpress-projection';
 import { objectStore } from '@/server/storage/provider';
-import { safeDisposition } from '@/server/storage/validation';
-import { GetObjectCommand } from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { historicalDownloadUrl } from '@/server/storage/downloads';
 export const runtime='nodejs';
 export const dynamic='force-dynamic';
 async function route(request:Request,context:{params:Promise<{path:string[]}>}) {
  try {
   const {path}=await context.params;
-  if(path[0]==='config'&&request.method==='GET')return ok({enabled:process.env.PORTAL_REFERENCE_FORMS==='true',configured:!!process.env.DATABASE_URL,emailAccounts:supabaseAuthConfigured()});
+  if(path[0]==='config'&&request.method==='GET'){
+   const wordpress=process.env.AUTH_PARTICIPANT_PROVIDER==='wordpress';
+   return ok({enabled:process.env.PORTAL_REFERENCE_FORMS==='true',configured:!!process.env.DATABASE_URL,emailAccounts:wordpress?wordPressAuthConfigured():supabaseAuthConfigured(),accountProvider:wordpress?'wordpress':'supabase'});
+  }
   if(process.env.PORTAL_REFERENCE_FORMS!=='true'||!process.env.DATABASE_URL)throw new AppError(503,'Registration services are being configured. Please use the current live website.');
   assertSameOrigin(request);
   const actor=await getActor(request),token=request.headers.get('X-Draft-Key')||undefined;
@@ -24,8 +26,7 @@ async function route(request:Request,context:{params:Promise<{path:string[]}>}) 
    if(request.method==='GET'&&path.length===1)return ok(await historicalEntries(db,actor));
    if(request.method==='GET'&&path.length===2)return ok(await historicalEntry(db,actor,path[1]));
    if(request.method==='POST'&&path.length===4&&path[1]==='files'&&path[3]==='download'){
-    const file=await historicalAttachment(db,actor,path[2]),store=objectStore();
-    return ok({url:await getSignedUrl(store.client,new GetObjectCommand({Bucket:store.bucket,Key:file.storage_key,ResponseContentDisposition:safeDisposition(file.mime_type,file.filename,true),ResponseContentType:file.mime_type}),{expiresIn:60})});
+    return ok({url:await historicalDownloadUrl(db,objectStore(),actor,path[2])});
    }
   }
   if(path.join('/')==='migration/link'&&request.method==='POST'){

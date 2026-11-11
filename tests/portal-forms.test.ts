@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { testDb } from './helpers/db';
-import { createFormRecord, getFormRecord, saveFormRecord, submitFormRecord } from '../src/server/portal-forms';
+import { createFormRecord, getFormRecord, saveFormRecord, submitFormRecord, writableFormRecord } from '../src/server/portal-forms';
 import type { Actor } from '../src/server/core';
 
 describe('reference form persistence', () => {
@@ -18,6 +18,24 @@ describe('reference form persistence', () => {
   await expect(createFormRecord(fixture.db,null,{formKey:'open-letter'})).rejects.toMatchObject({status:401});
   const created=await createFormRecord(fixture.db,actor,{formKey:'open-letter'});
   await expect(getFormRecord(fixture.db,{...actor,id:randomUUID()},created.record.id)).rejects.toMatchObject({status:404});
+ });
+ it('reports a terminal verification failure to the draft owner',async()=>{
+  const created=await createFormRecord(fixture.db,actor,{formKey:'partner'}),fileId=randomUUID();
+  await fixture.db.query("INSERT INTO portal_form_files(id,record_id,field_id,filename,storage_key,expected_size,expected_checksum,upload_id,status) VALUES($1,$2,'upload-1','Test.pdf',$3,1,$4,$5,'uploaded')",[fileId,created.record.id,`submissions/${created.record.id}/${fileId}`,'a'.repeat(64),randomUUID()]);
+  await fixture.db.query("INSERT INTO jobs(id,kind,payload,status) VALUES($1,'verify_portal_file',$2,'failed')",[randomUUID(),JSON.stringify({fileId})]);
+  expect((await getFormRecord(fixture.db,actor,created.record.id)).files[0].verification_failed).toBe(true);
+ });
+ it('allows active administrative read access only after submission', async()=>{
+  const created=await createFormRecord(fixture.db,null,{formKey:'school'});
+  const admin:Actor={id:randomUUID(),role:'admin'};
+  await fixture.db.query("INSERT INTO users(id,role,contact) VALUES($1,'admin','staff@example.org')",[admin.id]);
+  await expect(getFormRecord(fixture.db,admin,created.record.id)).rejects.toMatchObject({status:404});
+  await fixture.db.query("UPDATE portal_form_records SET status='submitted',submitted_at=now() WHERE id=$1",[created.record.id]);
+  expect((await getFormRecord(fixture.db,admin,created.record.id)).id).toBe(created.record.id);
+  await expect(writableFormRecord(fixture.db,admin,created.record.id)).rejects.toMatchObject({status:404});
+  await expect(getFormRecord(fixture.db,actor,created.record.id)).rejects.toMatchObject({status:404});
+  await fixture.db.query("UPDATE users SET role='judge' WHERE id=$1",[admin.id]);
+  await expect(getFormRecord(fixture.db,admin,created.record.id)).rejects.toMatchObject({status:401});
  });
  it('retains the declared role and entry mode immediately so an untouched saved link can be resumed',async()=>{
   const context={'hidden-yes-submitter':'educator','radio-yes-entry-mode':'individual'};
