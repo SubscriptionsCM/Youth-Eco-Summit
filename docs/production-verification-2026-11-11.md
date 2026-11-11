@@ -34,3 +34,11 @@ All 29 audited public routes returned HTTP 200 on both source and destination. T
 - A final incremental capture is required at eventual WordPress cutover because the source remains live and accepts new activity. Permanent removal of the WordPress account/mail dependency and automatic Hostinger deployment are separate remaining setup requirements.
 
 Full end-to-end parity is **not yet signed off**.
+
+## Signup compatibility correction
+
+The human signup attempt reached emailed-code verification, then failed in the private account bridge before creating a source account. Read-only inspection confirmed that the published native registration mappings and InnoDB tables match the expected policy. The source subscriber role also includes `read_private_locations` and `read_private_events`; the bridge's original reader allowlist rejected these existing permissions.
+
+Private helper patch `f4574caff7f8e53da6d6433037ae65dce5a229b2` now permits those two specific native reader capabilities. Administrator, private-post and unknown enabled capabilities remain blocked. Student and educator PHP create-action regressions reproduced the failure before the change, then passed after it. All 34 focused PHP/account tests, type checking and PHP lint passed; independent review found no Important or Critical issues. The helper was deployed atomically with SHA-256 readback, mode `0600` and the previous helper retained privately. The Next.js application bundle is unchanged. Successful human signup/dashboard acceptance remains pending.
+
+The subsequent [full CI run 42962126186](https://github.com/SubscriptionsCM/Youth-Eco-Summit/actions/runs/42962126186) passed 415 tests with two existing skips, type checking, the production build, worker startup and standalone packaging.
