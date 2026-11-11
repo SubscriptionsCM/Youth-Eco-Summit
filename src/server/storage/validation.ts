@@ -7,7 +7,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import { Readable, Transform } from 'node:stream';
-import { promisify } from 'node:util';
 import { AppError } from '../core';
 import { wordCount } from '../../domain/rules';
 
@@ -42,7 +41,13 @@ export function validateMetadata(metadata:VerifiedMetadata, rules:MediaRules, mi
     if(rules.maxHeight&&(landscapeHeight>rules.maxHeight||landscapeWidth>Math.ceil(rules.maxHeight*16/9)))throw new ContentRejected(`Resolution must not exceed ${rules.maxHeight}p.`);
   }
 }
-const exec=promisify(execFile);
+// Hosting wrappers may preserve execFile's callback but lose its custom
+// promisifier, which otherwise changes the resolved value to stdout alone.
+const exec=(command:string,args:string[],options:{timeout:number;maxBuffer:number})=>new Promise<{stdout:string;stderr:string}>((resolve,reject)=>{
+  execFile(command,args,{...options,encoding:'utf8',shell:false,windowsHide:true},(error,stdout,stderr)=>{
+    if(error)reject(error);else resolve({stdout,stderr});
+  });
+});
 export async function inspectFileMetadata(stream:AsyncIterable<Uint8Array>,mime:string,rules:FileRules):Promise<VerifiedMetadata>{
   const pdf=mime==='application/pdf'&&(rules.minWords!==undefined||rules.maxWords!==undefined);
   const media=(mime.startsWith('video/')||mime.startsWith('image/'))&&(rules.maxDurationSeconds!==undefined||rules.maxHeight!==undefined||rules.orientation!==undefined);
