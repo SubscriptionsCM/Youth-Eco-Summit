@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { shouldPlayHero } from './live-media-policy';
 import { LivePublications } from './live-publications';
+import { connectWinners } from './live-winner-controls';
 
 const participation = [
   ['Already registered? Use your permanent school ID. If your school is missing, nominate it for review.', 'Find your school', '/schools'],
@@ -61,6 +62,7 @@ export function LiveReferenceContent({ html }: { html: string }) {
     const root = host.current!;
     setPublicationsTarget(root.querySelector<HTMLElement>('[data-live-publications]'));
     const disconnectHero = connectHero(root);
+    const disconnectWinners = connectWinners(root);
     const speakers = root.querySelector<HTMLElement>('#summit-speaker-list');
     const partnerWindow = root.querySelector<HTMLElement>('.summit-partner-window');
     const partnerToggle = root.querySelector<HTMLButtonElement>('.summit-slider-toggle');
@@ -116,7 +118,7 @@ export function LiveReferenceContent({ html }: { html: string }) {
       partnerWindow.addEventListener('pointerup', pointerEnd); partnerWindow.addEventListener('pointercancel', pointerEnd);
     }
     const activateTab = (tab: HTMLElement, focus: boolean) => {
-      const tabs = [...root.querySelectorAll<HTMLElement>('[role="tab"]')];
+      const tabs = [...root.querySelectorAll<HTMLElement>('[role="tab"][aria-controls="step-panel"]')];
       const index = tabs.indexOf(tab), panel = root.querySelector<HTMLElement>('#step-panel');
       if (index < 0 || !panel) return;
       tabs.forEach(item => { item.setAttribute('aria-selected', String(item === tab)); item.tabIndex = item === tab ? 0 : -1; });
@@ -130,7 +132,7 @@ export function LiveReferenceContent({ html }: { html: string }) {
     };
     const click = (event: MouseEvent) => {
       const target = event.target instanceof Element ? event.target : null;
-      const tab = target?.closest<HTMLElement>('[role="tab"]');
+      const tab = target?.closest<HTMLElement>('[role="tab"][aria-controls="step-panel"]');
       if (tab) { activateTab(tab, false); return; }
       const faq = target?.closest<HTMLButtonElement>('.animated-faq-trigger');
       if (faq) {
@@ -155,9 +157,9 @@ export function LiveReferenceContent({ html }: { html: string }) {
     };
     const keydown = (event: KeyboardEvent) => {
       const target = event.target instanceof HTMLElement ? event.target : null;
-      const tab = target?.closest<HTMLElement>('[role="tab"]');
+      const tab = target?.closest<HTMLElement>('[role="tab"][aria-controls="step-panel"]');
       if (tab) {
-        const tabs = [...root.querySelectorAll<HTMLElement>('[role="tab"]')], current = tabs.indexOf(tab);
+        const tabs = [...root.querySelectorAll<HTMLElement>('[role="tab"][aria-controls="step-panel"]')], current = tabs.indexOf(tab);
         const next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : event.key === 'ArrowRight' ? (current + 1) % tabs.length : event.key === 'ArrowLeft' ? (current + tabs.length - 1) % tabs.length : -1;
         if (next >= 0) { event.preventDefault(); activateTab(tabs[next], true); }
         return;
@@ -172,7 +174,7 @@ export function LiveReferenceContent({ html }: { html: string }) {
     root.addEventListener('click', click); root.addEventListener('keydown', keydown);
     const resize = new ResizeObserver(syncSpeakers); if (speakers) resize.observe(speakers);
     return () => {
-      disconnectHero(); resize.disconnect(); speakers?.removeEventListener('scroll', syncSpeakers);
+      disconnectHero(); disconnectWinners(); resize.disconnect(); speakers?.removeEventListener('scroll', syncSpeakers);
       partnerWindow?.removeEventListener('pointerdown', pointerDown); partnerWindow?.removeEventListener('pointermove', pointerMove);
       partnerWindow?.removeEventListener('pointerup', pointerEnd); partnerWindow?.removeEventListener('pointercancel', pointerEnd);
       root.removeEventListener('click', click); root.removeEventListener('keydown', keydown);

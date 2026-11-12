@@ -17,8 +17,6 @@ ORIGIN='https://youthecosummit.com'
 records=[json.loads(p.read_text(encoding='utf-8')) for p in sorted(CAPTURE.glob('*.json'))]
 assert len(records)==15
 media=set()
-prior_file=ROOT/'src/data/live-presentation.json'
-prior={item['source']:item for item in json.loads(prior_file.read_text(encoding='utf-8'))['assets']} if prior_file.exists() else {}
 def absolute(value,base=ORIGIN+'/'):
  return urljoin(base,value)
 def is_asset(url):
@@ -28,6 +26,11 @@ def collect(value,base=ORIGIN+'/'):
  url=absolute(value,base)
  if is_asset(url):media.add(url)
  return url
+# Public interactive winner panels are captured in an isolated browser, never account data.
+winner_panels=json.loads((CAPTURE.parent/'winner-panels.json').read_text(encoding='utf-8'))
+winners=json.loads((ROOT/'.local/winners-extracted.json').read_text(encoding='utf-8'))
+for panel in winner_panels.values():
+ for a in BeautifulSoup(panel,'html.parser').select('a[href]'):collect(a['href'])
 css_sources={}
 for record in records:
  for href in record['styles']:
@@ -48,9 +51,6 @@ for url,css in css_sources.items():
  for candidate in re.findall(r'url\([\s\"\']*([^\)\"\']+)',css):collect(candidate,url)
 
 def download(url):
- if url in prior:
-  cached=prior[url];file=ROOT/'public'/cached['path'].lstrip('/')
-  if file.exists() and hashlib.sha256(file.read_bytes()).hexdigest()==cached['sha256']:return cached
  with urllib.request.urlopen(url,timeout=90) as response:
   kind=response.headers.get('Content-Type','').split(';')[0]
   body=response.read(95*1024*1024+1)
@@ -111,6 +111,8 @@ def clean(record):
  return {'html':html,'sourceSha256':record['sourceSha256'],'title':record['title']}
 
 pages={record['path']:clean(record) for record in records}
+winner_data={'records':winners,'panels':{year:clean({'main':'<main><h1>Winners</h1>'+panel+'</main>','path':'/winners','title':'','sourceSha256':''})['html'].replace('<h1>Winners</h1>','') for year,panel in winner_panels.items()}}
+(ROOT/'src/data/live-winners.json').write_text(json.dumps(winner_data,ensure_ascii=False,separators=(',',':'))+'\n',encoding='utf-8')
 css=[]
 for url,source in css_sources.items():
  source=re.sub(r'url\([\s\"\']*([^\)\"\']+)[\s\"\']*\)',lambda m:'url("'+rewrite(m[1],url)+'")',source)

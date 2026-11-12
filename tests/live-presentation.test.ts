@@ -31,7 +31,8 @@ describe('current live public presentation', () => {
     const { pages } = JSON.parse(readFileSync(dataFile, 'utf8'));
     expect(pages['/'].html).toContain('data-hero-video');
     expect(pages['/'].html).toContain('Watch confidence');
-    expect(pages['/'].html).toContain('Then register.');
+    expect(pages['/'].html).toContain('Youth Eco Summit<br/><em>in action.');
+    expect(pages['/'].html).toContain('Conversations<br/><em>worth watching.');
     expect(pages['/'].html).toContain('href="/competitions/enter"');
     expect(pages['/get-involved'].html).toContain('Choose your registration.');
   });
