@@ -5,3 +5,5 @@
 /* Form help stays readable alongside the 16px inputs and labels. */
 small{font-size:.9375rem;line-height:1.6}
 input,select,textarea{font-size:1rem;line-height:1.5}
+/* Shared accessible text must also be hidden on pages without form styles. */
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
