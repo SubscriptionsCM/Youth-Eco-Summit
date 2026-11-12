@@ -110,7 +110,13 @@ def clean(record):
  html=''.join(str(child) for child in main.contents)
  return {'html':html,'sourceSha256':record['sourceSha256'],'title':record['title']}
 
-pages={record['path']:clean(record) for record in records}
+def render_css(url):
+ source=css_sources[url]
+ assert '</style' not in source.lower()
+ source=re.sub(r'url\([\s\"\']*([^\)\"\']+)[\s\"\']*\)',lambda m:'url("'+rewrite(m[1],url)+'")',source)
+ return '/* Public source: '+url+' */\n'+source
+
+pages={record['path']:{**clean(record),'css':'\n'.join(render_css(absolute(href)) for href in record['styles'])} for record in records}
 winner_data={'records':winners,'panels':{year:clean({'main':'<main><h1>Winners</h1>'+panel+'</main>','path':'/winners','title':'','sourceSha256':''})['html'].replace('<h1>Winners</h1>','') for year,panel in winner_panels.items()}}
 (ROOT/'src/data/live-winners.json').write_text(json.dumps(winner_data,ensure_ascii=False,separators=(',',':'))+'\n',encoding='utf-8')
 css=[]

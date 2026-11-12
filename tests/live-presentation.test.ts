@@ -5,6 +5,16 @@ import { resolve } from 'node:path';
 
 const dataFile = resolve('src/data/live-presentation.json');
 describe('current live public presentation', () => {
+  it('restores each route’s original stylesheet cascade after the shared baseline', () => {
+    const { pages } = JSON.parse(readFileSync(dataFile, 'utf8'));
+    for (const page of Object.values(pages) as { css: string }[]) {
+      expect(page.css).toContain('site-updates.css');
+      expect(page.css.lastIndexOf('/* Public source:')).toBe(page.css.indexOf('/* Public source: https://youthecosummit.com/wp-content/themes/yes-frontend-theme/site-updates.css'));
+    }
+    expect(pages['/'].css.indexOf('be804dacf178a84e.css')).toBeLessThan(pages['/'].css.indexOf('1ce157fb4f1aa378.css'));
+    expect(pages['/about'].css.indexOf('1ce157fb4f1aa378.css')).toBeLessThan(pages['/about'].css.indexOf('be804dacf178a84e.css'));
+  });
+
   it('contains every public marketing route, excluding transactional pages', () => {
     expect(existsSync(dataFile)).toBe(true);
     const { pages } = JSON.parse(readFileSync(dataFile, 'utf8'));

@@ -19,3 +19,5 @@ python scripts/sync-live-presentation.py
 Capture results stay in the Git-ignored `.local/source-design-20261112/` directory. Review changes before committing the generated public JSON, CSS and media. This is an explicit versioned update, not automatic publication of future source-site changes. Keep transactional pages on their existing components.
 
 CI checks public route coverage, absence of active source scripts/forms/handlers, original asset hashes, local anchors, preserved form/feed destinations and actual DOM control behavior. Actual desktop/mobile browser comparisons are recorded in `docs/design-qa.md`; DOM simulation and HTTP success alone do not establish visual parity.
+
+Each public route also replays its original stylesheet order in an ordinary route-owned style element. This preserves route-specific cascades and removes the override on navigation. The shared stylesheet remains the baseline for the app shell and transactional pages.

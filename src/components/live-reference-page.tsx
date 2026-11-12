@@ -4,5 +4,6 @@ import { LiveReferenceContent } from './live-reference-content';
 
 /** Reviewed, versioned public content only. Transactional routes retain their own components. */
 export function LiveReferencePage({ path }: { path: keyof typeof reference.pages }) {
-  return <LiveReferenceContent html={reference.pages[path].html} />;
+  const page = reference.pages[path];
+  return <><style data-live-route={path} dangerouslySetInnerHTML={{ __html: page.css }} /><LiveReferenceContent html={page.html} /></>;
 }
