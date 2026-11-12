@@ -16,6 +16,8 @@ ASSETS.mkdir(exist_ok=True)
 ORIGIN='https://youthecosummit.com'
 records=[json.loads(p.read_text(encoding='utf-8')) for p in sorted(CAPTURE.glob('*.json'))]
 assert len(records)==15
+shell=json.loads((ROOT/'.local/rendered-live-footer.json').read_text(encoding='utf-8'))
+assert set(shell)==set(record['path'] for record in records),'Complete rendered shell capture required'
 media=set()
 def absolute(value,base=ORIGIN+'/'):
  return urljoin(base,value)
@@ -95,6 +97,9 @@ def clean(record):
    element['style']=style
   if element.name=='a' and element.get('target')=='_blank':element['rel']=['noopener','noreferrer']
  main=soup.find('main');assert main is not None and main.find('h1')
+ observed=shell.get(record['path'],{}).get('eyebrow','')
+ eyebrow=main.select_one('.editorial-hero .editorial-eyebrow')
+ if observed and eyebrow:eyebrow.clear();eyebrow.string=observed
  for status in main.select('[role=status]'):
   if status.get_text(strip=True) in ['Loading…','Loading...','Loading page…']:
    if record['path']=='/showcase':
@@ -119,6 +124,8 @@ def render_css(url):
 pages={record['path']:{**clean(record),'css':'\n'.join(render_css(absolute(href)) for href in record['styles'])} for record in records}
 winner_data={'records':winners,'panels':{year:clean({'main':'<main><h1>Winners</h1>'+panel+'</main>','path':'/winners','title':'','sourceSha256':''})['html'].replace('<h1>Winners</h1>','') for year,panel in winner_panels.items()}}
 (ROOT/'src/data/live-winners.json').write_text(json.dumps(winner_data,ensure_ascii=False,separators=(',',':'))+'\n',encoding='utf-8')
+footer={path:{'credit':row['credit'],'parentLabel':next(x['label'] for x in row['links'] if x['href'].rstrip('/')=='/parents'),'teacherLabel':next(x['label'] for x in row['links'] if x['href'].rstrip('/')=='/teachers-schools')} for path,row in shell.items()}
+(ROOT/'src/data/live-footer.json').write_text(json.dumps(footer,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
 css=[]
 for url,source in css_sources.items():
  source=re.sub(r'url\([\s\"\']*([^\)\"\']+)[\s\"\']*\)',lambda m:'url("'+rewrite(m[1],url)+'")',source)

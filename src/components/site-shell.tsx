@@ -1,6 +1,7 @@
 'use client';
 import Image from 'next/image';
 import brand from '@/data/live-brand.json';
+import footerReference from '@/data/live-footer.json';
 import { HeaderSocials } from './header-socials';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -13,6 +14,7 @@ const marketingPaths = ['/', '/about', '/students', '/parents', '/teachers-schoo
 const nav = [['The summit', '/about'], ['Competitions', '/competitions'], ['How to participate', '/how-to-participate'], ['For schools', '/teachers-schools']];
 export function SiteShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const footerCopy = footerReference[pathname as keyof typeof footerReference] || footerReference['/about'];
   const [menuOpen, setMenuOpen] = useState(false);
   const [actor, setActor] = useState<Row | null>(null), [signingOut, setSigningOut] = useState(false), [accountError, setAccountError] = useState('');
   const menuButton = useRef<HTMLButtonElement>(null);
@@ -41,6 +43,6 @@ export function SiteShell({ children }: { children: ReactNode }) {
       <nav id="mobile-menu" className="yes-mobile-nav" aria-label="Mobile navigation" hidden={!menuOpen}>{nav.map(([label, href]) => <Link href={href} key={href} onClick={() => setMenuOpen(false)}>{label}<span aria-hidden="true">→</span></Link>)}<Link href="/schools">Find your school <span aria-hidden="true">→</span></Link><Link href={actor ? dashboardPath(actor.role) : '/login'}>{actor ? dashboardLabel(actor.role) : 'Sign in'} <span aria-hidden="true">→</span></Link>{actor && <><button type="button" className="yes-mobile-signout" onClick={signOut} disabled={signingOut}>{signingOut ? 'Signing out…' : 'Sign out'}</button>{accountError && <p role="alert">{accountError}</p>}</>}</nav>
     </header>
     <main id="main" tabIndex={-1} className={marketing ? 'marketing-main' : 'shell portal-main'}>{children}</main>
-    <footer className="yes-footer"><div className="campaign-container"><div className="footer-top"><div className="footer-intro"><Link href="/" className="footer-wordmark">Youth Eco<br/>Summit</Link><p>Learn. Create. Compete. Lead.</p></div><div className="footer-links"><h2>Explore</h2><Link href="/about">The summit</Link><Link href="/competitions">Competitions</Link><Link href="/experience">The experience</Link><Link href="/awards">Recognition</Link><Link href="/showcase">Student work</Link></div><div className="footer-links"><h2>Get involved</h2><Link href="/students">For students</Link><Link href="/parents">For parents</Link><Link href="/teachers-schools">For teachers & schools</Link><Link href="/partners">Become a partner</Link><Link href="/schools">Find your school</Link></div><div className="footer-links"><h2>Need a hand?</h2><Link href="/how-to-participate">Participation guide</Link><Link href="/resources">Resources</Link><Link href="/faq">FAQs</Link><Link href="/contact">Contact us</Link><Link href="/login">Sign in</Link></div></div><div className="footer-bottom"><span>© {new Date().getFullYear()} Youth Eco Summit</span><div><Link href="/privacy">Privacy policy</Link><Link href="/terms">Participation terms</Link><a href="#main">Back to top ↑</a></div></div></div></footer>
+    <footer className="yes-footer"><div className="campaign-container"><div className="footer-top"><div className="footer-intro"><Link href="/" className="footer-wordmark">Youth Eco<br/>Summit</Link><p>Learn. Create. Compete. Lead.</p>{footerCopy.credit && <span className="footer-foundation">{footerCopy.credit}</span>}</div><div className="footer-links"><h2>Explore</h2><Link href="/about">The summit</Link><Link href="/competitions">Competitions</Link><Link href="/experience">The experience</Link><Link href="/awards">Recognition</Link><Link href="/showcase">Student work</Link></div><div className="footer-links"><h2>Get involved</h2><Link href="/students">For students</Link><Link href="/parents">{footerCopy.parentLabel}</Link><Link href="/teachers-schools">{footerCopy.teacherLabel}</Link><Link href="/partners">Become a partner</Link><Link href="/schools">Find your school</Link></div><div className="footer-links"><h2>Need a hand?</h2><Link href="/how-to-participate">Participation guide</Link><Link href="/resources">Resources</Link><Link href="/faq">FAQs</Link><Link href="/contact">Contact us</Link><Link href="/login">Sign in</Link></div></div><div className="footer-bottom"><span>© {new Date().getFullYear()} Youth Eco Summit</span><div><Link href="/privacy">Privacy policy</Link><Link href="/terms">Participation terms</Link><a href="#main">Back to top ↑</a></div></div></div></footer>
   </>;
 }

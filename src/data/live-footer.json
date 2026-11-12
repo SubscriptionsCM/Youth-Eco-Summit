@@ -1,0 +1,77 @@
+{
+  "/about": {
+    "credit": "",
+    "parentLabel": "For parents",
+    "teacherLabel": "For teachers & schools"
+  },
+  "/awards": {
+    "credit": "",
+    "parentLabel": "For parents",
+    "teacherLabel": "For teachers & schools"
+  },
+  "/competitions": {
+    "credit": "An initiative of Bajaj Foundation",
+    "parentLabel": "For guardians",
+    "teacherLabel": "For educators & schools"
+  },
+  "/contact": {
+    "credit": "",
+    "parentLabel": "For parents",
+    "teacherLabel": "For teachers & schools"
+  },
+  "/experience": {
+    "credit": "",
+    "parentLabel": "For parents",
+    "teacherLabel": "For teachers & schools"
+  },
+  "/faq": {
+    "credit": "",
+    "parentLabel": "For parents",
+    "teacherLabel": "For teachers & schools"
+  },
+  "/get-involved": {
+    "credit": "",
+    "parentLabel": "For parents",
+    "teacherLabel": "For teachers & schools"
+  },
+  "/": {
+    "credit": "An initiative of Bajaj Foundation",
+    "parentLabel": "For guardians",
+    "teacherLabel": "For educators & schools"
+  },
+  "/how-to-participate": {
+    "credit": "",
+    "parentLabel": "For parents",
+    "teacherLabel": "For teachers & schools"
+  },
+  "/parents": {
+    "credit": "",
+    "parentLabel": "For parents",
+    "teacherLabel": "For teachers & schools"
+  },
+  "/partners": {
+    "credit": "",
+    "parentLabel": "For parents",
+    "teacherLabel": "For teachers & schools"
+  },
+  "/resources": {
+    "credit": "",
+    "parentLabel": "For parents",
+    "teacherLabel": "For teachers & schools"
+  },
+  "/showcase": {
+    "credit": "",
+    "parentLabel": "For parents",
+    "teacherLabel": "For teachers & schools"
+  },
+  "/students": {
+    "credit": "",
+    "parentLabel": "For parents",
+    "teacherLabel": "For teachers & schools"
+  },
+  "/teachers-schools": {
+    "credit": "",
+    "parentLabel": "For parents",
+    "teacherLabel": "For teachers & schools"
+  }
+}

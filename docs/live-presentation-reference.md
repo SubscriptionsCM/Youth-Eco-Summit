@@ -13,6 +13,7 @@ The operator scripts require Python, `beautifulsoup4`, and the existing Node dev
 ```text
 python scripts/capture-live-presentation.py
 node scripts/capture-live-winners.mjs
+node scripts/capture-live-footer.mjs
 python scripts/sync-live-presentation.py
 ```
 
@@ -21,3 +22,5 @@ Capture results stay in the Git-ignored `.local/source-design-20261112/` directo
 CI checks public route coverage, absence of active source scripts/forms/handlers, original asset hashes, local anchors, preserved form/feed destinations and actual DOM control behavior. Actual desktop/mobile browser comparisons are recorded in `docs/design-qa.md`; DOM simulation and HTTP success alone do not establish visual parity.
 
 Each public route also replays its original stylesheet order in an ordinary route-owned style element. This preserves route-specific cascades and removes the override on navigation. The shared stylesheet remains the baseline for the app shell and transactional pages.
+
+Rendered footer copy is captured separately because the source currently publishes different footer wording on the homepage/competitions and the other public routes. Rendered page labels take precedence over stale source server markup where they differ.
