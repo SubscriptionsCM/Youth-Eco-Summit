@@ -42,7 +42,8 @@
 .summit-carousel-buttons button:hover:not(:disabled){background:#ddd4e9}
 .summit-carousel-buttons button:disabled{opacity:.3;cursor:default}
 .summit-carousel-buttons button:focus-visible,.summit-carousel-viewport:focus-visible{outline:3px solid var(--purple);outline-offset:4px}
-.summit-carousel-viewport{display:flex;gap:20px;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;overscroll-behavior-x:contain;scrollbar-width:thin;scrollbar-color:#b4a6c6 transparent;padding:0 0 14px;cursor:grab;-webkit-overflow-scrolling:touch}
+/* Contain absolutely positioned accessible labels inside the scroll viewport. */
+.summit-carousel-viewport{position:relative;display:flex;gap:20px;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;overscroll-behavior-x:contain;scrollbar-width:thin;scrollbar-color:#b4a6c6 transparent;padding:0 0 14px;cursor:grab;-webkit-overflow-scrolling:touch}
 .summit-carousel-viewport>*{scroll-snap-align:start;flex-shrink:0}
 .summit-carousel-viewport[data-dragging=true]{scroll-snap-type:none;cursor:grabbing;user-select:none}
 .summit-carousel-viewport img{-webkit-user-drag:none;user-select:none}
