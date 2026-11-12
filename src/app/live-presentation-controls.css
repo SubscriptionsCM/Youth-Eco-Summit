@@ -6,3 +6,9 @@
 .yes-header-socials img{width:19px;height:19px}
 .yes-header-socials a{position:relative}
 @media(max-width:600px){.yes-header-socials img{width:17px;height:17px}}
+
+/* Remove older app-only card defaults; the active source CSS supplies responsive heights. */
+.live-reference-content .format-card{min-height:auto}
+.live-reference-content .format-kicker{display:inline;line-height:inherit}
+.live-reference-content .format-bottom{line-height:inherit}
+.live-reference-content .format-film::after{display:block}
