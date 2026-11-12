@@ -1,5 +1,7 @@
 # Production verification - 11 November 2026
 
+**Later 12 November presentation refresh:** Current code is `08d27a7641f5efa3a832f0267cf995c592a47761`. The live source design/content/media were subsequently updated. See [the current presentation report](live-presentation-update-2026-11-12.md); the earlier visual evidence below predates that refresh, whose screenshot comparison remains pending.
+
 **12 November follow-up:** The homepage overflow and broader public desktop/mobile visual checks are now completed on deployed revision `f4c7f3a0141cfca47489ded753f738bbbb031b6f`. See [the visual verification report](visual-verification-2026-11-12.md) for 60 checks across 30 routes, five homepage widths and the current release evidence. The functional/migration results below describe the 11 November acceptance snapshot.
 
 The application is live at [new.youthecosummit.com](https://new.youthecosummit.com/) on Hostinger. Active revision: `61df1ce59add154473f2d4daa99a7f41204dc08c`. [GitHub Actions run 43021439688](https://github.com/SubscriptionsCM/Youth-Eco-Summit/actions/runs/43021439688) passed **481 tests**, with two existing skips, TypeScript checking, production build, isolated worker startup and standalone packaging. The previous release and routing rollback remain available.

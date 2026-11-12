@@ -1,5 +1,7 @@
 # Public visual verification - 12 November 2026
 
+**Later 12 November presentation refresh:** Current code is `08d27a7641f5efa3a832f0267cf995c592a47761`. The live source design/content/media were subsequently updated. See [the current presentation report](live-presentation-update-2026-11-12.md); the earlier visual evidence below predates that refresh, whose screenshot comparison remains pending.
+
 The homepage overflow is fixed and deployed at [new.youthecosummit.com](https://new.youthecosummit.com/). Production code revision: `f4c7f3a0141cfca47489ded753f738bbbb031b6f`. [GitHub Actions run 43158922696](https://github.com/SubscriptionsCM/Youth-Eco-Summit/actions/runs/43158922696) passed **484 tests in 58 files**, with two existing skips, TypeScript checking, the production build and standalone packaging. The public homepage's three CSS files were downloaded and matched byte-for-byte against that validated artifact after activation.
 
 ## Corrections
