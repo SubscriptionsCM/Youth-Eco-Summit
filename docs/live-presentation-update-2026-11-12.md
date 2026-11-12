@@ -1,32 +1,22 @@
-# Live website presentation update - 12 November 2026
+# Website visual update — 12 November 2026
 
-The current WordPress presentation has been implemented and deployed at [new.youthecosummit.com](https://new.youthecosummit.com/). Active code: `08d27a7641f5efa3a832f0267cf995c592a47761`. [Final CI run 43174390411](https://github.com/SubscriptionsCM/Youth-Eco-Summit/actions/runs/43174390411) passed **495 tests in 61 files**, with two existing skips, TypeScript checking, production build, worker packaging and standalone checks. The previous working release is retained for rollback.
+The visual update is deployed at [new.youthecosummit.com](https://new.youthecosummit.com/) on code `75b983a72b0a69ae0b4215111c0ec8759d09941c`. Desktop and mobile comparison against the captured live WordPress reference is **passed**, with no remaining P0/P1/P2 visual blockers.
 
-## Updated presentation
+## Completed
 
-- All 15 public marketing pages now use the current live site's reviewed content, section order, imagery and source styling, including the full-width background video, student/school sections and recognition section.
-- The shared logo, social navigation, footer and foundation credit follow the reference. Account menus and sign-out retain the application's existing behavior.
-- The 72 original asset references include images, font files, winner PDFs and desktop/mobile hero videos. They are served locally in a new immutable namespace. Existing application assets were retained.
-- Local controls support video play/pause and reduced-motion/visibility handling, partner animation and manual browsing, mouse dragging, speaker navigation, participation tabs and FAQ disclosure.
-- The working contact form and approved-publications API remain connected. Source loading placeholders, executable scripts and transient account state were excluded from the static public content. No participant records were frozen into public page snapshots.
-- Social-preview and structured-data image URLs resolve against the Hostinger domain. Public build configuration uses the correct application origin without adding credentials to Git.
+- Compared all 15 public marketing pages at 1280 × 900 and 390 × 844, using 60 actual source/target screenshots and focused comparisons. The homepage also passed overflow checks at 320px, 768px and 1440px.
+- Matched the current hero, introduction, images, section order, impact summary, pillars, competition cards, video links and route-specific footer/page labels. Corrected legacy card sizing, label spacing and the film overlay. Horizontal scrollbars remain hidden during partner browsing.
+- Added the three source winner editions, 256 published highlights and six PDF lists, with edition/keyboard/previous/next/pause behavior. Review also fixed an observer cleanup race.
+- All 13 live browser interaction groups passed: winner and participation tabs, FAQs, menus, competition disclosures, normal/reduced-motion video, keyboard/mouse/touch partner browsing, and navigation between different page styles/footer variants.
+- Verified 31 HTTP routes, per-page CSS and footer copy, 70 original asset references (31,829,168 bytes), video byte ranges, social images and preserved form/showcase services. All 30 final target captures had no horizontal page overflow, broken/pending images or page console errors.
+- [CI 43223237743](https://github.com/SubscriptionsCM/Youth-Eco-Summit/actions/runs/43223237743) passed 499 tests in 61 files, two existing skips, TypeScript, the production build and standalone packaging.
 
-## Completed verification
+Existing records, private attachments, forms, authentication and mail settings were preserved. No production form was submitted for this visual pass. The release and private configuration were checksum/permission checked, and rollback remains available.
 
-- All 15 updated public pages returned HTTP 200 and their headings matched the reviewed source content.
-- All 72 deployed asset references matched original lengths and SHA-256 hashes: **32,083,337 bytes** in total. Git-stored originals were independently checked as well.
-- Every stylesheet linked by the production homepage matched the validated build artifact. All 13 unique source CSS/font asset URLs had also passed local resolution and hash review.
-- Hero video delivery returned HTTP 206 for a 1,024-byte range with `video/mp4` content type. Social-preview image URLs returned successfully from the new domain.
-- Sixteen preserved account, school, form, policy and access-gate routes returned HTTP 200, bringing production route coverage to 31. Form configuration remained enabled and configured with WordPress account services; the existing approved-publication read endpoint responded successfully.
-- The activation checks retained rejection of a synthetic invalid password-reset key and verified the reset page. No real password, role or account was changed.
-- Independent code review found no remaining Important or Critical issues. DOM regressions reproduced and fixed reduced-motion playback visibility, partner manual browsing/dragging, and a pending-play/hide/reject/show race.
+## Scope and remaining requirements
 
-No database migration or production form submission was performed for this presentation update. Existing records, private attachments, authentication, form definitions, security policies and mail workflows were preserved. No paid service was purchased.
+The contact page retains its working form entry and existing approved backend copy, while the source frontend currently displays an unavailable-contact fallback. Account/MFA security and live approved-publication reads remain connected. Minor footer leading/rounding is nonblocking P3 polish. Mobile testing used Chromium touch emulation; physical iOS/Safari testing was not included.
 
-## Pending visual acceptance
+Broader WordPress account/mail cutover, approved legal content, explicit judging/edition configuration and the final migration delta remain separately tracked in [the functional/migration report](production-verification-2026-11-11.md). Hosting capacity and inactive release-archive retention also need owner review: quota was reached during this deployment and approximately 1.17 GB was safely reclaimed by sharing verified identical build copies. No records or private uploads were removed, and no paid service was purchased.
 
-**Desktop/mobile screenshot comparison remains blocked.** Browser controls repeatedly timed out; the user could not see a browser panel, and the request to open one returned queued. The updated target could not be captured beside the reference at equal viewport/state. HTTP, asset, DOM and CI checks are complete, but they do not establish pixel-level parity or native touch/decoder behavior. See [the visual QA record](design-qa.md).
-
-The earlier 12 November visual report covered revision `f4c7f3a`, before this source-presentation refresh. Its screenshots are historical evidence for that earlier layout, not acceptance of this new design.
-
-Broader existing requirements remain in the [functional/migration report](production-verification-2026-11-11.md): WordPress account/mail dependency, approved legal content, explicit judging/edition configuration and final incremental capture at cutover. See [presentation maintenance notes](live-presentation-reference.md) for the reviewed public-source workflow.
+See [the detailed visual QA report](design-qa.md) and [the maintenance workflow](live-presentation-reference.md).
