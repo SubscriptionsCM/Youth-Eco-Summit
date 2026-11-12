@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 };
 
 export default function Page() {
-  const origin = (process.env.APP_ORIGIN || 'https://youthecosummit.com').replace(/\/$/, '');
+  const origin = (process.env.APP_ORIGIN || 'https://new.youthecosummit.com').replace(/\/$/, '');
   const structuredData = {
     '@context': 'https://schema.org',
     '@graph': [

@@ -25,6 +25,7 @@ jobs:
       - run: npm run build
         env:
           NEXT_TELEMETRY_DISABLED: '1'
+          APP_ORIGIN: https://new.youthecosummit.com
       - name: Package Hostinger standalone release
         if: github.event_name == 'push'
         env:

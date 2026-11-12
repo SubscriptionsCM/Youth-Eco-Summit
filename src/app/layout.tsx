@@ -9,7 +9,7 @@ import './live-presentation.css';
 import './live-presentation-controls.css';
 const manrope = Manrope({ subsets: ['latin'], display: 'swap', variable: '--font-manrope' });
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.APP_ORIGIN || 'https://youthecosummit.com'),
+  metadataBase: new URL(process.env.APP_ORIGIN || 'https://new.youthecosummit.com'),
   title: { default: 'Youth Eco Summit 2027 — Your ideas. Bigger stage.', template: '%s | Youth Eco Summit' },
   description: 'Asia’s largest youth-led platform. Youth Eco Summit 2027: Waste segregation, the need of the hour.',
   icons: { icon: brand.logo },
