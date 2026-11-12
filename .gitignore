@@ -11,5 +11,6 @@ playwright-report/
 .vercel/
 .hostinger/
 private-exports/
+__pycache__/
 *.sql.gz
 *.dump

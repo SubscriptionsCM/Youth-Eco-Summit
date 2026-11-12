@@ -1,3 +1,3 @@
+import { LiveReferencePage } from '@/components/live-reference-page';
 export const metadata = { title: 'Competitions' };
-import { CompetitionsPage } from '@/components/public-pages';
-export default function Page() { return <CompetitionsPage />; }
+export default function Page() { return <LiveReferencePage path="/competitions" />; }

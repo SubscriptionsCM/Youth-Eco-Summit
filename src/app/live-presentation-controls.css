@@ -1,0 +1,8 @@
+/* Source styles are authoritative; these rules preserve app accessibility and containment. */
+.live-reference-content .summit-speaker-grid{position:relative}
+.live-reference-content .summit-speaker-grid:focus-visible{outline:3px solid var(--purple);outline-offset:4px}
+.live-reference-content [hidden]{display:none!important}
+.live-reference-content .hero-background{background-size:cover;background-position:center}
+.yes-header-socials img{width:19px;height:19px}
+.yes-header-socials a{position:relative}
+@media(max-width:600px){.yes-header-socials img{width:17px;height:17px}}

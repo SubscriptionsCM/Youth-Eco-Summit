@@ -1,3 +1,3 @@
+import { LiveReferencePage } from '@/components/live-reference-page';
 export const metadata = { title: 'How to participate' };
-import { ContentPage } from '@/components/public-pages';
-export default function Page() { return <ContentPage slug="how-to-participate" />; }
+export default function Page() { return <LiveReferencePage path="/how-to-participate" />; }
