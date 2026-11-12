@@ -20,10 +20,11 @@ Verify the Hostinger application against the current WordPress site while preser
 - [x] Recheck all 29 destination routes and desktop/mobile contact controls after deployment.
 - [x] Complete the latest append-only source reconciliation, final record/version/file checksum sweep, and idempotent retry.
 - [x] Save [the current verification report](../../production-verification-2026-11-11.md).
+- [x] Resolve homepage overflow, PDF notice layout and entry-page padding; deploy revision f4c7f3a0141cfca47489ded753f738bbbb031b6f with 484 passing tests and two existing skips.
+- [x] Complete 60 public/signed-out desktop-mobile checks across 30 routes and five production homepage widths; verify menu, carousels, tabs, FAQs and expanded guidelines. Save [the visual follow-up](../../visual-verification-2026-11-12.md).
 
 ## Pending sign-off
 
-- [ ] Complete broader visual/mobile acceptance and resolve or identify the observed homepage horizontal overflow.
 - [ ] Confirm approved legal content if the site is to publish new privacy or participation terms.
 - [ ] Configure and accept any additional staff/judge workflows and explicit judging edition/rule mappings.
 - [ ] Configure automatic Hostinger deployment if required.

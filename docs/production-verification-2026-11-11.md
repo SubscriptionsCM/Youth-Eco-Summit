@@ -1,5 +1,7 @@
 # Production verification - 11 November 2026
 
+**12 November follow-up:** The homepage overflow and broader public desktop/mobile visual checks are now completed on deployed revision `f4c7f3a0141cfca47489ded753f738bbbb031b6f`. See [the visual verification report](visual-verification-2026-11-12.md) for 60 checks across 30 routes, five homepage widths and the current release evidence. The functional/migration results below describe the 11 November acceptance snapshot.
+
 The application is live at [new.youthecosummit.com](https://new.youthecosummit.com/) on Hostinger. Active revision: `61df1ce59add154473f2d4daa99a7f41204dc08c`. [GitHub Actions run 43021439688](https://github.com/SubscriptionsCM/Youth-Eco-Summit/actions/runs/43021439688) passed **481 tests**, with two existing skips, TypeScript checking, production build, isolated worker startup and standalone packaging. The previous release and routing rollback remain available.
 
 ## Completed production acceptance
@@ -46,7 +48,7 @@ A fresh full-copy export reached Hostinger's account disk quota. It was retained
 
 ## Remaining requirements and limits
 
-- Broader page-by-page desktop/mobile visual acceptance remains partial, including the observed homepage horizontal overflow. This report does not claim complete visual or UX parity.
+- The public layout and homepage-overflow item was closed by the [12 November visual follow-up](visual-verification-2026-11-12.md). That pass covers public pages and signed-out access gates, not browser acceptance of every signed-in role/workflow.
 - WordPress remains required for existing participant credential verification and native account/mail workflows. Do not remove it until a separate replacement is configured and accepted.
 - The source still accepts activity. A final incremental capture is required when its submission workflow is closed or cut over; this report covers the capture timestamp above.
 - The source exposes no approved published privacy/participation text through the inspected configuration. Existing source content was preserved; no legal policy was invented. New legal text requires approved content.
