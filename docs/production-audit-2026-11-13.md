@@ -1,5 +1,7 @@
 # Production website audit — 13 November 2026
 
+**Later completion:** The owner confirmed source-matched unpublished legal pages and manual staff review. Those settings and a newer WordPress synchronization were subsequently deployed and verified; see [the source-completion report](source-completion-2026-11-13.md). Counts and pending items below describe the earlier audit snapshot.
+
 Target: https://new.youthecosummit.com/ (Hostinger). Deployed application revision: `740447fb5e3a75933fe861676e98a618c50c5591`. The listed checks passed on 13 November 2026. This audit verifies the configured production experience; it does not claim that unconfigured judging, legal content or final WordPress cutover are complete.
 
 ## Issue found and corrected
