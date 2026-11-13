@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { constants } from 'node:fs';
 import { open } from 'node:fs/promises';
 import { isMissing, type ObjectStore, type StorageHead } from '../../src/server/storage/provider';
+import { FileSystemStore } from '../../src/server/storage/filesystem';
 import { MAX_STORAGE_PART_BYTES } from '../../src/server/storage/tokens';
 import type { Attachment, VerifiedAttachment } from '../../src/server/wordpress-migration';
 
@@ -47,4 +48,22 @@ export async function retainWordPressAttachment(store: ObjectStore, source: stri
   if (bytes !== file.bytes) throw new Error('Private attachment size mismatch.');
   if (sha256 !== file.sha256) throw new Error('Private attachment SHA256 mismatch.');
   return { storageKey, sha256, bytes };
+}
+
+/** The same immutable archive format, without holding redundant multipart copies. */
+export async function retainWordPressFilesystemAttachment(store:FileSystemStore,source:string,file:Attachment,localPath?:string):Promise<VerifiedAttachment> {
+  const storageKey=`wordpress/${createHash('sha256').update(source+':'+file.sourceId).digest('hex')}/${file.sha256}`;
+  let retained:StorageHead|undefined;
+  try { retained=await store.head(storageKey); } catch(error) { if(!isMissing(error))throw error; }
+  if(!retained&&localPath!==undefined){
+    const handle=await open(localPath,constants.O_RDONLY|(constants.O_NOFOLLOW||0));
+    try {
+      const info=await handle.stat();
+      if(!info.isFile()||info.size!==file.bytes)throw new Error('Attachment source size mismatch.');
+      const body=handle.createReadStream({autoClose:false});
+      try { await store.importArchive(storageKey,body,{expectedSize:file.bytes,checksum:file.sha256}); }
+      finally { body.destroy(); }
+    } finally { await handle.close(); }
+  }
+  return retainWordPressAttachment(store,source,file);
 }

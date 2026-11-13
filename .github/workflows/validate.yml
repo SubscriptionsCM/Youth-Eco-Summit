@@ -26,6 +26,7 @@ jobs:
         env:
           NEXT_TELEMETRY_DISABLED: '1'
           APP_ORIGIN: https://new.youthecosummit.com
+          NEXT_PUBLIC_JUDGING_MODE: manual
       - name: Package Hostinger standalone release
         if: github.event_name == 'push'
         env:

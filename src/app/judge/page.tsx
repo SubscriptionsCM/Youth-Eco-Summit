@@ -1,3 +1,6 @@
 export const metadata = { title: 'Judging dashboard' };
 import { JudgePage } from '@/components/judging';
-export default function Page() { return <JudgePage />; }
+import {redirect} from 'next/navigation';
+import {manualReviewMode} from '@/domain/review-mode';
+export const dynamic='force-dynamic';
+export default function Page() { if(manualReviewMode())redirect('/admin/reference-forms');return <JudgePage />; }

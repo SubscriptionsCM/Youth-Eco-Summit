@@ -1,2 +1,4 @@
 import { JudgePage } from '@/components/judging';
-export default async function Page({ params }: { params: Promise<{ id: string }> }) { const { id } = await params; return <JudgePage id={id} />; }
+import {redirect} from 'next/navigation';
+import {manualReviewMode} from '@/domain/review-mode';
+export default async function Page({ params }: { params: Promise<{ id: string }> }) { if(manualReviewMode())redirect('/admin/reference-forms');const { id } = await params; return <JudgePage id={id} />; }

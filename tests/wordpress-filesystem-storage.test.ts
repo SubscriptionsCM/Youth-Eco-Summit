@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { FileSystemStore } from '../src/server/storage/filesystem';
-import { retainWordPressAttachment } from '../scripts/lib/wordpress-storage';
+import { retainWordPressAttachment, retainWordPressFilesystemAttachment } from '../scripts/lib/wordpress-storage';
 import type { Attachment } from '../src/server/wordpress-migration';
 import { archiveWordPress, verifyWordPressArchive } from '../src/server/wordpress-migration';
 import { testDb } from './helpers/db';
@@ -21,6 +21,30 @@ describe('WordPress attachment retention on private filesystem storage', () => {
     file = { sourceId: 'entry-1:file-2', entryId: 'entry-1', path: 'source.pdf', sha256: hash(bytes), bytes: bytes.length, filename: 'source.pdf', mimeType: 'application/pdf' };
   });
   afterEach(async () => { if (folder) await rm(folder, { recursive: true, force: true }); });
+
+  it('streams a historical archive without retaining multipart copies', async () => {
+    const expected = {storageKey:`wordpress/${hash(source+':'+file.sourceId)}/${file.sha256}`,sha256:file.sha256,bytes:file.bytes};
+    expect(await retainWordPressFilesystemAttachment(store,source,file,path)).toEqual(expected);
+    expect(await readdir(join(folder,'private','uploads'))).toEqual([]);
+    expect(await retainWordPressFilesystemAttachment(store,source,file,join(folder,'missing'))).toEqual(expected);
+    expect((await readFile(path)).equals(bytes)).toBe(true);
+  });
+
+  it('rejects changed archive sources and detects corrupt retained archive bytes', async () => {
+    await writeFile(path,Buffer.alloc(bytes.length,98));
+    await expect(retainWordPressFilesystemAttachment(store,source,file,path)).rejects.toThrow(/checksum/);
+    await writeFile(path,bytes);
+    const saved=await retainWordPressFilesystemAttachment(store,source,file,path);
+    const destination=join(folder,'private','objects',hash(saved.storageKey),'data');
+    await writeFile(destination,Buffer.alloc(bytes.length,98));
+    await expect(retainWordPressFilesystemAttachment(store,source,file)).rejects.toThrow(/SHA256/);
+  });
+
+  it('does not allow the archive import to bypass native submission upload controls', async () => {
+    const native='submissions/11111111-1111-4111-8111-111111111111/22222222-2222-4222-8222-222222222222';
+    async function* body(){yield bytes;}
+    await expect(store.importArchive(native,body(),{expectedSize:bytes.length,checksum:file.sha256})).rejects.toThrow(/archive/);
+  });
 
   it('copies bounded multipart bytes and independently verifies the exact retained destination', async () => {
     const expected = { storageKey: `wordpress/${hash(source + ':' + file.sourceId)}/${file.sha256}`, sha256: file.sha256, bytes: file.bytes };

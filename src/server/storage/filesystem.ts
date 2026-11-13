@@ -136,6 +136,17 @@ export class FileSystemStore implements ObjectStore {
     return length;
   }
 
+  /** Operator-only historical import; native submissions must use verified uploads. */
+  async importArchive(key: string, body: AsyncIterable<Uint8Array>, expected: {expectedSize:number;checksum:string}):Promise<StorageHead> {
+    if (!/^wordpress\/[a-f0-9]{64}\/[a-f0-9]{64}$/.test(key)) throw new AppError(400,'Choose a historical archive key.');
+    this.validateKey(key);
+    const declaration=this.declaration({...expected,partSize:MAX_STORAGE_PART_BYTES});
+    if (!key.endsWith('/'+declaration.checksum)) throw new AppError(422,'Archive key and checksum differ.');
+    await this.ready();
+    const retained=await this.stage(this.path('objects',sha256(key)),key,body,declaration.expectedSize,declaration.checksum);
+    return {ContentLength:retained.size,ETag:`"${retained.checksum}"`,VersionId:retained.checksum};
+  }
+
   async begin(key: string, input?: MultipartDeclaration) {
     this.validateKey(key); const declaration = this.declaration(input); await this.ready();
     if (await this.isPurged(key)) throw new AppError(409, 'This private object has been permanently removed.');
