@@ -44,3 +44,5 @@ Original WordPress submission dates remain retained in the protected record deta
 This is a verified synchronization checkpoint. WordPress remains live; subsequent activity requires a later catch-up. No continuous synchronization or source write freeze was introduced. The current application revision is `aca0008cfee695271ad36b2728f9622688d5e6de`.
 
 Private source manifests, locator checks, preservation baseline, import/retry results, row/metadata comparisons, hashes and HTTP checks are Git-ignored under `.local/wordpress-sync-20261116/` and the timestamped source capture. Credentials, user payloads, filenames and private download grants are excluded from this report.
+
+A later full-archive [judge portal audit](judge-portal-audit-2026-11-16.md) verified all 714 stored attachments and found 570 assignable competition entries. Eight other completed source records have no attachment or upload-field metadata and remain blocked from assignment; their original records were preserved. This does not change the successful readiness checks for the 40 newly synced completed entries above.
