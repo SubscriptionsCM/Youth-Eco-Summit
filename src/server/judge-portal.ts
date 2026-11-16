@@ -107,8 +107,8 @@ export async function listJudgingEntries(db:Db,actor:Actor,params:URLSearchParam
  const page=Math.max(1,Math.min(100000,Math.floor(Number(params.get('page'))||1))),q=(params.get('q')||'').slice(0,100);
  const where=source==='portal'?"FROM portal_form_records WHERE status='submitted' AND form_key=$1 AND reference ILIKE '%'||$2||'%'":"FROM wordpress_records WHERE kind='entry' AND payload->>'form_id'=$1 AND payload->>'status' IN ('active','submitted','completed') AND lower(trim(coalesce(payload->>'is_draft','0'))) IN ('0','false','') AND source_id ILIKE '%'||$2||'%'";
  const values=[source==='portal'?form.key:String(form.id),q];const {rows:[count]}=await db.query('SELECT count(*)::int total '+where,values);
- const select=source==='portal'?'id,reference,submitted_at':"id,'WP-'||source_id reference,captured_at submitted_at";
- const {rows:items}=await db.query('SELECT '+select+' '+where+' ORDER BY submitted_at DESC,id LIMIT 25 OFFSET $3',[...values,(page-1)*25]);return {items,total:count.total,page,pageSize:25};
+ const select=source==='portal'?'id,reference,submitted_at':"id,'WP-'||source_id reference,CASE WHEN jsonb_typeof(payload->'date_created')='string' THEN NULLIF(btrim(payload->>'date_created'),'') ELSE NULL END submitted_at,captured_at imported_at";
+ const {rows:items}=await db.query('SELECT '+select+' '+where+' ORDER BY submitted_at DESC NULLS LAST,id LIMIT 25 OFFSET $3',[...values,(page-1)*25]);return {items,total:count.total,page,pageSize:25};
 }
 export async function judgingFile(db:Db,actor:Actor,assignmentId:string,fileId:string):Promise<RetainedDownload>{
  z.uuid().parse(fileId);return db.transaction(async tx=>{const a=await assignment(tx,actor,assignmentId),snapshot=a.snapshot as JudgingSnapshot;
