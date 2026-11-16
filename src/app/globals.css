@@ -7,3 +7,6 @@ small{font-size:.9375rem;line-height:1.6}
 input,select,textarea{font-size:1rem;line-height:1.5}
 /* Shared accessible text must also be hidden on pages without form styles. */
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
+/* Invitation setup keeps the private authenticator details readable on phones. */
+.account-setup-form{max-width:950px}.account-setup-step{padding:1.5rem;border:1px solid var(--line);border-radius:8px;min-width:0}.account-setup-step h2{font-size:1.25rem;margin:0 0 .75rem}.authenticator-setup-grid{display:grid;grid-template-columns:240px minmax(0,1fr);gap:1.5rem;align-items:center}.authenticator-qr{display:block;width:240px;max-width:100%;height:auto;background:#fff}.account-setup-step p,.account-setup-step dd{overflow-wrap:anywhere}.account-setup-private{font-size:.9375rem;color:var(--muted)}.authenticator-setup-key{font-family:monospace;letter-spacing:.05em;min-width:0;width:100%}@media(max-width:640px){.account-setup-step{padding:1rem}.authenticator-setup-grid{grid-template-columns:minmax(0,1fr);gap:.5rem}}
