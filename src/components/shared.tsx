@@ -55,4 +55,7 @@ export function AuthGate({ roles, children }: { roles?: string[]; children: (act
 }
 export function PageTitle({ title, children }: { title: string; children?: ReactNode }) { return <header className="page-heading"><h1>{title}</h1>{children && <p>{children}</p>}</header>; }
 export function Empty({ children }: { children: ReactNode }) { return <div className="empty">{children}</div>; }
-export function Pagination({ page, pageSize = 25, total, onPage }: { page: number; pageSize?: number; total: number; onPage: (page: number) => void }) { return <nav className="actions" aria-label="Pagination"><button type="button" disabled={page <= 1} onClick={() => onPage(page - 1)}>Previous</button><span>Page {page} · {total} records</span><button type="button" disabled={page * pageSize >= total} onClick={() => onPage(page + 1)}>Next</button></nav>; }
+export function Pagination({ page, pageSize = 25, total, onPage }: { page: number; pageSize?: number; total: number; onPage: (page: number) => void }) {
+ const pages=Math.max(1,Math.ceil(total/pageSize)),offset=(page-1)*pageSize,from=offset<total?offset+1:0,to=Math.min(page*pageSize,total);
+ return <nav className="actions portal-pagination" aria-label="Pagination"><button type="button" className="secondary" disabled={page<=1} onClick={()=>onPage(page-1)}>Previous</button><span aria-live="polite">{total===0?'No records':from===0?`No records on page ${page} of ${pages}`:`${from}-${to} of ${total} records · Page ${page} of ${pages}`}</span><button type="button" className="secondary" disabled={page*pageSize>=total} onClick={()=>onPage(page+1)}>Next</button></nav>;
+}

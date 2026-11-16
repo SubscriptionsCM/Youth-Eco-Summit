@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { api, ApiError, json, type Row } from './api';
 import { Errors, Field, Notice, PageTitle, ResourceState, useResource } from './shared';
 import { FormSteps } from './form-steps';
+import {useUnsavedNavigation} from './unsaved-navigation';
 import { SchoolAutocomplete } from './registration';
 import { EmailAccount } from './email-account';
 import { RetainedFileDownload, RetainedFormFiles } from './retained-form-files';
@@ -26,7 +27,7 @@ export function ReferenceFormPage({formKey,initialAnswers={}}:{formKey:string;in
   const [id,key='']=saved.split('.');setToken(key);setBusy(true);
   api<Row>(`/api/forms/records/${encodeURIComponent(id)}`,{headers:headers(key)}).then(data=>{if(data.form_key!==formKey)throw new Error('This saved link belongs to a different form. Open its original page.');setRecord(data);setAnswers(data.answers);setStep(data.current_step);}).catch(setError).finally(()=>setBusy(false));
  },[formKey]);
- useEffect(()=>{const warn=(event:BeforeUnloadEvent)=>{if(dirty.current){event.preventDefault();event.returnValue='';}};window.addEventListener('beforeunload',warn);return()=>window.removeEventListener('beforeunload',warn);},[]);
+ useUnsavedNavigation(()=>dirty.current);
  useEffect(()=>{
   if(!record?.files?.some((f:Row)=>['uploaded','pending'].includes(f.status)&&!f.verification_failed))return;
   const timer=setInterval(()=>{void refresh().catch(setError);},4000);return()=>clearInterval(timer);
