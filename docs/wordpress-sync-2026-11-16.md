@@ -39,7 +39,7 @@ Integrity verification completed **16 November 2026 at 11:04:54 IST**; live owne
 
 Open **Manage judging**, create/select a 2027 competition round, choose **Preserved WordPress submissions**, refresh/search and assign the required completed entries to an enrolled reviewer. Judge dashboards show only explicitly assigned work; the sync does not automatically distribute entries or publish results. Registration records and drafts remain available in the protected WordPress archive.
 
-Original WordPress submission dates are retained in the protected record details. The current WordPress picker date reflects archive/import time; staff should use the original record date for deadline or lateness decisions. This sync did not change that existing date presentation.
+Original WordPress submission dates remain retained in the protected record details. After this sync, the picker presentation was corrected in release `7823a40c9bf4103e61ef3f92d5fdc23845030ab3` to show and sort by the original source submission date, with import time separate. No archived records were rewritten. See [the verified date correction report](judge-picker-date-fix-2026-11-16.md).
 
 This is a verified synchronization checkpoint. WordPress remains live; subsequent activity requires a later catch-up. No continuous synchronization or source write freeze was introduced. The current application revision is `aca0008cfee695271ad36b2728f9622688d5e6de`.
 
