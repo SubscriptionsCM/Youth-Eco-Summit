@@ -8,6 +8,8 @@
 | Assigned-entry dashboard | https://new.youthecosummit.com/judge |
 | Owner/admin management | https://new.youthecosummit.com/admin/judging |
 
+**Later data update:** The post-13-November WordPress intake has now been synchronized and verified. See [the synchronization report](wordpress-sync-2026-11-16.md) for current counts and judge availability. The setup-time snapshot below remains historical.
+
 ## Available functionality
 
 - Invited judges use the existing staff password/MFA enrollment and sign-in. Unauthenticated visitors see the judge sign-in gate; participant accounts are denied judge APIs and screens.
