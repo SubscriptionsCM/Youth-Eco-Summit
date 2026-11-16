@@ -44,3 +44,8 @@ export function afterLoginPath(role: string, destination?: unknown): string {
   if (/^\/files(?:\/|$)/.test(pathname) && !['participant','owner','admin'].includes(role)) return dashboardPath(role);
   return next;
 }
+
+/** Keep the appropriate sign-in flow after a deliberate sign-out. */
+export function signedOutPath(role?:string):string{
+ return role==='judge'?'/judge/login':['owner','admin'].includes(role||'')?loginPath('/admin'):'/login';
+}

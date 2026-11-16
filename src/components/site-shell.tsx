@@ -7,7 +7,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { api, json, type Row } from './api';
-import { dashboardLabel, dashboardPath } from './auth-navigation';
+import { dashboardLabel, dashboardPath, signedOutPath } from './auth-navigation';
 import '../app/account-navigation.css';
 import '../app/portal-workspace.css';
 import {PortalWorkspace} from './portal-workspace';
@@ -33,9 +33,14 @@ export function SiteShell({ children }: { children: ReactNode }) {
     refresh(); window.addEventListener('focus', refresh);
     return () => { active = false; window.removeEventListener('focus', refresh); };
   }, [pathname]);
+  useEffect(()=>{
+    const dismiss=(event:Event)=>{const menu=accountMenu.current;if(menu?.open&&event.target instanceof Node&&!menu.contains(event.target))menu.open=false;};
+    document.addEventListener('pointerdown',dismiss);document.addEventListener('focusin',dismiss);
+    return()=>{document.removeEventListener('pointerdown',dismiss);document.removeEventListener('focusin',dismiss);};
+  },[]);
   async function signOut() {
     setSigningOut(true); setAccountError('');
-    try { await api('/api/auth/logout', json('POST', {})); setActor(null); window.location.assign('/login'); }
+    try { await api('/api/auth/logout', json('POST', {})); setActor(null); window.location.assign(signedOutPath(actor?.role)); }
     catch (error) { setAccountError(error instanceof Error ? error.message : 'Sign out failed. Please try again.'); setSigningOut(false); }
   }
   return <>
