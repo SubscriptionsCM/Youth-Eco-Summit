@@ -6,6 +6,7 @@ import { storageAction } from './storage';
 import { createSchool,updateSchool,createStudent,participantDashboard,claimSchool,schoolDashboard,publicSchools } from './registration';
 import { createEntry,updateEntry,submitEntry,entryDetail } from './entries';
 import { judgeQueue,assignmentDetail,saveReview,recordDecision } from './judging';
+import { judgePortalRoute } from './judge-portal-route';
 import { adminList,adminCreate,adminPatch } from './admin';
 import { deletionPreview,trash,restore,requestPurge } from './trash';
 import { exportData } from './exports';
@@ -50,6 +51,7 @@ export async function handleRequest(request:Request,path:string[]){
   if(path[0]==='health')return ok({service:'Youth Eco Summit',configured:!!process.env.DATABASE_URL});
   if(path[0]==='auth'){const response=await authAction(request,path);if(response)return response;throw new AppError(404,'Authentication action not found.');}
   const actor=await getActor(request);if(!actor)throw new AppError(401,'Sign in to continue.');
+  if(path[0]==='judging')return await judgePortalRoute(request,db,actor,path.slice(1));
   if(path[0]==='uploads'||path[0]==='media'){const response=await storageAction(request,actor,path);if(response)return response;throw new AppError(404,'File action not found.');}
   if(path[0]==='registration-drafts'){
    if(path.length===1&&request.method==='GET')return ok(await listRegistrationDrafts(db,actor,new URL(request.url).searchParams));

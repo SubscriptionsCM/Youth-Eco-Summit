@@ -18,7 +18,8 @@ const grantSchema = z.object({
 }).strict().refine(value => value.kind === 'history' ? !!value.actorId && !value.draftFingerprint : !!value.actorId !== !!value.draftFingerprint);
 export type StorageDownloadGrant = z.infer<typeof grantSchema>;
 export type PortalFile = { id: string; record_id: string; status: string; storage_key: string; filename: string; mime_type: string; expected_size: number | string; expected_checksum: string; metadata?: Record<string, unknown> };
-type DownloadFile = { key: string; filename: string; mime: string; size: number; checksum: string; version?: string; etag?: string };
+export type RetainedDownload = { key: string; filename: string; mime: string; size: number; checksum: string; version?: string; etag?: string };
+type DownloadFile = RetainedDownload;
 
 function secret() {
   const value = process.env.AUTH_SECRET || '';
@@ -108,6 +109,11 @@ export async function downloadFile(request: Request, database: Db, store: Object
     }
     file = portalFile(saved);
   }
+  return serveRetainedFile(request, store, file);
+}
+
+/** Internal only: callers must authorize the current actor and exact retained file first. */
+export async function serveRetainedFile(request: Request, store: ObjectStore, file: RetainedDownload) {
   const identity = await store.head(file.key, file.version);
   if (!Number.isSafeInteger(file.size) || file.size <= 0 || identity.ContentLength !== file.size ||
     (store instanceof FileSystemStore && identity.VersionId !== file.checksum)) throw new AppError(409, 'The retained file does not match its verified record.');
