@@ -16,7 +16,10 @@ it('keeps dedicated and legacy judging destinations separate',()=>{
 });
 it('keeps the active website admin menu focused on populated submission and judging workflows',()=>{
  for(const role of ['admin','owner']){
-  expect(links(role)).toEqual(['/admin','/admin/reference-forms','/admin/wordpress-history','/admin/schools','/admin/judging','/admin/judges','/admin/tools']);
+  expect(links(role)).toEqual(['/admin','/admin/reference-forms','/admin/wordpress-history','/admin/schools','/admin/judging','/admin/judges','/admin/jobs','/admin/audit','/admin/trash']);
+  const groups=portalGroups(role),tools=groups.filter(g=>g.label==='Tools');
+  expect(tools).toHaveLength(1);expect(tools[0].items.map(i=>i.label)).toEqual(['Background tasks','Activity log','Trash']);
+  expect(groups.some(g=>g.label==='Support')).toBe(false);
   expect(portalGroups(role).flatMap(g=>g.items).find(i=>i.href==='/admin/judges')?.label).toBe('Staff accounts');
  }
 });

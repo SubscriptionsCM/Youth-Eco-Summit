@@ -1,5 +1,5 @@
 export type PortalItem={label:string;href:string};
-export type PortalGroup={label:string;items:PortalItem[];primary?:boolean};
+export type PortalGroup={label:string;items:PortalItem[];primary?:boolean;root?:string};
 const item=(label:string,href:string):PortalItem=>({label,href});
 export const adminTitles:Record<string,string>={overview:'Overview',judging:'Manage judging','reference-forms':'Forms inbox','wordpress-history':'WordPress archive',files:'File library',repairs:'File recovery',schools:'Schools',nominations:'School nominations','partner-enquiries':'Partner enquiries',teachers:'Educators',students:'Students',entries:'Competition entries',judges:'Staff accounts',assignments:'Assignments',rules:'Assignment rules',rounds:'Review rounds',reviews:'Reviews',results:'Results',editions:'Summit editions',competitions:'Competitions',content:'Website content',trash:'Trash',audit:'Activity log',jobs:'Background tasks',imports:'Imports',tools:'Tools'};
 export function portalGroups(role:string,mode='portal'):PortalGroup[]{
@@ -13,7 +13,7 @@ export function portalGroups(role:string,mode='portal'):PortalGroup[]{
  if(mode==='portal')return [
   {label:'Website',primary:true,items:['overview','reference-forms','wordpress-history','schools'].map(admin)},
   {label:'Judging',items:['judging','judges'].map(admin)},
-  {label:'Support',items:[admin('tools')]}
+  {label:'Tools',root:'/admin/tools',items:['jobs','audit','trash'].map(admin)}
  ];
  return [
   {label:'Workspace',primary:true,items:['overview','reference-forms','wordpress-history'].map(admin)},
