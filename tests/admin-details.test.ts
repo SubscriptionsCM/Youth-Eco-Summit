@@ -31,6 +31,21 @@ describe('authenticated administration record details',()=>{
   await db.query("INSERT INTO review_history(id,review_id,snapshot,reason,actor_id) VALUES($1,$2,'{\"scores\":{\"quality\":3},\"comment\":\"Original judgment\"}','Correction approved',$3)",[history,currentReview,admin.id]);
  });
  afterAll(async()=>{await store?.close();});
+ it('finds activity by the staff member’s name without exposing account credentials',async()=>{
+  const event=id();await store.db.query("INSERT INTO audit_events(id,actor_id,action,entity_type,entity_id,detail) VALUES($1,$2,'school.correction','schools',$3,'{\"reason\":\"Address corrected\"}')",[event,admin.id,school]);
+  const result:any=await adminList(store.db,admin,'audit',new URLSearchParams({id:event,q:'Administrator'}));
+  expect(result.total).toBe(1);expect(result.items[0]).toMatchObject({actor_name:'Administrator',actor_contact:admin.id,detail:{reason:'Address corrected'}});expect(JSON.stringify(result)).not.toContain('secret-');
+  await expect(adminList(store.db,guardian,'audit',new URLSearchParams())).rejects.toMatchObject({status:403});
+ });
+ it('identifies records in Trash by their school name and reference',async()=>{
+  const batch=id();await store.db.query("INSERT INTO deletion_batches(id,actor_id,reason,root_type,root_id,items) VALUES($1,$2,'Duplicate registration','schools',$3,$4)",[batch,admin.id,school,JSON.stringify([{type:'schools',id:school}])]);
+  const {items:[record]}=await list('trash',batch);expect(record.root_label).toBe('Example School (SCH-DETAIL)');
+ });
+ it('searches background tasks and activity using their displayed plain-language names',async()=>{
+  const job=id(),event=id();await store.db.query("INSERT INTO jobs(id,kind,payload) VALUES($1,'verify_portal_file','{}')",[job]);await store.db.query("INSERT INTO audit_events(id,actor_id,action,entity_type,entity_id) VALUES($1,$2,'school.correction','schools',$3)",[event,admin.id,school]);
+  const tasks:any=await adminList(store.db,admin,'jobs',new URLSearchParams({id:job,q:'Check submitted file'}));expect(tasks.total).toBe(1);
+  const activity:any=await adminList(store.db,admin,'audit',new URLSearchParams({id:event,q:'School details corrected'}));expect(activity.total).toBe(1);expect(activity.items[0].entity_label).toBe('Example School (SCH-DETAIL)');
+ });
  it('shows yearly participation, consent history, explicit verification links and lead/member entries',async()=>{
   const {items:[record]}=await list('students',student);
   expect(record.participations).toHaveLength(2);

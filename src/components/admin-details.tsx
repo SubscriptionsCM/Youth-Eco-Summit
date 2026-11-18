@@ -1,12 +1,16 @@
 'use client';
 import Link from 'next/link';
 import { date, label, type Row } from './api';
+import {TaskDetails,ActivityDetails,TrashDetails} from './record-summaries';
 import {dedicatedJudgingMode} from '../domain/review-mode';
 
 const recorded = (value: unknown) => value ? date(value) : 'Not recorded';
 function EntryLink({ entry }: { entry: Row }) { return entry.trashed_at || entry.purging ? <span>{entry.reference} (in Trash)</span> : <Link href={`/entries/${encodeURIComponent(entry.id)}`}>{entry.reference || 'Open entry'}</Link>; }
 
 export function AdminRecordDetails({ resource, row }: { resource: string; row: Row }) {
+  if(resource==='jobs')return <TaskDetails row={row}/>;
+  if(resource==='audit')return <ActivityDetails row={row}/>;
+  if(resource==='trash')return <TrashDetails row={row}/>;
   if (resource === 'partner-enquiries') return <><h3>{row.organization}</h3><dl><dt>Reference</dt><dd>{row.reference}</dd><dt>Contact</dt><dd>{row.contact_name}</dd><dt>Email</dt><dd><a href={`mailto:${row.email}`}>{row.email}</a></dd><dt>Phone</dt><dd>{row.phone || 'Not supplied'}</dd><dt>Partnership interest</dt><dd>{label(row.interest)}</dd><dt>Status</dt><dd>{label(row.status)}</dd><dt>Received</dt><dd>{recorded(row.created_at)}</dd></dl><h3>Enquiry</h3><p className="prose">{row.message}</p><details><summary>Recorded consent and privacy information</summary><p>{row.consent_wording}</p><p className="prose">{row.privacy_snapshot?.body}</p></details></>;
   if (resource === 'judges') return <><h3>{row.name||row.contact}</h3><dl><dt>Email</dt><dd><a href={`mailto:${row.contact}`}>{row.contact}</a></dd><dt>Role</dt><dd>{label(row.role)}</dd><dt>Status</dt><dd>{row.active?'Active':'Inactive'}</dd><dt>Account created</dt><dd>{recorded(row.created_at)}</dd></dl></>;
   if (resource === 'students') return <StudentDetails row={row} />;

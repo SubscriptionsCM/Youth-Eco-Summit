@@ -1,0 +1,32 @@
+const words=(value:unknown)=>String(value??'').replace(/([a-z])([A-Z])/g,'$1 $2').replace(/[_.-]+/g,' ').trim();
+export function statusText(value:unknown){
+ const key=String(value||'').toLowerCase();
+ const names:Record<string,string>={complete:'Completed',failed:'Needs attention',pending:'Waiting',running:'In progress',in_progress:'In progress',processing:'Checking file',uploaded:'Checking file',draft:'Draft saved',ready:'Ready',submitted:'Submitted',active:'Active',inactive:'Inactive',approved:'Approved',declined:'Declined',delivered:'Delivered',quarantined:'File blocked',rejected:'File not accepted',trashed:'In Trash',purging:'Deleting',purge_failed:'Deletion needs attention',restored:'Restored',revoked:'Access removed'};
+ return names[key]||(words(key)?words(key).replace(/^./,c=>c.toUpperCase()):'Not recorded');
+}
+const tasks:Record<string,string>={verify_portal_file:'Check submitted file',verify_asset:'Check uploaded file',verify_historical_asset:'Check earlier uploaded file',form_notifications:'Send submission notifications',route:'Assign entries to judges',purge:'Permanently delete approved records'};
+export function taskTitle(value:unknown){return tasks[String(value)]||'Website background task';}
+export function recordTypeTitle(value:unknown){return ({schools:'School records',students:'Student records',submissions:'Competition entries',student_participations:'Student registrations',school_participations:'School registrations',teacher_registrations:'Educator registrations',users:'Staff accounts',user:'Account',asset:'Uploaded file',assets:'Uploaded files',portal_form_records:'Website submissions',portal_form_files:'Submitted files',judging_rounds:'Judging rounds',judging_assignments:'Judge assignments',judging_reviews:'Judge reviews',registration_drafts:'Saved registrations',deletion_batches:'Records in Trash',jobs:'Background tasks'} as Record<string,string>)[String(value)]||'Website records';}
+const activities:Record<string,string>={'auth.invite':'Staff invitation sent','auth.recover':'Staff password reset','auth.participant.recovery_started':'Password reset started','auth.participant.recover':'Participant password reset','auth.wordpress.link':'Account connected to earlier website','wordpress.user.link':'Earlier account connected','reference-form.submit':'Website form submitted','school.registration':'School registered','school.status':'School status updated','school.correction':'School details corrected','school.contact.claim':'School contact verified','school.contact.correction':'School contact updated','student.register':'Student registered','student.support_correction':'Student details corrected','teacher.registration':'Educator registered','teacher.approved':'Educator registration approved','teacher.declined':'Educator registration declined','entry.draft':'Entry draft saved','entry.submit':'Competition entry submitted','entry.decision':'Entry decision recorded','assignment.assign':'Entry assigned to a judge','judging.assign':'Entry assigned to a judge','judging.round.create':'Judging round created','judging.round.state':'Judging round updated','judging.review.save':'Review draft saved','judging.review.submit':'Judge review submitted','judging.assignment.revoke':'Judge access removed','judging.assignment.reopen':'Judge review reopened','review.save':'Review saved','review.submit':'Review submitted','upload.started':'File upload started','upload.restore':'File restored','upload.trash':'File moved to Trash','upload.archive_recover':'Earlier file recovered','historical.file.started':'Earlier file check started','historical.file.verified':'Earlier file verified','trash.move':'Records moved to Trash','trash.restore':'Records restored','purge.request':'Permanent deletion requested','export.download':'Report downloaded','registration.draft.complete':'Registration completed','registration.draft.discard':'Registration draft discarded','team.invite':'Team invitation created','team.join':'Student joined a team','consent.publication':'Publication permission updated','publication.moderate':'Publication reviewed','edition.configuration':'Summit settings updated','import.preview':'Import checked','admin.retry':'Background task retried','admin.activate':'Account activated','admin.deactivate':'Account deactivated','admin.approve':'Record approved','admin.reopen':'Entry reopened'};
+export function activityTitle(value:unknown){return activities[String(value)]||'Website activity recorded';}
+export function displayedSearchCodes(resource:string,query:string){
+ const term=query.trim().toLowerCase();if(!term)return [];
+ const names=resource==='jobs'?tasks:resource==='audit'?activities:resource==='trash'?Object.fromEntries(['schools','students','submissions'].map(type=>[type,recordTypeTitle(type)])):{};
+ return Object.entries(names).filter(([,title])=>title.toLowerCase().includes(term)).map(([code])=>code);
+}
+export function recordHeading(resource:string,row:Record<string,any>){
+ if(resource==='jobs')return taskTitle(row.kind);
+ if(resource==='audit')return activityTitle(row.action);
+ if(resource==='trash')return row.root_label||recordTypeTitle(row.root_type);
+ if(resource==='schools')return row.name||row.reference||'School record';
+ return row.reference||row.name||row.title||row.label||'Website record';
+}
+export function reviewFlagTitle(value:unknown){return ({conflict:'Conflict of interest',unreadable:'Unreadable or incomplete work',other:'Other issue'} as Record<string,string>)[String(value)]||'Issue flagged for staff';}
+export function fileTypeTitle(value:unknown){return ({'application/pdf':'PDF document','video/mp4':'MP4 video','image/jpeg':'JPEG image','image/png':'PNG image'} as Record<string,string>)[String(value)]||'Submitted file';}
+export function removalCounts(value:Record<string,any>){
+ const counts:Record<string,number>={};
+ if(Array.isArray(value.items))for(const item of value.items){if(typeof item?.type==='string')counts[item.type]=(counts[item.type]||0)+1;}
+ if(Array.isArray(value.teacherRegistrations)&&value.teacherRegistrations.length)counts.teacher_registrations=value.teacherRegistrations.length;
+ if(value.counts)for(const [type,count] of Object.entries(value.counts))if(Number.isInteger(count)&&Number(count)>0)counts[type]=Number(count);
+ return Object.entries(counts).map(([type,count])=>({title:recordTypeTitle(type),count}));
+}

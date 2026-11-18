@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import {displayedSearchCodes} from '../domain/portal-language';
 import type { Db } from './db';
 import { AppError,type Actor,id,audit,requireAdmin } from './core';
 import { competitionSchema,rubricSchema } from '../domain/rules';
@@ -71,6 +72,8 @@ const reviewDetails=`t.*,s.reference,a.judge_id,a.round_id,c.edition_id,c.title 
   SELECT h.id,h.review_id,h.snapshot,h.reason,h.actor_id,u.name actor_name,h.created_at
   FROM review_history h JOIN users u ON u.id=h.actor_id WHERE h.review_id=t.id
  ) d),'[]'::jsonb) history`;
+const trashLabel=`(CASE t.root_type WHEN 'schools' THEN (SELECT name||' ('||reference||')' FROM schools WHERE id=t.root_id) WHEN 'students' THEN (SELECT name||' ('||reference||')' FROM students WHERE id=t.root_id) WHEN 'submissions' THEN (SELECT reference FROM submissions WHERE id=t.root_id) END)`;
+const activityRecordLabel=`(CASE WHEN t.entity_type='schools' THEN (SELECT name||' ('||reference||')' FROM schools WHERE id::text=t.entity_id) WHEN t.entity_type='students' THEN (SELECT name||' ('||reference||')' FROM students WHERE id::text=t.entity_id) WHEN t.entity_type='submissions' THEN (SELECT reference FROM submissions WHERE id::text=t.entity_id) WHEN t.entity_type='portal_form_records' THEN (SELECT reference FROM portal_form_records WHERE id::text=t.entity_id) WHEN t.entity_type='judging_assignments' THEN (SELECT snapshot->>'reference' FROM judging_assignments WHERE id::text=t.entity_id) WHEN t.entity_type='judging_reviews' THEN (SELECT a.snapshot->>'reference' FROM judging_reviews v JOIN judging_assignments a ON a.id=v.assignment_id WHERE v.id::text=t.entity_id) WHEN t.entity_type IN ('asset','assets') THEN (SELECT original_name FROM assets WHERE id::text=t.entity_id) WHEN t.entity_type='portal_form_files' THEN (SELECT filename FROM portal_form_files WHERE id::text=t.entity_id) WHEN t.entity_type='judging_rounds' THEN (SELECT name FROM judging_rounds WHERE id::text=t.entity_id) WHEN t.entity_type IN ('user','users') THEN (SELECT coalesce(name,contact) FROM users WHERE id::text=t.entity_id) END)`;
 const resources:Record<string,{from:string;select:string;search:string;where?:string;order:string}>={
  schools:{from:'schools t',select:schoolDetails,search:"t.name||' '||t.reference||' '||t.city||' '||t.state",where:'t.trashed_at IS NULL',order:'t.registered_at'},
  teachers:{from:'teacher_registrations t JOIN schools sc ON sc.id=t.school_id',select:'t.*,sc.name school_name,sc.reference school_reference',search:"t.name||' '||t.email||' '||t.reference||' '||sc.name",order:'t.created_at'},
@@ -83,8 +86,8 @@ const resources:Record<string,{from:string;select:string;search:string;where?:st
  rules:{from:'assignment_rules t',select:'t.*',search:'t.category_id',order:'t.created_at'},
  rounds:{from:'review_rounds t',select:'t.*',search:'t.name',order:'t.created_at'},
  results:{from:"decisions t JOIN submissions s ON s.id=t.submission_id",select:'t.*,s.reference',search:"s.reference||' '||coalesce(t.award,'')",where:'s.trashed_at IS NULL',order:'t.created_at'},
- trash:{from:'deletion_batches t',select:'t.*',search:"t.root_type||' '||t.root_id::text||' '||t.reason",where:"t.status IN ('trashed','purging','purge_failed')",order:'t.created_at'},
- audit:{from:'audit_events t',select:'t.*',search:"t.entity_id||' '||t.action",order:'t.created_at'},
+ trash:{from:'deletion_batches t',select:`t.*,${trashLabel} root_label`,search:`t.root_type||' '||t.root_id::text||' '||t.reason||' '||coalesce(${trashLabel},'')`,where:"t.status IN ('trashed','purging','purge_failed')",order:'t.created_at'},
+ audit:{from:'audit_events t LEFT JOIN users u ON u.id=t.actor_id',select:`t.*,u.name actor_name,u.contact actor_contact,${activityRecordLabel} entity_label`,search:`t.entity_id||' '||t.action||' '||coalesce(u.name,'')||' '||coalesce(u.contact,'')||' '||coalesce(${activityRecordLabel},'')`,order:'t.created_at'},
  jobs:{from:'jobs t',select:'t.*',search:'t.kind',order:'t.created_at'},
  imports:{from:'import_rows t',select:'t.*',search:"t.source||' '||t.source_id",order:'t.created_at'},
  'reference-forms':{from:'portal_form_records t LEFT JOIN schools s ON s.id=t.school_id',select:'t.id,t.form_key,t.reference,t.status,t.submitter_role,t.school_id,t.submitted_at,t.updated_at,s.name school_name,s.status school_status,(SELECT count(*)::int FROM portal_form_files f WHERE f.record_id=t.id AND f.status=\'ready\') file_count',search:"t.reference||' '||t.form_key||' '||coalesce(s.name,'')",where:"t.status='submitted'",order:'t.submitted_at'},
@@ -105,7 +108,11 @@ export async function adminList(db:Db,actor:Actor,resource:string,params:URLSear
  }
  const page=Math.max(1,Math.min(100000,Math.floor(Number(params.get('page'))||1)));const pageSize=Math.max(1,Math.min(100,Math.floor(Number(params.get('pageSize'))||25)));
  const values:unknown[]=[];const where=[r.where??'true'];const add=(clause:string,value:unknown)=>{values.push(value);where.push(clause.replace('?',`$${values.length}`));};
- if(params.get('q'))add(`(${r.search}) ILIKE '%'||?||'%'`,params.get('q')!.slice(0,200));
+ if(params.get('q')){
+  const query=params.get('q')!.slice(0,200),codes=displayedSearchCodes(resource,query);
+  if(codes.length){values.push(codes);const column=resource==='jobs'?'kind':resource==='audit'?'action':'root_type';add(`((${r.search}) ILIKE '%'||?||'%' OR t.${column}=ANY($${values.length}::text[]))`,query);}
+  else add(`(${r.search}) ILIKE '%'||?||'%'`,query);
+ }
  if(params.get('id'))add('t.id::text=?',params.get('id'));
  if(resource==='reference-forms'){
   if(params.get('formKey'))add('t.form_key=?',params.get('formKey'));

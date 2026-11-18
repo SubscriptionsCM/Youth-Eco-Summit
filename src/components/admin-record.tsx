@@ -7,7 +7,7 @@ import { AssetList } from './uploads';
 import { SchoolForm } from './registration';
 export function AdminRecordActions({ resource, row, onChanged }: { resource: string; row: Row; onChanged: () => void }) {
   if (resource === 'students') return <StudentCorrection row={row} onChanged={onChanged} />;
-  if (resource === 'schools') return <details><summary>Correct school details</summary><p>Changes are recorded in the audit history.</p><SchoolForm key={row.id} school={row} onSaved={onChanged} /></details>;
+  if (resource === 'schools') return <details><summary>Correct school details</summary><p>Changes are saved in the activity log.</p><SchoolForm key={row.id} school={row} onSaved={onChanged} /></details>;
   if (resource === 'files') return <FileRecordDetails key={row.id} row={row} onChanged={onChanged} />;
   if (resource === 'repairs') return <><p>This historical file is not retained and ready yet. An administrator must retrieve an authorized local copy and run the documented repair import. No external file is fetched automatically.</p><Link href={`/entries/${row.submission_id}`}>Open affected entry</Link></>;
   return null;

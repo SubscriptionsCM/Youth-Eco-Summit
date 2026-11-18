@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { api, date, json, label, type Row } from './api';
 import { AssetList, DraftAssetRemoval, UploadForm } from './uploads';
+import {EntryReviewHistory} from './record-summaries';
 import { TeamInvitation } from './teams';
 import { FormSteps } from './form-steps';
 import { submitSavedEntry } from './entry-submission';
@@ -71,7 +72,7 @@ function EntryEditor({ id, actor }: { id: string; actor: Row }) {
       {step==='review'&&<><AnswerReview fields={detailFields} answers={answers}/>{config.mode==='team'&&<p>Additional student registration IDs: {members||'Entering individually'}</p>}<h3>Your files</h3><AssetList assets={currentAssets}/><form className="form" onSubmit={e=>{e.preventDefault();void submit();}}><fieldset disabled={busy||submissionPending}><legend>Final declarations</legend>{declarations.map(field=><DynamicField key={field.key} field={field} classNumber={Number(entry.class)} value={answers[field.key]} onChange={value=>change(field.key,value)}/>)}</fieldset><p>Check your details and files. Submitting locks this revision and creates your receipt.</p>{!filesReady&&<Notice>Some required files are missing or still being verified. Return to Upload work to resolve them.</Notice>}<div className="actions"><button type="button" className="secondary" disabled={busy||submissionPending} onClick={()=>save('upload')}>Back</button><button type="button" className="secondary" disabled={busy||submissionPending} onClick={()=>save()}>Save progress</button><button disabled={busy||(!submissionPending&&!filesReady)}>{busy?'Submitting…':submissionPending?'Retry submission confirmation':'Confirm and submit entry'}</button></div></form></>}
     </>}
     {details.revisions?.length>0&&<details><summary>Revision history</summary><ul>{details.revisions.map((r:Row)=><li key={r.id}>Revision {r.version||r.revisionNumber||r.revision_number} · {date(r.createdAt||r.created_at)}</li>)}</ul></details>}
-    {details.assignments?.length>0&&<details><summary>Assignments and review history</summary><pre>{JSON.stringify({assignments:details.assignments,reviews:details.reviews,decisions:details.decisions},null,2)}</pre></details>}
+    {details.assignments?.length>0&&<EntryReviewHistory details={details}/>}
     <div className="actions"><Link href="/dashboard">Back to your dashboard</Link><button className="secondary" disabled={busy||submissionPending} onClick={resource.reload}>Refresh entry</button>{dirty.current&&<button className="secondary" disabled={busy||submissionPending} onClick={()=>{dirty.current=false;setError(null);resource.reload();}}>Discard unsaved changes and reload</button>}</div>
   </>;
 }
