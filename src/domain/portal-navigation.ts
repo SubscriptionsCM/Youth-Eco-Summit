@@ -1,7 +1,7 @@
 export type PortalItem={label:string;href:string};
 export type PortalGroup={label:string;items:PortalItem[];primary?:boolean};
 const item=(label:string,href:string):PortalItem=>({label,href});
-export const adminTitles:Record<string,string>={overview:'Overview',judging:'Manage judging','reference-forms':'Forms inbox','wordpress-history':'WordPress archive',files:'File library',repairs:'File recovery',schools:'Schools',nominations:'School nominations','partner-enquiries':'Partner enquiries',teachers:'Educators',students:'Students',entries:'Competition entries',judges:'Reviewer accounts',assignments:'Assignments',rules:'Assignment rules',rounds:'Review rounds',reviews:'Reviews',results:'Results',editions:'Summit editions',competitions:'Competitions',content:'Website content',trash:'Trash',audit:'Activity log',jobs:'Background tasks',imports:'Imports'};
+export const adminTitles:Record<string,string>={overview:'Overview',judging:'Manage judging','reference-forms':'Forms inbox','wordpress-history':'WordPress archive',files:'File library',repairs:'File recovery',schools:'Schools',nominations:'School nominations','partner-enquiries':'Partner enquiries',teachers:'Educators',students:'Students',entries:'Competition entries',judges:'Staff accounts',assignments:'Assignments',rules:'Assignment rules',rounds:'Review rounds',reviews:'Reviews',results:'Results',editions:'Summit editions',competitions:'Competitions',content:'Website content',trash:'Trash',audit:'Activity log',jobs:'Background tasks',imports:'Imports',tools:'Tools'};
 export function portalGroups(role:string,mode='portal'):PortalGroup[]{
  if(role==='participant')return [
   {label:'Your workspace',primary:true,items:[item('My forms & entries','/dashboard'),item('New competition entry','/competitions/enter')]},
@@ -10,6 +10,11 @@ export function portalGroups(role:string,mode='portal'):PortalGroup[]{
  if(role==='judge')return [{label:'Review workspace',primary:true,items:[item('Assigned entries','/judge'),item('Competition guidelines','/competitions')]}];
  if(!['owner','admin'].includes(role))return [];
  const admin=(key:string)=>item(adminTitles[key],key==='overview'?'/admin':`/admin/${key}`);
+ if(mode==='portal')return [
+  {label:'Website',primary:true,items:['overview','reference-forms','wordpress-history','schools'].map(admin)},
+  {label:'Judging',items:['judging','judges'].map(admin)},
+  {label:'Support',items:[admin('tools')]}
+ ];
  return [
   {label:'Workspace',primary:true,items:['overview','reference-forms','wordpress-history'].map(admin)},
   {label:'Judging',items:mode==='portal'?[admin('judging'),item('My assigned entries','/judge'),admin('judges')]:mode==='legacy'?['judges','assignments','rules','rounds','reviews','results'].map(admin):[]},
@@ -18,11 +23,26 @@ export function portalGroups(role:string,mode='portal'):PortalGroup[]{
   {label:'Operations',items:['files','repairs','jobs','imports','audit','trash'].map(admin)}
  ].filter(group=>group.items.length);
 }
+/** Older menu URLs lead to the current website workflow; stored records and APIs are retained. */
+export function currentAdminDestination(section:string,query:URLSearchParams,mode='portal'):string|null{
+ if(mode!=='portal')return null;
+ const forms:Record<string,string>={students:'student',teachers:'teacher',nominations:'nomination','partner-enquiries':'partner',entries:''};
+ if(Object.hasOwn(forms,section)){
+  const filters=new URLSearchParams();
+  for(const key of ['schoolId','q']){const value=query.get(key);if(value)filters.set(key,value);}
+  const formKey=forms[section]||query.get('formKey');if(formKey)filters.set('formKey',formKey);
+  const search=filters.toString();return '/admin/reference-forms'+(search?'?'+search:'');
+ }
+ if(['assignments','rules','rounds','reviews','results'].includes(section))return '/admin/judging';
+ if(['files','repairs','imports','editions','competitions','content'].includes(section))return '/admin/tools';
+ return null;
+}
 export function isWorkspacePath(path:string){
  if(path==='/judge/login'||path.startsWith('/judge/login/'))return false;
  return ['/admin','/dashboard','/judge','/forms','/history','/entries','/files','/teams','/register','/teachers/register','/schools/register','/competitions/enter'].some(root=>path===root||path.startsWith(root+'/'));
 }
 export function isPortalLinkActive(path:string,href:string){
+ if(href==='/admin/tools'&&['/admin/jobs','/admin/audit','/admin/trash'].some(root=>path===root||path.startsWith(root+'/')))return true;
  const aliases:Record<string,string>={'/forms/student':'/register','/forms/teacher':'/teachers/register','/forms/school':'/schools/register'};
  path=aliases[path]||path;
  return path===href||(href!=='/admin'&&path.startsWith(href+'/'));
