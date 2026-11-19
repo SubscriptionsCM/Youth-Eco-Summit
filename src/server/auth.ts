@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, randomInt, randomUUID, scrypt, timingSafeEqual, type ScryptOptions } from 'node:crypto';
+import { createCipheriv, createHash, createHmac, randomBytes, randomInt, randomUUID, scrypt, timingSafeEqual, type ScryptOptions } from 'node:crypto';
 import { TOTP, Secret } from 'otpauth';
 import { db as database, type Db } from './db';
 import { AppError, type Actor, audit } from './core';
@@ -38,19 +38,8 @@ function encrypt(value: string, secret: string) {
   const iv = randomBytes(12), cipher = createCipheriv('aes-256-gcm', key(secret), iv);
   return Buffer.concat([iv, cipher.update(value), cipher.final(), cipher.getAuthTag()]).toString('base64');
 }
-function decrypt(value: string, secret: string) {
-  const bytes = Buffer.from(value, 'base64');
-  const cipher = createDecipheriv('aes-256-gcm', key(secret), bytes.subarray(0, 12));
-  cipher.setAuthTag(bytes.subarray(-16));
-  return Buffer.concat([cipher.update(bytes.subarray(12, -16)), cipher.final()]).toString();
-}
 function totp(secret: string, contact: string) {
   return new TOTP({ issuer: 'Youth Eco Summit', label: contact, algorithm: 'SHA1', digits: 6, period: 30, secret: Secret.fromBase32(secret) });
-}
-function counter(secret: string, contact: string, code: unknown) {
-  if (typeof code !== 'string' || !/^\d{6}$/.test(code)) return null;
-  const now = Date.now(), delta = totp(secret, contact).validate({ token: code, timestamp: now, window: 1 });
-  return delta === null ? null : Math.floor(now / 30_000) + delta;
 }
 function contact(value: unknown, phone = false) {
   if (typeof value !== 'string' || value.length > 254) throw new AppError(400, 'A valid contact is required.');
@@ -93,7 +82,7 @@ export function createAuth(db: Db, options: AuthOptions) {
     const query = `SELECT u.id,u.role,u.contact,EXISTS(SELECT 1 FROM wordpress_account_identities w WHERE w.user_id=u.id) AS wordpress_bound
       FROM auth_sessions s JOIN users u ON u.id=s.user_id
       WHERE s.token_hash=$1 AND s.revoked_at IS NULL AND s.expires_at>now() AND u.active=true
-      AND s.auth_version=u.auth_version AND (u.role='participant' OR (s.mfa_verified=true AND u.totp_secret IS NOT NULL))
+      AND s.auth_version=u.auth_version
       AND NOT EXISTS(SELECT 1 FROM supabase_identities si WHERE si.user_id=u.id AND si.recovery_nonce IS NOT NULL)`;
     const tokenHash = digest(token);
     const { rows: [found] } = await db.query<Actor & {wordpress_bound: boolean}>(query, [tokenHash]);
@@ -123,8 +112,7 @@ export function createAuth(db: Db, options: AuthOptions) {
       // Serialize issuance with recovery's credential-version change. An identity
       // lookup performed before recovery started must not create a new session.
       const { rows: [current] } = await tx.query<User>('SELECT * FROM users WHERE id=$1 FOR UPDATE', [user.id]);
-      if (!current?.active || current.role !== user.role || current.auth_version !== user.auth_version
-        || (current.role !== 'participant' && (!mfa || !current.totp_secret))) throw new AppError(403, 'This account changed. Sign in again.');
+      if (!current?.active || current.role !== user.role || current.auth_version !== user.auth_version) throw new AppError(403, 'This account changed. Sign in again.');
       const pending = await tx.query('SELECT auth_user_id FROM supabase_identities WHERE user_id=$1 AND recovery_nonce IS NOT NULL', [user.id]);
       if (pending.rows.length) throw new AppError(403, 'Password recovery is pending. Contact support to reconcile account access.');
       await tx.query('INSERT INTO auth_sessions(token_hash,user_id,auth_version,mfa_verified,expires_at) VALUES($1,$2,$3,$4,$5)', [digest(token), user.id, current.auth_version, mfa, new Date(Date.now() + seconds * 1000)]);
@@ -132,13 +120,6 @@ export function createAuth(db: Db, options: AuthOptions) {
     const response = json({ actor: { id: user.id, role: user.role, contact: user.contact } });
     response.headers.set('Set-Cookie', cookie(token, seconds));
     return response;
-  }
-  async function consumeMfa(user: User, code: unknown, target: Db = db) {
-    if (!user.totp_secret) return false;
-    const step = counter(decrypt(user.totp_secret, options.secret), user.contact || '', code);
-    if (step === null) return false;
-    const { rows } = await target.query('UPDATE users SET totp_last_counter=$2 WHERE id=$1 AND active=true AND totp_last_counter<$2 RETURNING id', [user.id, step]);
-    return rows.length === 1;
   }
   async function body(request: Request): Promise<Record<string, unknown>> {
     const raw = await request.text();
@@ -155,6 +136,8 @@ export function createAuth(db: Db, options: AuthOptions) {
       if (route === 'session' && request.method === 'GET') return json({ actor: await getActor(request) });
       if (request.method !== 'POST') throw new AppError(405, 'Method not allowed.');
       const input = await body(request);
+      // Older API clients may omit confirmation; browser forms require it.
+      if (input.confirmPassword !== undefined && (typeof input.password !== 'string' || input.password !== input.confirmPassword)) throw new AppError(400, 'The passwords must match.');
       if (['participant/signup','participant/login','participant/verify','participant/resend','participant/recovery/request','participant/recovery/complete'].includes(route)) {
         const participantProvider = process.env.AUTH_PARTICIPANT_PROVIDER === 'wordpress' ? 'wordpress' : 'supabase';
         await rate(request,participantProvider+'-'+route,String(input.contact||'').trim().toLowerCase(),5);
@@ -194,8 +177,8 @@ export function createAuth(db: Db, options: AuthOptions) {
         await rate(request, 'login', email);
         const user = (await db.query<User>('SELECT * FROM users WHERE contact=$1', [email])).rows[0];
         const validPassword = await verifyPassword(input.password, user?.password_hash || null);
-        if (!user?.active || user.role === 'participant' || !validPassword || !await consumeMfa(user, input.totp)) throw new AppError(401, 'Sign-in failed. Check your password and current authenticator code.');
-        return startSession(user, true);
+        if (!user?.active || user.role === 'participant' || !validPassword) throw new AppError(401, 'Sign-in failed. Check your email and password.');
+        return startSession(user, false);
       }
       if (route === 'logout') {
         await db.query('UPDATE auth_sessions SET revoked_at=now() WHERE token_hash=$1', [digest(sessionToken(request))]);
@@ -211,6 +194,7 @@ export function createAuth(db: Db, options: AuthOptions) {
         if ((await db.query('SELECT id FROM users WHERE contact=$1', [email])).rows.length) throw new AppError(409, 'An account already exists for this contact.');
         const token = randomBytes(32).toString('hex'), invitationId = randomUUID();
         const name = typeof input.name === 'string' ? input.name.trim().slice(0, 160) : '';
+        // Preserve the legacy NOT NULL invitation column without requiring or exposing enrollment.
         await db.query(`INSERT INTO auth_invitations(id,token_hash,contact,name,role,totp_secret,invited_by,expires_at)
           VALUES($1,$2,$3,$4,$5,$6,$7,now()+interval '24 hours')`, [invitationId, digest(token), email, name, role, encrypt(new Secret({size:20}).base32, options.secret), actor.id]);
         try { await options.sendEmail(email, 'Your Youth Eco Summit invitation', `${options.origin}/invite?token=${token}`); }
@@ -225,19 +209,16 @@ export function createAuth(db: Db, options: AuthOptions) {
           WHERE i.token_hash=$1 AND i.consumed_at IS NULL AND i.expires_at>now() AND inviter.active=true
           AND (inviter.role='owner' OR (inviter.role='admin' AND i.role='judge'))`, [digest(token)])).rows[0];
         if (!invitation) throw new AppError(401, 'Invitation is invalid or expired.');
-        const seed = decrypt(invitation.totp_secret, options.secret);
-        if (route === 'invitation/setup') return json({ provisioningUri: totp(seed, invitation.contact).toString(), contact: invitation.contact });
+        if (route === 'invitation/setup') return json({ contact: invitation.contact });
         const hash = await hashPassword(password(input.password));
-        const step = counter(seed, invitation.contact, input.totp);
-        if (step === null) throw new AppError(401, 'Authenticator code is invalid.');
         await db.transaction(async tx => {
           const claimed = await tx.query(`UPDATE auth_invitations SET consumed_at=now() WHERE id=$1 AND consumed_at IS NULL AND expires_at>now()
             AND EXISTS(SELECT 1 FROM users WHERE id=auth_invitations.invited_by AND active=true AND (role='owner' OR (role='admin' AND auth_invitations.role='judge'))) RETURNING id`, [invitation.id]);
           if (!claimed.rows.length) throw new AppError(401, 'Invitation is invalid or expired.');
-          const created = await tx.query(`INSERT INTO users(id,contact,name,role,password_hash,totp_secret,totp_last_counter) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(contact) DO NOTHING RETURNING id`, [randomUUID(), invitation.contact, invitation.name, invitation.role, hash, invitation.totp_secret, step]);
+          const created = await tx.query(`INSERT INTO users(id,contact,name,role,password_hash) VALUES($1,$2,$3,$4,$5) ON CONFLICT(contact) DO NOTHING RETURNING id`, [randomUUID(), invitation.contact, invitation.name, invitation.role, hash]);
           if (!created.rows.length) throw new AppError(409, 'An account already exists for this contact.');
         });
-        return json({ accepted: true, message: 'Account created. Sign in with the next authenticator code.' });
+        return json({ accepted: true, message: 'Account created. Sign in with your email and password.' });
       }
       if (route === 'recovery/request') {
         const email = contact(input.contact);
@@ -259,13 +240,13 @@ export function createAuth(db: Db, options: AuthOptions) {
         await db.transaction(async tx => {
           const found = await tx.query<User>(`SELECT u.* FROM auth_recovery r JOIN users u ON u.id=r.user_id WHERE r.token_hash=$1 AND r.consumed_at IS NULL AND r.expires_at>now() AND u.active=true FOR UPDATE OF r,u`, [digest(token)]);
           const user = found.rows[0];
-          if (!user || user.role === 'participant' || !await consumeMfa(user, input.totp, tx)) throw new AppError(401, 'Recovery link or authenticator code is invalid.');
+          if (!user || user.role === 'participant') throw new AppError(401, 'Recovery link is invalid or expired.');
           await tx.query('UPDATE users SET password_hash=$2,auth_version=auth_version+1,updated_at=now() WHERE id=$1', [user.id, hash]);
           await tx.query('UPDATE auth_recovery SET consumed_at=now() WHERE user_id=$1 AND consumed_at IS NULL', [user.id]);
           await tx.query('UPDATE auth_sessions SET revoked_at=now() WHERE user_id=$1', [user.id]);
           await audit(tx, user, 'auth.recover', 'user', user.id, {});
         });
-        return json({ recovered: true, message: 'Password reset. Sign in with the next authenticator code.' });
+        return json({ recovered: true, message: 'Password reset. Sign in with your new password.' });
       }
       return null;
     } catch (error) {

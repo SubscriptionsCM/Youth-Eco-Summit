@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { URI } from 'otpauth';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { testDb } from './helpers/db';
 import { createAuth, bootstrapOwner, hashPassword } from '../src/server/auth';
@@ -60,33 +59,39 @@ describe('database-backed authentication', () => {
     expect(await response?.text()).not.toMatch(/\d{6}/);
   });
 
-  it('requires password plus fresh MFA for staff and revokes logout sessions', async () => {
-    const enrollment = await bootstrapOwner(fixture.db, { contact: 'owner@example.org', name:'Owner', password:'Long unique password 123!', secret });
-    expect((await action('login', {contact:'owner@example.org', password:'Long unique password 123!'}))?.status).toBe(401);
-    const totp = URI.parse(enrollment.provisioningUri).generate();
-    const response = await action('login', {contact:'owner@example.org', password:'Long unique password 123!', totp});
+  it('uses staff passwords without authenticator codes and revokes logout sessions', async () => {
+    await bootstrapOwner(fixture.db, { contact: 'owner@example.org', name:'Owner', password:'Long unique password 123!', secret });
+    const before=(await fixture.db.query('select * from users')).rows;
+    expect((await action('login', {contact:'owner@example.org', password:'Wrong password 123!'}))?.status).toBe(401);
+    const response = await action('login', {contact:'owner@example.org', password:'Long unique password 123!'});
     expect(response?.status).toBe(200);
     const cookie = response!.headers.get('set-cookie')!;
     expect((await auth.getActor(request('session', {}, cookie)))?.role).toBe('owner');
-    expect((await action('login', {contact:'owner@example.org', password:'Long unique password 123!', totp}))?.status).toBe(401);
+    expect((await fixture.db.query('select mfa_verified from auth_sessions')).rows[0].mfa_verified).toBe(false);
+    expect((await action('login', {contact:'owner@example.org', password:'Long unique password 123!'}))?.status).toBe(200);
+    expect((await fixture.db.query('select * from users')).rows).toEqual(before);
     await action('logout', {}, cookie);
     expect(await auth.getActor(request('session', {}, cookie))).toBeNull();
   });
 
-  it('rejects participant invitations and consumes invitations after MFA enrollment', async () => {
+  it('rejects participant invitations and consumes invitations after password setup', async () => {
     await action('otp/request', {contact:'+919876543210'});
     const participant = await action('otp/verify', {contact:'+919876543210',code:otp});
     expect((await action('invitations', {contact:'judge@example.org',role:'judge'}, participant!.headers.get('set-cookie')!))?.status).toBe(403);
-    const enrollment = await bootstrapOwner(fixture.db, {contact:'owner@example.org', name:'Owner',password:'Long unique password 123!',secret});
-    const owner = await action('login', {contact:'owner@example.org',password:'Long unique password 123!',totp:URI.parse(enrollment.provisioningUri).generate()});
+    await bootstrapOwner(fixture.db, {contact:'owner@example.org', name:'Owner',password:'Long unique password 123!',secret});
+    const owner = await action('login', {contact:'owner@example.org',password:'Long unique password 123!'});
     expect((await action('invitations', {contact:'judge@example.org',role:'judge',name:'Judge'}, owner!.headers.get('set-cookie')!))?.status).toBe(200);
     const token = new URL(mail.match(/https?:\/\/\S+/)![0]).searchParams.get('token');
     const setup = await action('invitation/setup', {token});
     const {data} = await setup!.json();
-    const accepted = await action('invitation/accept', {token,password:'Another secure password 123!',totp:URI.parse(data.provisioningUri).generate()});
+    expect(data.contact).toBe('judge@example.org');
+    expect(data).not.toHaveProperty('provisioningUri');
+    expect((await action('invitation/accept', {token,password:'Another secure password 123!',confirmPassword:'Different'}))?.status).toBe(400);
+    const accepted = await action('invitation/accept', {token,password:'Another secure password 123!',confirmPassword:'Another secure password 123!'});
     expect(accepted?.status).toBe(200);
     expect((await action('invitation/setup', {token}))?.status).toBe(401);
     expect((await fixture.db.query('select role from users where contact=$1',['judge@example.org'])).rows[0].role).toBe('judge');
+    expect((await action('login',{contact:'judge@example.org',password:'Another secure password 123!'}))?.status).toBe(200);
   });
 
   it('allows admins to invite judges while reserving elevated roles for owners', async () => {
@@ -105,6 +110,18 @@ describe('database-backed authentication', () => {
 
   it('hashes passwords using per-password salts', async () => {
     expect(await hashPassword('Strong passphrase 123!')).not.toBe(await hashPassword('Strong passphrase 123!'));
+  });
+
+  it.each(['owner','admin','judge'])('allows active %s accounts without enrollment and preserves credential checks',async role=>{
+    const id=randomUUID(),plain='Secure staff password 123!';
+    await fixture.db.query('insert into users(id,role,contact,password_hash) values($1,$2,$3,$4)',[id,role,`${role}@example.org`,await hashPassword(plain)]);
+    expect((await action('login',{contact:`${role}@example.org`,password:plain,confirmPassword:'Different'}))?.status).toBe(400);
+    const response=await action('login',{contact:`${role}@example.org`,password:plain,confirmPassword:plain});
+    expect(response?.status).toBe(200);const cookie=response!.headers.get('set-cookie')!;
+    expect((await auth.getActor(request('session',{},cookie)))?.role).toBe(role);
+    await fixture.db.query('update users set active=false where id=$1',[id]);
+    expect(await auth.getActor(request('session',{},cookie))).toBeNull();
+    expect((await action('login',{contact:`${role}@example.org`,password:plain}))?.status).toBe(401);
   });
 
   it('expires cookies server-side and rejects sessions after credential version changes', async () => {
@@ -128,22 +145,18 @@ describe('database-backed authentication', () => {
     expect((await fixture.db.query("select count from auth_rates where key like 'otp-send:contact:%'")).rows[0].count).toBe(6);
   });
 
-  it('requires MFA during recovery, revokes old sessions, and consumes recovery links', async () => {
-    const enrollment = await bootstrapOwner(fixture.db,{contact:'owner@example.org',name:'Owner',password:'Long unique password 123!',secret});
-    const generator = URI.parse(enrollment.provisioningUri);
-    const login = await action('login',{contact:'owner@example.org',password:'Long unique password 123!',totp:generator.generate()});
+  it('requires an emailed recovery token, revokes old sessions and consumes recovery links without MFA', async () => {
+    await bootstrapOwner(fixture.db,{contact:'owner@example.org',name:'Owner',password:'Long unique password 123!',secret});
+    const login = await action('login',{contact:'owner@example.org',password:'Long unique password 123!'});
     const cookie = login!.headers.get('set-cookie')!;
     await action('recovery/request',{contact:'owner@example.org'});
     const token = new URL(mail.match(/https?:\/\/\S+/)![0]).searchParams.get('token');
-    expect((await action('recovery/complete',{token,password:'New unique password 456!'}))?.status).toBe(401);
-    // Reset the fixture counter to represent the next valid authenticator interval without waiting.
-    await fixture.db.query('update users set totp_last_counter=-1');
-    expect((await action('recovery/complete',{token,password:'New unique password 456!',totp:generator.generate()}))?.status).toBe(200);
+    expect((await action('recovery/complete',{token:'invalid',password:'New unique password 456!'}))?.status).toBe(401);
+    expect((await action('recovery/complete',{token,password:'New unique password 456!'}))?.status).toBe(200);
     expect(await auth.getActor(request('session',{},cookie))).toBeNull();
-    expect((await action('recovery/complete',{token,password:'New unique password 456!',totp:generator.generate()}))?.status).toBe(401);
-    await fixture.db.query('update users set totp_last_counter=-1');
-    expect((await action('login',{contact:'owner@example.org',password:'Long unique password 123!',totp:generator.generate()}))?.status).toBe(401);
-    expect((await action('login',{contact:'owner@example.org',password:'New unique password 456!',totp:generator.generate()}))?.status).toBe(200);
+    expect((await action('recovery/complete',{token,password:'New unique password 456!'}))?.status).toBe(401);
+    expect((await action('login',{contact:'owner@example.org',password:'Long unique password 123!'}))?.status).toBe(401);
+    expect((await action('login',{contact:'owner@example.org',password:'New unique password 456!'}))?.status).toBe(200);
   });
 });
 

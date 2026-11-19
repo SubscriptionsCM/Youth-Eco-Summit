@@ -14,6 +14,7 @@ export function EmailAccount({ onSignedIn, provider = 'supabase', registrationFo
   event.preventDefault();setBusy(true);setError(null);
   const values=Object.fromEntries(new FormData(event.currentTarget));
   try{
+   if(mode!=='verify'&&mode!=='recover'&&values.password!==values.confirmPassword)throw new Error('The passwords must match.');
    const route=mode==='recover'?'recovery/request':mode==='reset'?'recovery/complete':mode;
    let payload:Row={...values,contact:email},pending:PendingRegistration|null=null;
    if(provider==='wordpress'&&mode==='signup'){
@@ -48,7 +49,7 @@ export function EmailAccount({ onSignedIn, provider = 'supabase', registrationFo
    <Field name="contact" title={provider==='wordpress'&&!creating?'Username or email':'Email address'} type={provider==='wordpress'&&!creating?'text':'email'} autoComplete="username" required value={email} readOnly={provider==='wordpress'&&mode==='verify'} onChange={(e:React.ChangeEvent<HTMLInputElement>)=>setEmail(e.target.value)}/>
    {(mode==='verify'||mode==='reset')&&<Field name="code" title={mode==='reset'?'Recovery code':'Email confirmation code'} required inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6,10}"/>}
    {mode!=='verify'&&mode!=='recover'&&<Field name="password" title={mode==='reset'?'New password':'Password'} type="password" minLength={provider==='wordpress'||mode==='login'?1:12} maxLength={provider==='wordpress'?4096:256} autoComplete={mode==='login'?'current-password':'new-password'} required/>}
-   {provider==='wordpress'&&mode==='signup'&&<Field name="confirmPassword" title="Confirm Password" type="password" minLength={1} maxLength={4096} autoComplete="new-password" required/>}
+   {mode!=='verify'&&mode!=='recover'&&<Field name="confirmPassword" title={mode==='reset'?'Confirm new password':'Confirm password'} type="password" minLength={1} maxLength={provider==='wordpress'?4096:256} autoComplete={mode==='login'?'current-password':'new-password'} required hint="Enter the same password again."/>}
    <div className="actions">
     <button disabled={busy}>{busy?'Please wait…':mode==='reset'?'Reset password':mode==='recover'?provider==='wordpress'?'Send reset link':'Send recovery code':mode==='verify'?'Verify email':mode==='signup'?'Create account':'Sign in'}</button>
     <button type="button" className="secondary" disabled={busy} onClick={()=>changeMode(mode==='login'?'signup':'login')}>{mode==='login'?'Create a new account':recovering?'Back to sign in':'Use an existing account'}</button>

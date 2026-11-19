@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation';
 import { cloneElement, createContext, isValidElement, useContext, useEffect, useId, useRef, useState, type ReactElement, type ReactNode, type ChangeEvent } from 'react';
 import { api, ApiError, type Row } from './api';
 import { dashboardPath, loginPath } from './auth-navigation';
+import { PasswordInput } from './password-input';
 
 export function useResource<T>(path: string | null) {
   const [data, setData] = useState<T | null>(null);
@@ -36,7 +37,8 @@ export function Field({ name, title, type = 'text', required = false, children, 
   const fieldId = props.id || generatedId;
   const control = isValidElement(children) ? cloneElement(children as ReactElement<Record<string, unknown>>, { id: fieldId, 'aria-describedby': hint ? `${fieldId}-hint` : undefined }) : children;
   const handleChange = (event: ChangeEvent<HTMLInputElement>) => { if (memory) memory.current[name] = event.target.value; props.onChange?.(event); };
-  return <div className="field"><label htmlFor={fieldId}>{title}{required ? ' (required)' : ''}</label>{control || <input name={name} type={type} required={required} {...props} id={fieldId} aria-describedby={hint ? `${fieldId}-hint` : undefined} defaultValue={props.value === undefined ? memory?.current[name] ?? props.defaultValue : undefined} onChange={handleChange} />}{hint && <small id={`${fieldId}-hint`}>{hint}</small>}</div>;
+  const inputProps = {name,type,required,...props,id:fieldId,'aria-describedby':hint ? `${fieldId}-hint` : undefined,defaultValue:props.value === undefined ? memory?.current[name] ?? props.defaultValue : undefined,onChange:handleChange};
+  return <div className="field"><label htmlFor={fieldId}>{title}{required ? ' (required)' : ''}</label>{control || (type === 'password' ? <PasswordInput {...inputProps} label={title}/> : <input {...inputProps}/>)}{hint && <small id={`${fieldId}-hint`}>{hint}</small>}</div>;
 }
 export function Errors({ error }: { error: unknown }) {
   if (!error) return null;

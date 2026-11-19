@@ -106,20 +106,22 @@ describe('global participant login provider', () => {
     expect(harness.assign).toHaveBeenCalledWith('/dashboard');
   });
 
-  it('keeps staff password and authenticator sign-in independent of provider errors', async () => {
+  it('keeps staff password sign-in independent of provider errors', async () => {
     harness.config = { data: null, loading: false, error: 'Configuration unavailable', reload: vi.fn() };
     let tree = page();
     element(tree, node => node.type === 'button' && node.props.children === 'Admin or judge').props.onClick();
     tree = page();
     const html = renderToStaticMarkup(tree);
     expect(html).toContain('Staff email');
-    expect(html).toContain('Authenticator code');
+    expect(html).not.toContain('Authenticator code');
+    expect(html).toContain('Confirm password');
+    expect(html).toContain('Show password');
     expect(html).toContain('Recover account access');
     element(tree, node => node.props.name === 'contact').props.onChange({ target: { value: 'judge@example.org' } });
-    vi.stubGlobal('FormData', class extends Map<string, string> { constructor() { super([['password', 'test passphrase'], ['totp', '123456']]); } });
+    vi.stubGlobal('FormData', class extends Map<string, string> { constructor() { super([['password', 'test passphrase'], ['confirmPassword', 'test passphrase']]); } });
     harness.api.mockResolvedValueOnce({ actor: { role: 'judge' } });
     await element(page(), node => node.type === 'form').props.onSubmit({ preventDefault() {}, currentTarget: {} });
-    expect(harness.api).toHaveBeenCalledWith('/api/auth/login', expect.objectContaining({ body: JSON.stringify({ password: 'test passphrase', totp: '123456', contact: 'judge@example.org' }) }));
+    expect(harness.api).toHaveBeenCalledWith('/api/auth/login', expect.objectContaining({ body: JSON.stringify({ password: 'test passphrase', confirmPassword: 'test passphrase', contact: 'judge@example.org' }) }));
     expect(harness.assign).toHaveBeenCalledWith('/judge');
   });
 
