@@ -74,7 +74,7 @@ export async function submissionReport(db:Db,actor:Actor,params:URLSearchParams,
  const quality=new Map(qualities.map(q=>[key(q),q]));
  if(reportDate){
   // Later reopening must not rewrite an earlier day's recorded QC decision.
-  const {rows:history}=await db.query("SELECT DISTINCT ON (source,record_id) source,record_id,snapshot FROM submission_quality_history WHERE created_at <= $1 ORDER BY source,record_id,created_at DESC,(snapshot->'after'->>'lock_version')::int DESC",[cutoff]);
+  const {rows:history}=await db.query<{source:string;record_id:string;snapshot:Record<string,any>}>("SELECT DISTINCT ON (source,record_id) source,record_id,snapshot FROM submission_quality_history WHERE created_at <= $1 ORDER BY source,record_id,created_at DESC,(snapshot->'after'->>'lock_version')::int DESC",[cutoff]);
   quality.clear();
   for(const row of history)quality.set(key(row),row.snapshot.after);
   for(const row of qualities)if(!quality.has(key(row))&&new Date(row.updated_at)<=cutoff)quality.set(key(row),row);
