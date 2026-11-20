@@ -4,6 +4,7 @@ import {testDb} from './helpers/db';
 import {adminList} from '../src/server/admin';
 import {fingerprint} from '../src/server/wordpress-migration';
 import {historicalEntry} from '../src/server/wordpress-projection';
+import {referenceForms} from '../src/domain/wordpress-forms';
 import type {Actor} from '../src/server/core';
 let f:Awaited<ReturnType<typeof testDb>>,owner:Actor,shared:string,school:string,before:any[];
 beforeAll(async()=>{
@@ -49,4 +50,13 @@ it('keeps supplemental original dates, safe names and detail fields without leak
  const detail=await historicalEntry(f.db,owner,id);expect(detail.createdAt).toBe('2024-12-10 09:45:00');expect(detail.fields.some(field=>field.label==='First name')).toBe(true);
  expect(JSON.stringify([result,detail])).not.toMatch(/PRIVATE|actions_log|user_ip/);
  expect((await f.db.query('SELECT payload,checksum FROM wordpress_records WHERE id=$1',[id])).rows[0]).toEqual({payload,checksum:fingerprint(payload)});
+});
+it('uses the original form field labels for school text instead of mistaking educator state for school',async()=>{
+ const id=randomUUID(),form=referenceForms.find(f=>f.key==='teacher')!,payload={form_id:form.id,status:'active',date_created:'2026-11-15 08:00:00',meta:[{meta_key:'name-1',meta_value:'QA Teacher'},{meta_key:'select-2',meta_value:'Haryana'},{meta_key:'select-3',meta_value:'QA Correct School'}]};
+ await f.db.query("INSERT INTO wordpress_records(id,source,kind,source_id,payload,checksum,captured_at) VALUES($1,'https://source.local','entry','teacher-school-test',$2,$3,now())",[id,JSON.stringify(payload),fingerprint(payload)]);
+ expect((await list({id})).items[0]).toMatchObject({school_name:'QA Correct School',school_id:null});
+ const condition=form.fields.find(field=>field.id==='text-10')!.conditions![0];
+ payload.meta[2].meta_value=String(condition.value);payload.meta.push({meta_key:'text-10',meta_value:'QA Custom School'});
+ await f.db.query('UPDATE wordpress_records SET payload=$2,checksum=$3 WHERE id=$1',[id,JSON.stringify(payload),fingerprint(payload)]);
+ expect((await list({id})).items[0]).toMatchObject({school_name:'QA Custom School',school_id:null});
 });

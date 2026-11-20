@@ -1,7 +1,8 @@
 import type {Db} from './db';
 import type {Actor} from './core';
 import {loadSubmissionRecords,recordLink,requireActive} from './submission-records';
-import {plainText} from '../domain/wordpress-forms';
+import {plainText,referenceForms,isFieldVisible} from '../domain/wordpress-forms';
+import {displayReferenceValue} from '../domain/reference-values';
 import {submissionDateOrder} from '../domain/source-dates';
 
 /** Unified staff read model. No source records are merged, edited or reassigned. */
@@ -18,7 +19,10 @@ export async function submissionInbox(db:Db,actor:Actor,params:URLSearchParams){
  const q=(params.get('q')||'').trim().toLowerCase().slice(0,200),school=params.get('schoolId'),recordId=params.get('id'),type=params.get('formKey');
  const items=records.map(r=>{
   const key=r.source+':'+r.id,formKey=['student','teacher','school'].includes(r.kind)?r.kind:r.formKey;
-  const schoolName=names.get(r.schoolId)||r.recordedSchoolName||['text-yes-school','text-yes-school-name','select-yes-school','select-2'].map(k=>r.answers[k]).filter(v=>typeof v==='string'&&v.trim()).map(plainText)[0]||'';
+  const schoolFields=referenceForms.find(f=>f.key===r.formKey)?.fields.filter(field=>
+   ['text','select','name'].includes(field.type)&&/^(?:school(?:\s*\/\s*branch)?\s+name|name of (?:the )?school)\b/i.test(plainText(field.field_label))&&isFieldVisible(field,r.answers))||[];
+  const recordedSchool=schoolFields.map(field=>plainText(displayReferenceValue(field.type,r.answers[field.id]))).find(value=>value&&!/^(?:other\b|not listed\b)/i.test(value));
+  const schoolName=names.get(r.schoolId)||r.recordedSchoolName||recordedSchool||'';
   return {key,id:r.id,form_key:formKey,title:r.title,reference:r.reference,status:r.status,name:r.name,school_id:r.schoolId,school_name:schoolName,submitted_at:r.submittedAt,dateSource:r.source,file_count:Number(files.get(key)||0),href:recordLink(r)};
  }).filter(r=>(!school||r.school_id===school)&&(!recordId||r.id===recordId)&&(!q||`${r.reference} ${r.name} ${r.school_name} ${r.title}`.toLowerCase().includes(q)));
  const formTotals:Record<string,number>={};for(const r of items)formTotals[r.form_key]=(formTotals[r.form_key]||0)+1;
