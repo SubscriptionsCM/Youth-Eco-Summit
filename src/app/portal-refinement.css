@@ -28,7 +28,7 @@ main.workspace-main.shell{width:calc(100% - 3rem);max-width:1480px;padding-block
 .workspace-body button:hover:not(:disabled),.workspace-body .button:hover{box-shadow:0 2px 5px #33294f12}
 .workspace-body button:active:not(:disabled),.workspace-body .button:active{transform:translateY(1px)}
 .workspace-body button.secondary:hover:not(:disabled),.workspace-body .button.secondary:hover{background:#f8f6fc;border-color:#b7a6d1}
-.workspace-body input,.workspace-body select,.workspace-body textarea{border-color:#c8c4d3;border-radius:7px;font-size:.9375rem;min-height:44px}
+.workspace-body input:not([type=checkbox]):not([type=radio]),.workspace-body select,.workspace-body textarea{border-color:#c8c4d3;border-radius:7px;font-size:.9375rem;min-height:44px}
 .workspace-body input:focus,.workspace-body select:focus,.workspace-body textarea:focus{border-color:#8068b1;box-shadow:0 0 0 3px #8068b114}
 .workspace-body .field label{font-size:.8125rem;font-weight:650;color:#514a60;margin-bottom:.4rem}
 .workspace-body :focus-visible{outline:3px solid #7862ba;outline-offset:3px}
