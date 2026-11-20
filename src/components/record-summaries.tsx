@@ -2,7 +2,7 @@ import {date,type Row} from './api';
 import {StatusBadge} from './portal-ui';
 import {activityTitle,recordTypeTitle,removalCounts,reviewFlagTitle,statusText,taskTitle} from '../domain/portal-language';
 const recorded=(value:unknown)=>value?date(value):'Not recorded';
-const correctionFields:Record<string,string>={name:'Name',address:'Address',city:'City',state:'State',postal_code:'Postal code',postalCode:'Postal code',email:'Email',phone:'Phone',contactName:'Contact name',contactRole:'Contact role',emergency_contact:'Emergency contact',emergencyContact:'Emergency contact',status:'Status',active:'Account active'};
+const correctionFields:Record<string,string>={name:'Name',className:'Class',section:'Section',address:'Address',city:'City',state:'State',postal_code:'Postal code',postalCode:'Postal code',email:'Email',phone:'Phone',contactName:'Contact name',contactRole:'Contact role',emergency_contact:'Emergency contact',emergencyContact:'Emergency contact',status:'Status',active:'Account active'};
 const simple=(value:unknown)=>value===null||value===undefined||['string','number','boolean'].includes(typeof value);
 const answer=(value:unknown)=>value===null||value===undefined||value===''?'Not provided':typeof value==='boolean'?value?'Yes':'No':String(value);
 function ActivityChanges({detail}:{detail:Row}){

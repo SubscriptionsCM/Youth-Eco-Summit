@@ -4,6 +4,11 @@ const links=(role:string,mode='portal')=>portalGroups(role,mode).flatMap(g=>g.it
 it('does not duplicate navigation destinations across groups',()=>{
  for(const mode of ['portal','manual','legacy']){const items=links('owner',mode);expect(new Set(items).size).toBe(items.length);}
 });
+it('exposes the new reporting and school workspaces only to the relevant roles',()=>{
+ expect(links('owner')).toContain('/admin/reports');expect(links('admin')).toContain('/admin/school-access');
+ expect(links('participant')).toContain('/school');expect(links('judge')).not.toContain('/school');
+ expect(isWorkspacePath('/school')).toBe(true);expect(isWorkspacePath('/school-news')).toBe(false);
+});
 it('keeps administrative destinations out of judge and participant navigation',()=>{
  expect(links('judge')).toContain('/judge');expect(links('judge').some(p=>p.startsWith('/admin'))).toBe(false);
  expect(links('participant')).toContain('/teachers/register');expect(links('participant')).toContain('/schools/register');
@@ -16,7 +21,7 @@ it('keeps dedicated and legacy judging destinations separate',()=>{
 });
 it('keeps the active website admin menu focused on populated submission and judging workflows',()=>{
  for(const role of ['admin','owner']){
-  expect(links(role)).toEqual(['/admin','/admin/reference-forms','/admin/wordpress-history','/admin/schools','/admin/judging','/admin/judges','/admin/jobs','/admin/audit','/admin/trash']);
+  expect(links(role)).toEqual(['/admin','/admin/reference-forms','/admin/wordpress-history','/admin/schools','/admin/reports','/admin/school-access','/admin/judging','/admin/judges','/admin/jobs','/admin/audit','/admin/trash']);
   const groups=portalGroups(role),tools=groups.filter(g=>g.label==='Tools');
   expect(tools).toHaveLength(1);expect(tools[0].items.map(i=>i.label)).toEqual(['Background tasks','Activity log','Trash']);
   expect(groups.some(g=>g.label==='Support')).toBe(false);

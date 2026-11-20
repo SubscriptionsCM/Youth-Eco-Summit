@@ -5,6 +5,7 @@ export const adminTitles:Record<string,string>={overview:'Overview',judging:'Man
 export function portalGroups(role:string,mode='portal'):PortalGroup[]{
  if(role==='participant')return [
   {label:'Your workspace',primary:true,items:[item('My forms & entries','/dashboard'),item('New competition entry','/competitions/enter')]},
+  {label:'School workspace',items:[item('My school','/school')]},
   {label:'Registration & schools',items:[item('Student registration','/register'),item('Educator registration','/teachers/register'),item('School registration','/schools/register'),item('Find your school','/schools')]}
  ];
  if(role==='judge')return [{label:'Review workspace',primary:true,items:[item('Assigned entries','/judge'),item('Competition guidelines','/competitions')]}];
@@ -12,6 +13,7 @@ export function portalGroups(role:string,mode='portal'):PortalGroup[]{
  const admin=(key:string)=>item(adminTitles[key],key==='overview'?'/admin':`/admin/${key}`);
  if(mode==='portal')return [
   {label:'Website',primary:true,items:['overview','reference-forms','wordpress-history','schools'].map(admin)},
+  {label:'Progress & schools',items:[item('Submissions & quality checks','/admin/reports'),item('School access','/admin/school-access')]},
   {label:'Judging',items:['judging','judges'].map(admin)},
   {label:'Tools',root:'/admin/tools',items:['jobs','audit','trash'].map(admin)}
  ];
@@ -39,7 +41,7 @@ export function currentAdminDestination(section:string,query:URLSearchParams,mod
 }
 export function isWorkspacePath(path:string){
  if(path==='/judge/login'||path.startsWith('/judge/login/'))return false;
- return ['/admin','/dashboard','/judge','/forms','/history','/entries','/files','/teams','/register','/teachers/register','/schools/register','/competitions/enter'].some(root=>path===root||path.startsWith(root+'/'));
+ return ['/admin','/dashboard','/school','/judge','/forms','/history','/entries','/files','/teams','/register','/teachers/register','/schools/register','/competitions/enter'].some(root=>path===root||path.startsWith(root+'/'));
 }
 export function isPortalLinkActive(path:string,href:string){
  if(href==='/admin/tools'&&['/admin/jobs','/admin/audit','/admin/trash'].some(root=>path===root||path.startsWith(root+'/')))return true;
@@ -49,6 +51,9 @@ export function isPortalLinkActive(path:string,href:string){
 }
 export function portalLocation(path:string){
  if(path==='/admin')return 'Overview';
+ if(path==='/school')return 'My school';
+ if(path==='/admin/reports')return 'Submissions & quality checks';
+ if(path==='/admin/school-access')return 'School access';
  if(path.startsWith('/admin/'))return adminTitles[path.split('/')[2]]||'Administration';
  if(path.startsWith('/history/'))return 'Earlier entry';
  if(path.startsWith('/forms/'))return 'Saved form';
