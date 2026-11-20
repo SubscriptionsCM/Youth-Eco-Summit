@@ -108,6 +108,7 @@ export async function adminList(db:Db,actor:Actor,resource:string,params:URLSear
  }
  const page=Math.max(1,Math.min(100000,Math.floor(Number(params.get('page'))||1)));const pageSize=Math.max(1,Math.min(100,Math.floor(Number(params.get('pageSize'))||25)));
  const values:unknown[]=[];const where=[r.where??'true'];const add=(clause:string,value:unknown)=>{values.push(value);where.push(clause.replace('?',`$${values.length}`));};
+ let formFacet:{filter:string;values:unknown[]}|undefined;
  if(params.get('q')){
   const query=params.get('q')!.slice(0,200),codes=displayedSearchCodes(resource,query);
   if(codes.length){values.push(codes);const column=resource==='jobs'?'kind':resource==='audit'?'action':'root_type';add(`((${r.search}) ILIKE '%'||?||'%' OR t.${column}=ANY($${values.length}::text[]))`,query);}
@@ -115,8 +116,9 @@ export async function adminList(db:Db,actor:Actor,resource:string,params:URLSear
  }
  if(params.get('id'))add('t.id::text=?',params.get('id'));
  if(resource==='reference-forms'){
-  if(params.get('formKey'))add('t.form_key=?',params.get('formKey'));
   if(params.get('schoolId'))add('t.school_id::text=?',params.get('schoolId'));
+  formFacet={filter:where.join(' AND '),values:[...values]};
+  if(params.get('formKey'))add('t.form_key=?',params.get('formKey'));
  }
  if(resource==='entries'){
   for(const [param,col] of Object.entries({editionId:'c.edition_id',competitionId:'t.competition_id',categoryId:'t.category_id',schoolId:'p.school_id',class:'p.class',state:'t.state'}))if(params.get(param))add(`${col}::text=?`,params.get(param));
@@ -140,7 +142,9 @@ export async function adminList(db:Db,actor:Actor,resource:string,params:URLSear
  if(resource==='schools'&&params.get('city'))add("t.city ILIKE '%'||?||'%'",params.get('city'));
  const filter=where.join(' AND ');const {rows:[count]}=await db.query(`SELECT count(*)::int total FROM ${r.from} WHERE ${filter}`,values);
  const stableOrder=['reference-forms','wordpress-history'].includes(resource)?',t.id DESC':'';
- const {rows:items}=await db.query(`SELECT ${r.select} FROM ${r.from} WHERE ${filter} ORDER BY ${r.order} DESC${stableOrder} LIMIT $${values.length+1} OFFSET $${values.length+2}`,[...values,pageSize,(page-1)*pageSize]);return {items:resource==='wordpress-history'?items.map(item=>archivedEntrySummary(item as SourceRecord)):items,total:count.total,page,pageSize};
+ const {rows:items}=await db.query(`SELECT ${r.select} FROM ${r.from} WHERE ${filter} ORDER BY ${r.order} DESC${stableOrder} LIMIT $${values.length+1} OFFSET $${values.length+2}`,[...values,pageSize,(page-1)*pageSize]);
+ const formTotals=formFacet?Object.fromEntries((await db.query<{form_key:string;total:number}>(`SELECT t.form_key,count(*)::int total FROM ${r.from} WHERE ${formFacet.filter} GROUP BY t.form_key`,formFacet.values)).rows.map(row=>[row.form_key,row.total])):undefined;
+ return {items:resource==='wordpress-history'?items.map(item=>archivedEntrySummary(item as SourceRecord)):items,total:count.total,page,pageSize,...formTotals?{formTotals}:{}};
 }
 const iso=z.iso.datetime({offset:true});
 export async function adminCreate(db:Db,actor:Actor,resource:string,input:unknown){

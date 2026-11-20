@@ -8,16 +8,17 @@ import { PasswordInput } from './password-input';
 
 export function useResource<T>(path: string | null) {
   const [data, setData] = useState<T | null>(null);
+  const [dataPath, setDataPath] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(Boolean(path));
   const [version, setVersion] = useState(0);
   useEffect(() => {
     if (!path) { setLoading(false); return; }
     let active = true; setLoading(true); setError('');
-    api<T>(path).then(value => { if (active) setData(value); }).catch(e => { if (active) setError(e.message); }).finally(() => { if (active) setLoading(false); });
+    api<T>(path).then(value => { if (active) { setData(value); setDataPath(path); } }).catch(e => { if (active) setError(e.message); }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [path, version]);
-  return { data, error, loading, reload: () => setVersion(v => v + 1), setData };
+  return { data, dataPath, error, loading, reload: () => setVersion(v => v + 1), setData };
 }
 export function Notice({ children, error = false }: { children: ReactNode; error?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);

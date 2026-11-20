@@ -29,6 +29,12 @@ describe('staff access to retained reference forms',()=>{
  it('denies participant and judge access to staff form and archive collections',async()=>{
   for(const role of ['participant','judge'] as const)for(const resource of ['reference-forms','wordpress-history'])await expect(adminList(fixture.db,{...participant,role},resource,new URLSearchParams())).rejects.toMatchObject({status:403});
  });
+ it('provides form totals within the current search and school scope before choosing a form type',async()=>{
+  const filtered=await adminList(fixture.db,owner,'reference-forms',new URLSearchParams({schoolId,q:'QA school',formKey:'teacher'}));
+  expect(filtered.total).toBe(0);expect(filtered.formTotals).toEqual({school:1});
+  expect((await adminList(fixture.db,owner,'reference-forms',new URLSearchParams({schoolId:randomUUID()}))).formTotals).toEqual({});
+  expect((await adminList(fixture.db,owner,'reference-forms',new URLSearchParams({id:draft}))).formTotals).toEqual({});
+ });
  it('counts current reference submissions and preserved entries separately from operational judging records',async()=>{
   expect(await adminList(fixture.db,owner,'overview',new URLSearchParams())).toMatchObject({reference_submissions_all_editions:1,archived_source_entries_all_editions:1,reference_ready_files_all_editions:0});
  });

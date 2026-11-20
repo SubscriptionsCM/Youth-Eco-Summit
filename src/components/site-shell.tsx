@@ -10,6 +10,7 @@ import { api, json, type Row } from './api';
 import { dashboardLabel, dashboardPath, signedOutPath } from './auth-navigation';
 import '../app/account-navigation.css';
 import '../app/portal-workspace.css';
+import '../app/portal-refinement.css';
 import {PortalWorkspace} from './portal-workspace';
 import {isWorkspacePath} from '../domain/portal-navigation';
 
