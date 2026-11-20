@@ -20,7 +20,11 @@ it('provides current operations and file access without exposing obsolete import
 });
 it('removes empty earlier-workflow totals from the active dashboard',async()=>{
  await act(async()=>root.render(createElement(AdminOverview)));
- expect(host.textContent).toContain('Forms received');expect(host.textContent).not.toContain('Additional record totals');expect(host.textContent).not.toContain('Student participations');
+ expect(host.querySelectorAll('.dashboard-metrics .portal-metric')).toHaveLength(4);
+ expect(host.querySelectorAll('.dashboard-actions>a')).toHaveLength(3);
+ expect(host.querySelector('.dashboard-history')?.hasAttribute('open')).toBe(false);
+ expect(host.querySelector('.dashboard-history')?.textContent).toContain('Forms submitted on the new website');
+ expect(host.textContent).not.toContain('Additional record totals');expect(host.textContent).not.toContain('Student participations');
 });
 it('shows readable staff details and removes actions the acting admin is not allowed to perform',async()=>{
  await act(async()=>root.render(createElement(AdminPage,{section:'judges'})));
