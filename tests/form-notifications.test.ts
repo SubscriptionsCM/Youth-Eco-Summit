@@ -21,7 +21,7 @@ describe('durable submitted-form notifications', () => {
   await fixture.db.query("INSERT INTO users(id,role,contact) VALUES($1,'participant',$2)",[ownerId,ownerId]);
   await fixture.db.query("INSERT INTO portal_form_records(id,form_key,owner_id,reference,status,answers,form_snapshot,submitted_at) VALUES($1,'partner',$2,$3,'submitted',$4,$5,now())",[recordId,ownerId,`YES-${recordId}`,JSON.stringify({'email-1':'submitter@example.test'}),JSON.stringify({id:48543,key:'partner'})]);
  });
- afterEach(async () => { vi.restoreAllMocks(); vi.unstubAllEnvs(); await fixture.db.query('TRUNCATE portal_form_notification_deliveries,portal_form_notification_runs,jobs,portal_form_files,portal_form_records,users CASCADE'); if(folder)await rm(folder,{recursive:true,force:true}); });
+ afterEach(async () => { vi.restoreAllMocks(); vi.unstubAllEnvs(); await fixture.db.query('TRUNCATE portal_form_notification_deliveries,portal_form_notification_runs,jobs,portal_form_files,portal_form_records CASCADE'); await fixture.db.query('DELETE FROM users'); if(folder)await rm(folder,{recursive:true,force:true}); });
  async function enqueue() { await fixture.db.transaction(tx => enqueueFormNotifications(tx,recordId)); }
  async function addFile(options: { recordId?: string; size?: number; key?: string } = {}) {
   const fileId = id();
