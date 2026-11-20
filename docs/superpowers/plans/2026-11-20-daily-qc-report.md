@@ -6,10 +6,10 @@
 
 **Registration ruling:** Count all submitted student, educator and school registration forms, as explicitly confirmed by the user. Count records, not deduplicated people. Sample document numbers and names are examples only.
 
-- [ ] Add focused failing tests for report layout and safe CSV; implement a domain formatter in `src/domain/daily-qc-report.ts`.
-- [ ] Add database tests for registration totals, India date boundaries, cumulative original submission dates, historical QC reopening and completion timestamps; implement dated read-only reporting in `src/server/submission-quality.ts`.
-- [ ] Add an accessible daily report panel, five overall metrics, copy/TXT/CSV actions and visible completion dates in the existing QC interface. Never expose historical editing controls.
-- [ ] Verify database tests, typecheck, desktop/mobile browser behavior, access control, unchanged original data, and exact exported report content.
-- [ ] Review changes, run full CI/build, deploy the existing Hostinger app, and verify production reporting through read-only requests.
+- [x] Add focused failing tests for report layout and safe CSV; implement a domain formatter in `src/domain/daily-qc-report.ts`.
+- [x] Add database tests for registration totals, India date boundaries, cumulative original submission dates, historical QC reopening and completion timestamps; implement dated read-only reporting in `src/server/submission-quality.ts`.
+- [x] Add an accessible daily report panel, five overall metrics, copy/TXT/CSV actions and visible completion dates in the existing QC interface. Never expose historical editing controls.
+- [x] Verify database tests, typecheck, desktop/mobile browser behavior, access control, unchanged original data, and exact exported report content.
+- [x] Review changes, run full CI/build, deploy the existing Hostinger app, and verify production reporting through read-only requests.
 
 Historical reports reflect currently retained submissions and recorded QC events. Entries without usable original dates cannot be placed on a historical day and must be disclosed. Source/file revisions continue to invalidate unverified completions. No paid services or new account invitations.
