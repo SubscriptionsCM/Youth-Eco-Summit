@@ -1,6 +1,7 @@
 import {JudgeAdministration} from '@/components/judge-portal-admin';
 import {SubmissionReports} from '@/components/submission-report';
 import {SchoolAccessAdministration} from '@/components/school-workspace';
+import {SchoolRecordLinks} from '@/components/school-record-links';
 import '../../judge-portal.css';
 import { AdminPage } from '@/components/admin';
 import {redirect} from 'next/navigation';
@@ -10,6 +11,7 @@ export default async function Page({ params, searchParams }: { params: Promise<{
   const [{ section }, query] = await Promise.all([params, searchParams]);
   if(section?.[0]==='reports'&&section.length===1)return <SubmissionReports/>;
   if(section?.[0]==='school-access'&&section.length===1)return <SchoolAccessAdministration/>;
+  if(section?.[0]==='school-records'&&section.length===1)return <SchoolRecordLinks/>;
   if(section?.[0]==='judging'&&section.length===1)return <JudgeAdministration/>;
   if(manualReviewMode()&&(!section?.length||assignedReviewSections.has(section[0])))redirect('/admin/reference-forms');
   const filters = new URLSearchParams();

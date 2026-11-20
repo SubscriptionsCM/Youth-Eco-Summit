@@ -1,0 +1,80 @@
+import { expect, it } from 'vitest';
+import { schoolRecordLinksRoute } from '../src/server/school-record-links';
+import { testDb } from './helpers/db';
+import { randomUUID } from 'node:crypto';
+import { fingerprint } from '../src/server/wordpress-migration';
+import { schoolWorkspaceRoute } from '../src/server/school-workspace';
+import type { Actor } from '../src/server/core';
+
+it('tracks staff-verified links without altering archived originals or exposing stale links', async () => {
+  const {db, close} = await testDb();
+  try {
+    const owner: Actor = {id: randomUUID(), role: 'owner'};
+    const inactive: Actor = {id: randomUUID(), role: 'admin'};
+    const rep: Actor = {id: randomUUID(), role: 'participant'};
+    const schoolId = randomUUID(), otherSchool = randomUUID(), recordId = randomUUID(), directId = randomUUID();
+    await db.query("INSERT INTO users(id,role,name,contact,active) VALUES($1,'owner','Staff','staff@example.test',true),($2,'admin','Inactive','inactive@example.test',false),($3,'participant','Representative','rep@example.test',true)", [owner.id,inactive.id,rep.id]);
+    await db.query("INSERT INTO schools(id,reference,name,address,city,state,postal_code,status) VALUES($1,'YES-LINK','Link School','','City','','','active'),($2,'YES-DIRECT','Direct School','','City','','','active')", [schoolId,otherSchool]);
+    await db.query("INSERT INTO school_access_requests(id,user_id,school_id,status,reason) VALUES($1,$2,$3,'approved','Verified school representative')", [randomUUID(),rep.id,schoolId]);
+    const payload = {form_id:28713,status:'active',date_created:'2024-11-17 08:30:00',meta:[{meta_key:'text-1',meta_value:'Archive Student'},{meta_key:'email-1',meta_value:'private@example.test'}]};
+    const directPayload = {...payload,meta:[...payload.meta,{meta_key:'_yes_school_id',meta_value:'YES-DIRECT'}]};
+    await db.query("INSERT INTO wordpress_records(id,source,kind,source_id,payload,checksum,captured_at) VALUES($1,'https://source.test','entry','42',$2,$3,now()),($4,'https://source.test','entry','43',$5,$6,now())", [recordId,JSON.stringify(payload),fingerprint(payload),directId,JSON.stringify(directPayload),fingerprint(directPayload)]);
+    const get = (actor: Actor, query = '') => schoolRecordLinksRoute(new Request('http://localhost/api/school-record-links'+query), db, actor, []);
+    const body = {source:'wordpress',recordId,schoolId,sourceVersion:fingerprint(payload),lockVersion:0,reason:'Checked the original enrolment register'};
+    const save = (fields: unknown = body) => schoolRecordLinksRoute(new Request('http://localhost/api/school-record-links',{method:'POST',body:JSON.stringify(fields)}),db,owner,[]);
+    const workspace = async () => (await (await schoolWorkspaceRoute(new Request('http://localhost/api/school-workspace'),db,rep,['schools',schoolId])).json()).data;
+    await expect(get(rep)).rejects.toMatchObject({status:403});
+    await expect(get(inactive)).rejects.toMatchObject({status:401});
+    const unlinked = await (await get(owner,'?year=2024&kind=student&source=wordpress&q=Archive')).json();
+    expect(unlinked.data.records).toEqual([expect.objectContaining({id:recordId,schoolId:null,linkVersion:0,href:'/history/'+recordId,sourceChecksum:fingerprint(payload)})]);
+    expect(JSON.stringify(unlinked)).not.toContain('private@example.test');
+    await expect(workspace()).resolves.toMatchObject({students:[]});
+    await expect(save({...body,sourceVersion:'0'.repeat(64)})).rejects.toMatchObject({status:409});
+    await expect(save({...body,recordId:directId,sourceVersion:fingerprint(directPayload)})).rejects.toMatchObject({status:409});
+    await expect(save({...body,recordId:directId,schoolId:otherSchool,sourceVersion:fingerprint(directPayload)})).rejects.toMatchObject({status:409});
+    const before = await db.query('SELECT * FROM wordpress_records WHERE id=$1',[recordId]);
+    expect((await save()).status).toBe(201);
+    await expect(save()).rejects.toMatchObject({status:409});
+    expect((await db.query('SELECT * FROM wordpress_records WHERE id=$1',[recordId])).rows).toEqual(before.rows);
+    await expect(workspace()).resolves.toMatchObject({students:[{id:recordId,name:'Archive Student'}]});
+    const changed = {...payload,meta:[{meta_key:'text-1',meta_value:'Updated Source'},{meta_key:'_yes_school_id',meta_value:'YES-LATER'}]};
+    await db.query('UPDATE wordpress_records SET payload=$2,checksum=$3 WHERE id=$1',[recordId,JSON.stringify(changed),fingerprint(changed)]);
+    await expect(workspace()).resolves.toMatchObject({students:[]});
+    const stale = await (await get(owner)).json();
+    expect(stale.data.records).toEqual([expect.objectContaining({id:recordId,linkVersion:1,linkStale:true,schoolId:null})]);
+    await expect(save({...body,lockVersion:1})).rejects.toMatchObject({status:409});
+    expect((await save({...body,lockVersion:1,sourceVersion:fingerprint(changed)})).status).toBe(200);
+    const history = await db.query('SELECT before_snapshot,after_snapshot FROM school_record_link_history WHERE record_id=$1 ORDER BY (after_snapshot->>\'lock_version\')::int',[recordId]);
+    expect(history.rows).toMatchObject([{before_snapshot:null,after_snapshot:{lock_version:1}},{before_snapshot:{lock_version:1},after_snapshot:{lock_version:2}}]);
+    await expect(workspace()).resolves.toMatchObject({students:[{id:recordId,name:'Updated Source'}]});
+    await db.query("INSERT INTO school_identifiers(reference,school_id,kind) VALUES('YES-LATER',$1,'imported')",[otherSchool]);
+    await expect(workspace()).resolves.toMatchObject({students:[]});
+    const shadowed = await (await get(owner,'?status=linked')).json();
+    expect(shadowed.data.records).toContainEqual(expect.objectContaining({id:recordId,directSchoolId:otherSchool,linkActive:true}));
+    const unlink = {action:'unlink',source:'wordpress',recordId,sourceVersion:fingerprint(changed),lockVersion:2,reason:'Evidence no longer supports the link'};
+    const removed = await save(unlink);
+    expect(removed.status).toBe(200);
+    expect(await removed.json()).toMatchObject({data:{schoolId:otherSchool,lockVersion:3,linkActive:false}});
+    await db.query("DELETE FROM school_identifiers WHERE reference='YES-LATER'");
+    await expect(workspace()).resolves.toMatchObject({students:[]});
+    await expect(save(unlink)).rejects.toMatchObject({status:409});
+    await expect(save({...unlink,lockVersion:3})).rejects.toMatchObject({status:409});
+    expect((await db.query('SELECT payload FROM wordpress_records WHERE id=$1',[recordId])).rows).toEqual([{payload:changed}]);
+    expect((await db.query("SELECT before_snapshot,after_snapshot FROM school_record_link_history WHERE record_id=$1 AND (after_snapshot->>'lock_version')::int=3",[recordId])).rows).toMatchObject([{before_snapshot:{active:true},after_snapshot:{active:false}}]);
+    const unlinkedAgain = await (await get(owner)).json();
+    expect(unlinkedAgain.data.records).toEqual([expect.objectContaining({id:recordId,linkVersion:3,linkActive:false,schoolId:null})]);
+    expect((await save({...body,lockVersion:3,sourceVersion:fingerprint(changed)})).status).toBe(200);
+    await expect(workspace()).resolves.toMatchObject({students:[{id:recordId,name:'Updated Source'}]});
+    const audit = await db.query("SELECT detail FROM audit_events WHERE action='school.record.link' AND entity_id=$1",[recordId]);
+    expect(audit.rows).toHaveLength(3);
+    expect((await db.query("SELECT detail FROM audit_events WHERE action='school.record.unlink' AND entity_id=$1",[recordId])).rows).toMatchObject([
+      {detail:{reason:unlink.reason, before:{active:true}, after:{active:false}}}
+    ]);
+    await expect(db.query('DELETE FROM school_record_link_history WHERE record_id=$1',[recordId])).rejects.toThrow('append-only');
+    await db.query('DELETE FROM schools WHERE id=$1',[schoolId]);
+    expect((await db.query('SELECT * FROM school_record_link_history WHERE record_id=$1',[recordId])).rows).toEqual([]);
+    expect((await db.query("SELECT id FROM audit_events WHERE action='school.record.link' AND entity_id=$1",[recordId])).rows).toHaveLength(3);
+  } finally {
+    await close();
+  }
+});

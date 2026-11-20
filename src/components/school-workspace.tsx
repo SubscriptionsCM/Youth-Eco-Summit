@@ -1,4 +1,5 @@
 'use client';
+import Link from 'next/link';
 
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { api, json, type Row } from './api';
@@ -102,7 +103,7 @@ function ParticipantWorkspace() {
     </section>
     <ResourceState {...resource} retry={resource.reload}/>
     {resource.data && !resource.error && <section>
-      <h2>Your access requests</h2>
+      <div className="actions"><h2>Your access requests</h2><button type="button" className="secondary" onClick={resource.reload}>Refresh access status</button></div>
       {requests.length ? requests.map(request => <RequestCard key={request.id} request={request}/>) : <Empty>No school access requests yet.</Empty>}
     </section>}
     {schoolId && !resource.error && <section>
@@ -188,7 +189,7 @@ function StudentCard({student, schoolId, changed}: {student: Student; schoolId: 
 
 export function SchoolAccessAdministration() {
   return <>
-    <PageTitle title="School access">Review requests from school representatives and manage their access.</PageTitle>
+    <PageTitle title="School access">Review requests from school representatives and manage their access.</PageTitle><p><Link href="/admin/school-records">Link earlier student records to their school</Link></p>
     <AuthGate roles={['owner', 'admin']}>{() => <StaffRequests/>}</AuthGate>
   </>;
 }

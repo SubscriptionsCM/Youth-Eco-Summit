@@ -5,7 +5,7 @@ import {fingerprint} from './wordpress-migration';
 import {validSourceDate} from '../domain/source-dates';
 import {z} from 'zod';
 
-export type SubmissionRecord={id:string;source:'portal'|'wordpress';sourceChecksum:string;ownerIdentity:string|null;submitterRole:string|null;emails:Record<string,string>;formKey:string;title:string;kind:'competition'|'student'|'teacher'|'school'|'other';status:'submitted'|'draft'|'other';reference:string;submittedAt:string|null;year:string|null;schoolId:string|null;name:string;email:string;className:string;section:string;answers:Record<string,unknown>};
+export type SubmissionRecord={id:string;source:'portal'|'wordpress';sourceChecksum:string;ownerIdentity:string|null;submitterRole:string|null;emails:Record<string,string>;formKey:string;title:string;kind:'competition'|'student'|'teacher'|'school'|'other';status:'submitted'|'draft'|'other';reference:string;submittedAt:string|null;year:string|null;schoolId:string|null;directSchoolId:string|null;schoolLinkVersion:number;schoolLinkStale:boolean;schoolLinkActive:boolean;name:string;email:string;className:string;section:string;answers:Record<string,unknown>};
 export async function requireActive(db:Db,actor:Actor,roles:readonly string[]){
  if(!roles.includes(actor.role))throw new AppError(403,'This account does not have access to this workspace.');
  const {rows}=await db.query('SELECT id FROM users WHERE id=$1 AND role=$2 AND active=true FOR SHARE',[actor.id,actor.role]);
@@ -23,14 +23,19 @@ export async function loadSubmissionRecords(db:Db,only?:{source?:'portal'|'wordp
  const ids=referenceForms.map(f=>String(f.id));
  const nativeArgs:string[]=[],nativeWhere:string[]=[];
  if(only?.recordId){nativeArgs.push(only.recordId);nativeWhere.push(`id=$${nativeArgs.length}`);}
- if(only?.schoolId){nativeArgs.push(only.schoolId);nativeWhere.push(`school_id=$${nativeArgs.length}`);}
+ if(only?.schoolId){nativeArgs.push(only.schoolId);nativeWhere.push(`(school_id=$${nativeArgs.length} OR id IN (SELECT record_id FROM school_record_links WHERE source='portal' AND active AND school_id=$${nativeArgs.length}))`);}
  const archiveArgs:unknown[]=[ids],archiveWhere=["kind='entry'","payload->>'form_id'=ANY($1::text[])"];
  if(only?.recordId){archiveArgs.push(only.recordId);archiveWhere.push(`id=$${archiveArgs.length}`);}
- if(only?.schoolId){archiveArgs.push(only.schoolId);archiveWhere.push(`EXISTS(SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(payload->'meta')='array' THEN payload->'meta' ELSE '[]'::jsonb END) m WHERE m->>'meta_key' IN ('text-yes-school-id','registered-school-id','_yes_school_id') AND upper(btrim(m->>'meta_value')) IN (SELECT reference FROM school_identifiers WHERE school_id=$${archiveArgs.length}::uuid))`);}
+ if(only?.schoolId){archiveArgs.push(only.schoolId);archiveWhere.push(`(EXISTS(SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(payload->'meta')='array' THEN payload->'meta' ELSE '[]'::jsonb END) m WHERE m->>'meta_key' IN ('text-yes-school-id','registered-school-id','_yes_school_id') AND upper(btrim(m->>'meta_value')) IN (SELECT reference FROM school_identifiers WHERE school_id=$${archiveArgs.length}::uuid)) OR id IN (SELECT record_id FROM school_record_links WHERE source='wordpress' AND active AND school_id=$${archiveArgs.length}::uuid))`);}
  const {rows:native}=only?.source==='wordpress'?{rows:[]}:await db.query('SELECT id,form_key,reference,answers,status,school_id,submitted_at,owner_id,submitter_role FROM portal_form_records'+(nativeWhere.length?' WHERE '+nativeWhere.join(' AND '):''),nativeArgs);
  const {rows:archive}=only?.source==='portal'?{rows:[]}:await db.query('SELECT id,source,source_id,payload,checksum FROM wordpress_records WHERE '+archiveWhere.join(' AND '),archiveArgs);
  const {rows:identifiers}=await db.query("SELECT i.reference,i.school_id FROM school_identifiers i JOIN schools s ON s.id=i.school_id WHERE s.trashed_at IS NULL AND NOT s.purging");
  const schools=new Map<string,string>(identifiers.map(i=>[String(i.reference).trim().toUpperCase(),String(i.school_id)]));
+ const validSchools=new Set(schools.values());
+ const linkArgs:string[]=[],linkWhere:string[]=[];
+ for(const [column,value] of [['source',only?.source],['record_id',only?.recordId],['school_id',only?.schoolId]])if(value){linkArgs.push(value);linkWhere.push(`${column}=$${linkArgs.length}`);}
+ const {rows:links}=await db.query('SELECT source,record_id,school_id,source_checksum,lock_version,active FROM school_record_links'+(linkWhere.length?' WHERE '+linkWhere.join(' AND '):''),linkArgs);
+ const schoolLinks=new Map(links.map(link=>[link.source+':'+link.record_id,link]));
  const project=(row:any,source:'portal'|'wordpress'):SubmissionRecord|null=>{
   const form=source==='portal'?referenceForms.find(f=>f.key===row.form_key):referenceForms.find(f=>String(f.id)===String(row.payload.form_id));
   if(!form)return null;
@@ -55,11 +60,14 @@ export async function loadSubmissionRecords(db:Db,only?:{source?:'portal'|'wordp
   const pointers:unknown[]=source==='wordpress'?(Array.isArray(row.payload.meta)?row.payload.meta:[]).filter((m:any)=>pointerKeys.includes(m?.meta_key)).map((m:any)=>m.meta_value):pointerKeys.filter(k=>answers[k]!==undefined).map(k=>answers[k]);
   const schoolRefs=pointers.map((v:unknown)=>typeof v==='string'?v.trim().toUpperCase():'');
   const linked=[...new Set(schoolRefs.map(ref=>schools.get(ref)).filter((s):s is string=>!!s))];
-  const schoolId=source==='portal'?(row.school_id?String(row.school_id):null):linked.length===1&&schoolRefs.every(ref=>schools.has(ref))?linked[0]:null;
+  const directSchoolId=source==='portal'?(row.school_id?String(row.school_id):null):linked.length===1&&schoolRefs.every(ref=>schools.has(ref))?linked[0]:null;
+  const sourceChecksum=source==='wordpress'?row.checksum:fingerprint({answers,formKey:form.key,schoolId:directSchoolId,ownerIdentity,submitterRole,submittedAt});
+  const schoolLink=schoolLinks.get(source+':'+row.id),schoolLinkActive=!!schoolLink?.active,schoolLinkStale=schoolLinkActive&&(schoolLink!.source_checksum!==sourceChecksum||!!directSchoolId&&directSchoolId!==schoolLink!.school_id);
+  const schoolId=directSchoolId||schoolLinkActive&&!schoolLinkStale&&validSchools.has(schoolLink!.school_id)&&schoolLink!.school_id||null;
   const historicalKinds:Record<string,SubmissionRecord['kind']>={'legacy-48413':'student','legacy-28713':'student','legacy-28734':'teacher'};
   const kind:SubmissionRecord['kind']=form.competition?'competition':['student','teacher','school'].includes(form.key)?form.key as 'student'|'teacher'|'school':historicalKinds[form.key]||'other';
   const year=submittedAt?(source==='portal'?new Intl.DateTimeFormat('en',{year:'numeric',timeZone:'Asia/Kolkata'}).format(new Date(submittedAt)):submittedAt.slice(0,4)):null;
-  return {id:row.id,source,sourceChecksum:source==='wordpress'?row.checksum:fingerprint({answers,formKey:form.key,schoolId,ownerIdentity,submitterRole,submittedAt}),ownerIdentity,submitterRole,emails,formKey:form.key,title:formTitle(form),kind,status,reference:source==='portal'?row.reference:`WP-${row.source_id}`,submittedAt,year,schoolId,
+  return {id:row.id,source,sourceChecksum,ownerIdentity,submitterRole,emails,formKey:form.key,title:kind==='student'?'Student registration':kind==='teacher'?'Educator registration':formTitle(form),kind,status,reference:source==='portal'?row.reference:`WP-${row.source_id}`,submittedAt,year,schoolId,directSchoolId,schoolLinkVersion:schoolLink?.lock_version||0,schoolLinkStale,schoolLinkActive,
    name:name(answers['text-yes-name']||answers['name-1']||answers['text-1']||answers['name-2']),email:emails[form.competition?'email-yes-student-1':'email-1']||'',className:text(answers['select-yes-class'])||name(answers['name-6']),section:text(answers['text-yes-section']||answers['section']),answers};
  };
  return [...native.map(row=>project(row,'portal')),...archive.map(row=>project(row,'wordpress'))].filter((r):r is SubmissionRecord=>!!r);

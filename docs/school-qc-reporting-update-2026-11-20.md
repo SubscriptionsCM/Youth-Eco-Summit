@@ -6,6 +6,7 @@ Implementation of the remaining voice-note requirements uses the existing Next.j
 
 - **Submissions & quality checks** at `/admin/reports`: student-registration records, submitted competitions, QC completed/remaining/today, category coordinators and dedicated judge progress. Year, school, competition and source filters have explicit scope. Drafts do not enter completed-submission or QC totals. Search/status filters apply to the entry list.
 - QC decisions are independent of judging, versioned, source/file-bound and audited. A source or attachment change requires a recheck. Coordinators can be changed without creating accounts or sending invitations.
+- **Link school records** at `/admin/school-records`: review earlier registrations or entries that have no permanent school ID, verify the original, choose the registered school and record a reason. Manual links are versioned and source-bound; they can be removed without deleting the source or audit history. A changed original requires verification again.
 - **School access** at `/admin/school-access`: staff verify representative requests, approve/decline access or revoke existing access. Stale decisions are rejected; history and reasons remain available.
 - Judge management displays active assignments, completed reviews and competitions per reviewer. Reporting uses the dedicated judging tables and flags unavailable reviewer accounts.
 

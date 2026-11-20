@@ -9,6 +9,7 @@ import { judgeQueue,assignmentDetail,saveReview,recordDecision } from './judging
 import { judgePortalRoute } from './judge-portal-route';
 import {submissionReport,saveQuality,setCategoryCoordinator} from './submission-quality';
 import {schoolWorkspaceRoute} from './school-workspace';
+import {schoolRecordLinksRoute} from './school-record-links';
 import { adminList,adminCreate,adminPatch } from './admin';
 import { deletionPreview,trash,restore,requestPurge } from './trash';
 import { exportData } from './exports';
@@ -54,6 +55,7 @@ export async function handleRequest(request:Request,path:string[]){
   if(path[0]==='auth'){const response=await authAction(request,path);if(response)return response;throw new AppError(404,'Authentication action not found.');}
   const actor=await getActor(request);if(!actor)throw new AppError(401,'Sign in to continue.');
   if(path[0]==='school-workspace')return await schoolWorkspaceRoute(request,db,actor,path.slice(1));
+  if(path[0]==='school-record-links')return await schoolRecordLinksRoute(request,db,actor,path.slice(1));
   if(path[0]==='submission-report'&&path.length===1&&request.method==='GET')return ok(await submissionReport(db,actor,new URL(request.url).searchParams));
   if(path[0]==='submission-quality'&&request.method==='POST'){
    if(path.length===1)return ok(await saveQuality(db,actor,await body(request)));

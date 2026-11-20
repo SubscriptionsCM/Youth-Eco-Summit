@@ -12,6 +12,10 @@ Provide a participant-only My school workspace. Representatives request access t
 
 ## Quality checks
 
+### Historical school links
+
+Inspection of the saved 16 November source export found 181 submitted student-registration records with no explicit permanent school ID. Provide a staff-only linking screen for submitted student, educator and competition records. Staff review the original form, choose an existing school and give a reason. The link is an additive annotation bound to the original source checksum, with optimistic versioning and immutable history. A changed source invalidates its annotation until staff reconfirm it. Explicit valid source school IDs remain authoritative. School-scoped queries include valid annotations but still recheck the effective school after projection. No bulk name-based matching or source rewrite is permitted.
+
 QC is separate from judging. Staff record pending, in progress, completed or needs attention against a submitted competition record. Missing QC metadata means pending, not completed. Optional category coordinators use a staff-entered name; no Preeti/Pragya/Abhishek accounts or historic completion counts are invented. Optimistic version checks prevent lost updates. Every change records actor, reason, original source reference and time; source answers are untouched. Reports show category submissions, completed, remaining and completed today using India time, plus attention/in-progress detail. Daily counts measure current completed records whose completion date is today, and explain this scope. The conflicting 17 November manual report is not imported as fact.
 
 ## Judge progress
