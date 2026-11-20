@@ -12,9 +12,10 @@ export function portalGroups(role:string,mode='portal'):PortalGroup[]{
  if(!['owner','admin'].includes(role))return [];
  const admin=(key:string)=>item(adminTitles[key],key==='overview'?'/admin':`/admin/${key}`);
  if(mode==='portal')return [
-  {label:'Website',primary:true,items:['overview','reference-forms','wordpress-history','schools'].map(admin)},
-  {label:'Progress & schools',items:[item('Submissions & quality checks','/admin/reports'),item('School access','/admin/school-access')]},
+  {label:'Daily work',primary:true,items:[item('Dashboard','/admin'),item('Submissions & quality checks','/admin/reports'),item('New website forms','/admin/reference-forms')]},
+  {label:'Schools',items:[admin('schools'),item('School access','/admin/school-access'),item('Link earlier school records','/admin/school-records')]},
   {label:'Judging',items:['judging','judges'].map(admin)},
+  {label:'Earlier records',items:[item('Earlier forms & files','/admin/wordpress-history')]},
   {label:'Tools',root:'/admin/tools',items:['jobs','audit','trash'].map(admin)}
  ];
  return [
@@ -50,7 +51,7 @@ export function isPortalLinkActive(path:string,href:string){
  return path===href||(href!=='/admin'&&path.startsWith(href+'/'));
 }
 export function portalLocation(path:string){
- if(path==='/admin')return 'Overview';
+ if(path==='/admin')return 'Dashboard';
  if(path==='/school')return 'My school';
  if(path==='/admin/reports')return 'Submissions & quality checks';
  if(path==='/admin/school-access')return 'School access';

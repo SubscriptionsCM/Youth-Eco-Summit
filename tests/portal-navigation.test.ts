@@ -21,7 +21,10 @@ it('keeps dedicated and legacy judging destinations separate',()=>{
 });
 it('keeps the active website admin menu focused on populated submission and judging workflows',()=>{
  for(const role of ['admin','owner']){
-  expect(links(role)).toEqual(['/admin','/admin/reference-forms','/admin/wordpress-history','/admin/schools','/admin/reports','/admin/school-access','/admin/judging','/admin/judges','/admin/jobs','/admin/audit','/admin/trash']);
+  expect(links(role)).toEqual(['/admin','/admin/reports','/admin/reference-forms','/admin/schools','/admin/school-access','/admin/school-records','/admin/judging','/admin/judges','/admin/wordpress-history','/admin/jobs','/admin/audit','/admin/trash']);
+  expect(portalGroups(role)[0].items.map(i=>i.href)).toEqual(['/admin','/admin/reports','/admin/reference-forms']);
+  expect(portalGroups(role)[0].items[0].label).toBe('Dashboard');
+  expect(portalGroups(role).find(g=>g.items.some(i=>i.href==='/admin/wordpress-history'))?.primary).not.toBe(true);
   const groups=portalGroups(role),tools=groups.filter(g=>g.label==='Tools');
   expect(tools).toHaveLength(1);expect(tools[0].items.map(i=>i.label)).toEqual(['Background tasks','Activity log','Trash']);
   expect(groups.some(g=>g.label==='Support')).toBe(false);

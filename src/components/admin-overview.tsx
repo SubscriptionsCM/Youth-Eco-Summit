@@ -1,14 +1,90 @@
 'use client';
 import Link from 'next/link';
-import {useResource,ResourceState} from './shared';
-import {SummaryMetric,StatusBadge} from './portal-ui';
+import {useResource, ResourceState} from './shared';
+import {SummaryMetric} from './portal-ui';
 import type {Row} from './api';
-import {dedicatedJudgingMode,manualReviewMode} from '../domain/review-mode';
-import {ReportingMetrics} from './submission-report';
-const number=(value:unknown)=>value===null||value===undefined?'—':Number.isFinite(Number(value))?Number(value).toLocaleString('en-IN'):'—';
-const titles:Record<string,string>={reference_submissions_all_editions:'Website forms received',reference_ready_files_all_editions:'Verified website uploads',archived_source_entries_all_editions:'WordPress entries',archived_source_files_all_editions:'Verified WordPress files',archived_source_bytes_all_editions:'Preserved WordPress file size',registered_school_participations:'Registered school participations',student_participations:'Student participations',finalized_entries:'Entries in the earlier workflow',retained_files:'Files in the earlier workflow',upload_failures:'Upload failures in the earlier workflow',unassigned_entries:'Unassigned entries in the earlier workflow',submitted_reviews:'Reviews in the earlier workflow',shortlisted_entries:'Shortlisted entries in the earlier workflow',trash_batches_all_editions:'Batches in Trash',failed_jobs_all_editions:'Failed background tasks',retained_bytes_all_editions:'File size in the earlier workflow'};
-export function AdminOverview(){
- const report=useResource<Row>(dedicatedJudgingMode()?'/api/submission-report':null);
- const overview=useResource<Row>('/api/admin/overview'),judging=useResource<Row>(dedicatedJudgingMode()?'/api/judging/admin':null),counts=overview.data?.counts||overview.data;
- return <><ResourceState {...overview} retry={overview.reload}/>{dedicatedJudgingMode()&&<><ResourceState {...report} retry={report.reload}/><ReportingMetrics summary={!report.loading&&!report.error?report.data?.summary:undefined}/><p><Link href="/admin/reports">Open quality checks and detailed progress reports</Link></p></>}{counts&&<>{Number(counts.failed_jobs_all_editions)>0&&<div className="portal-attention-banner" role="status"><strong>{number(counts.failed_jobs_all_editions)} background tasks need attention</strong><Link href="/admin/jobs">Review failed tasks</Link></div>}<div className="portal-metrics"><SummaryMetric title="Forms received" value={number(counts.reference_submissions_all_editions)} description="Submitted through this website" href="/admin/reference-forms"/><SummaryMetric title="WordPress archive" value={number(counts.archived_source_entries_all_editions)} description="Preserved historical entries" href="/admin/wordpress-history"/><SummaryMetric title="Preserved files" value={number(counts.archived_source_files_all_editions)} description="Verified WordPress attachments" href="/admin/wordpress-history"/><SummaryMetric title={dedicatedJudgingMode()?'Review assignments':'School participations'} value={number(dedicatedJudgingMode()?judging.data?.activeTotal:counts.registered_school_participations)} description={dedicatedJudgingMode()?'Entries assigned to reviewers':'Registered school participations'} href={dedicatedJudgingMode()?'/admin/judging':'/admin/schools'}/></div><section className="portal-section"><div className="portal-section-heading"><h2>Quick actions</h2><p>The most common tasks, all in one place.</p></div><div className="portal-task-grid overview-task-grid"><Link className="portal-task" href="/admin/reference-forms"><span className="workspace-eyebrow">Submissions</span><h3>Review received forms</h3><p>Find registrations, competition entries and enquiries in one inbox.</p><span className="portal-task-link">Open forms inbox</span></Link><Link className="portal-task" href={dedicatedJudgingMode()?'/admin/judging':manualReviewMode()?'/admin/reference-forms':'/admin/assignments'}><span className="workspace-eyebrow">Review</span><h3>{dedicatedJudgingMode()?'Prepare and manage judging':'Manage submission review'}</h3><p>{dedicatedJudgingMode()?(judging.data&&!judging.data.rounds.length?'Start with a review round, then choose entries and reviewers.':'Manage rounds, reviewers and submitted work.'):'Open submitted work and follow its review progress.'}</p><span className="portal-task-link">{dedicatedJudgingMode()&&judging.data&&!judging.data.rounds.length?'Set up judging':'Open review workspace'}</span></Link><Link className="portal-task" href="/admin/wordpress-history"><span className="workspace-eyebrow">History</span><h3>Find an earlier submission</h3><p>Search the protected WordPress records and attachments.</p><span className="portal-task-link">Browse the archive</span></Link></div></section><section className="panel portal-health"><div><h2>Workspace status</h2><p>{Number(counts.failed_jobs_all_editions)>0?'Some background tasks need attention.':'No failed background tasks reported.'}</p><Link href="/admin/jobs">View background tasks</Link></div><StatusBadge value={Number(counts.failed_jobs_all_editions)>0?'failed':'ready'}>{Number(counts.failed_jobs_all_editions)>0?`${number(counts.failed_jobs_all_editions)} failed tasks`:'No failed tasks'}</StatusBadge></section>{dedicatedJudgingMode()&&<ResourceState {...judging} retry={judging.reload}/>}{!dedicatedJudgingMode()&&<details className="portal-more-totals"><summary>Additional record totals</summary><p>These totals include preserved data and the earlier administration workflow. They do not represent assignments in the dedicated judge portal.</p><dl>{Object.entries(counts).map(([key,value])=><div key={key}><dt>{titles[key]||key.replaceAll('_',' ')}</dt><dd>{key.includes('_bytes_')?`${(Number(value)/1073741824).toLocaleString('en-IN',{maximumFractionDigits:2})} GiB`:number(value)}</dd></div>)}</dl></details>}</>}</>;
+import {dedicatedJudgingMode, manualReviewMode} from '../domain/review-mode';
+import './admin-overview.css';
+
+const number = (value: unknown) => value === null || value === undefined ? '—'
+  : Number.isFinite(Number(value)) ? Number(value).toLocaleString('en-IN') : '—';
+
+export function AdminOverview() {
+  const portal = dedicatedJudgingMode();
+  const report = useResource<Row>(portal ? '/api/submission-report' : null);
+  const overview = useResource<Row>('/api/admin/overview');
+  const data = !report.loading && !report.error ? report.data : null;
+  const summary = data?.summary;
+  const counts = !overview.loading && !overview.error ? overview.data?.counts || overview.data : null;
+  const judging = data?.judges?.reduce((total: {assigned: number; completed: number}, judge: Row) => ({
+    assigned: total.assigned + Number(judge.assigned),
+    completed: total.completed + Number(judge.completed)
+  }), {assigned: 0, completed: 0});
+
+  return <div className="admin-dashboard">
+    {counts && Number(counts.failed_jobs_all_editions) > 0 && <div className="portal-attention-banner" role="status">
+      <strong>{number(counts.failed_jobs_all_editions)} website tasks need attention</strong>
+      <Link href="/admin/jobs">Review tasks</Link>
+    </div>}
+
+    {portal && <section aria-labelledby="dashboard-summary">
+      <div className="dashboard-section-heading">
+        <div><h2 id="dashboard-summary">Submission summary</h2><p>All years · New website and saved WordPress records</p></div>
+        <button type="button" className="secondary" disabled={report.loading || overview.loading}
+          onClick={() => {report.reload(); overview.reload();}}>Refresh dashboard</button>
+      </div>
+      <ResourceState {...report} retry={report.reload}/>
+      <div className="portal-metrics dashboard-metrics" aria-busy={report.loading}>
+        <SummaryMetric title="Student registrations" value={number(summary?.registrations)} description="Submitted registration forms" href="/admin/reports"/>
+        <SummaryMetric title="Competition entries" value={number(summary?.submissions)} description="Submitted work; drafts excluded" href="/admin/reports"/>
+        <SummaryMetric title="Quality checks remaining" value={number(summary?.qcRemaining)} description="Entries still needing a check" href="/admin/reports"/>
+        <SummaryMetric title="Quality checks completed" value={number(summary?.qcCompleted)} description={summary ? `${number(summary.qcCompletedToday)} completed today (India time)` : 'Recorded quality checks'} href="/admin/reports"/>
+      </div>
+      <details className="dashboard-count-help">
+        <summary>What do these totals include?</summary>
+        <p>Registrations count submitted forms, not unique people. Competition entries exclude drafts. Quality checks are separate from judge scores; earlier offline checks count here only after staff record them against individual entries.</p>
+        {summary && <p>Other registration forms: {number(summary.educators)} educator · {number(summary.schoolRegistrations)} school.</p>}
+        <p>WordPress figures come from the saved archive. Later WordPress submissions appear after another sync.</p>
+        <Link href="/admin/reports">Open the full report and filters</Link>
+      </details>
+    </section>}
+
+    <section className="portal-section" aria-labelledby="dashboard-actions">
+      <div className="portal-section-heading"><h2 id="dashboard-actions">What would you like to do?</h2><p>Choose the task you want to work on.</p></div>
+      <div className="portal-task-grid overview-task-grid dashboard-actions">
+        <Link className="portal-task" href={portal ? '/admin/reports' : '/admin/reference-forms'}>
+          <span className="workspace-eyebrow">Submissions</span><h3>Check submitted work</h3>
+          <p>Open entries and attachments, record quality checks and follow category-wise progress.</p>
+          <span className="portal-task-link">{portal ? 'Open submissions & quality checks' : 'Open forms inbox'}</span>
+        </Link>
+        <Link className="portal-task" href={portal ? '/admin/judging' : manualReviewMode() ? '/admin/reference-forms' : '/admin/assignments'}>
+          <span className="workspace-eyebrow">{portal ? 'Judging' : 'Review'}</span><h3>{portal ? 'Manage judges & reviews' : 'Review submissions'}</h3>
+          <p>{portal ? 'Assign entries to judges and see which reviews are complete.' : 'Open submitted work and follow its review progress.'}</p>
+          {portal && <span className="dashboard-task-status">{judging
+            ? judging.assigned ? `${number(judging.completed)} of ${number(judging.assigned)} assignments completed` : 'No entries assigned yet'
+            : 'Refresh the summary to see judging progress'}</span>}
+          <span className="portal-task-link">{portal ? 'Open judging' : 'Open review workspace'}</span>
+        </Link>
+        <Link className="portal-task" href={portal ? '/admin/school-access' : '/admin/schools'}>
+          <span className="workspace-eyebrow">Schools</span><h3>Manage school access</h3>
+          <p>{portal ? 'Approve school representatives so they can view their own students and competition entries.' : 'Find registered schools and review their information.'}</p>
+          <span className="portal-task-link">{portal ? 'Review school access' : 'Open schools'}</span>
+        </Link>
+      </div>
+    </section>
+
+    <details className="panel dashboard-history">
+      <summary><span>Earlier records & files</span><span className="dashboard-history-hint">Find saved forms and attachments</span></summary>
+      <p>These are storage totals across different forms and years. Use the submission summary above for registration, competition and quality-check progress.</p>
+      {!overview.error && <ResourceState {...overview} retry={overview.reload}/>}
+      <dl className="dashboard-history-counts">
+        <div><dt>Forms submitted on the new website</dt><dd>{number(counts?.reference_submissions_all_editions)}</dd><dd><Link href="/admin/reference-forms">Browse new website forms</Link></dd></div>
+        <div><dt>Forms saved from WordPress</dt><dd>{number(counts?.archived_source_entries_all_editions)}</dd><dd><Link href="/admin/wordpress-history">Browse earlier forms</Link></dd></div>
+        <div><dt>Files saved from WordPress</dt><dd>{number(counts?.archived_source_files_all_editions)}</dd><dd><Link href="/admin/wordpress-history">Find earlier attachments</Link></dd></div>
+      </dl>
+      <p>The saved WordPress copy does not update automatically. File totals show saved attachment records, not completed quality checks.</p>
+      {portal && <Link href="/admin/school-records">Link earlier records to the correct school</Link>}
+    </details>
+    {overview.error && <div className="dashboard-data-warning"><ResourceState {...overview} retry={overview.reload}/></div>}
+  </div>;
 }

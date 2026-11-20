@@ -1,0 +1,15 @@
+.dashboard-section-heading{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:1.1rem;flex-wrap:wrap}
+.dashboard-section-heading h2{margin:0 0 .35rem}.dashboard-section-heading p{color:var(--portal-muted,#655f73);font-size:.8125rem;margin:0;line-height:1.5}
+.dashboard-section-heading button{flex:none}.admin-dashboard .dashboard-metrics{grid-template-columns:repeat(4,minmax(0,1fr));margin-bottom:1rem}
+.dashboard-count-help{margin:0;padding:0;border:0;background:transparent;font-size:.875rem;color:var(--portal-muted,#655f73)}
+.dashboard-count-help>summary{color:var(--portal-accent,#514184);padding:.4rem 0;min-height:36px}.dashboard-count-help p{max-width:820px;line-height:1.65;margin:.6rem 0}
+.dashboard-task-status{font-size:.8125rem;color:var(--portal-muted,#655f73);padding:.6rem 0 .9rem;line-height:1.5}.dashboard-actions .portal-task-link{margin-top:.5rem}
+.dashboard-history{margin-top:1.75rem}.dashboard-history>summary{display:list-item;color:var(--portal-ink,#2c283b);font-weight:650;line-height:1.5}
+.dashboard-history-hint{display:block;font-weight:400;font-size:.8125rem;color:var(--portal-muted,#655f73);margin:.25rem 0 0 1rem}
+.dashboard-history>p{font-size:.875rem;color:var(--portal-muted,#655f73);line-height:1.65;margin:1.25rem 0}
+.dashboard-history>a{font-size:.875rem}.dashboard-history-counts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1.25rem;margin:1.5rem 0}
+.dashboard-history-counts>div{min-width:0}.dashboard-history-counts dt{font-size:.8125rem;color:var(--portal-muted,#655f73);font-weight:500;line-height:1.6}
+.dashboard-history-counts dd{margin:.5rem 0 0;font-size:1.5rem;font-weight:700}.dashboard-history-counts dd:last-child{font-size:.8125rem;font-weight:400;line-height:1.5}
+.dashboard-data-warning{margin-top:1rem}
+@media(max-width:1150px){.admin-dashboard .dashboard-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:640px){.dashboard-section-heading{align-items:flex-start}.dashboard-section-heading button{font-size:.8125rem}.dashboard-history-counts{grid-template-columns:minmax(0,1fr);gap:1rem}.dashboard-history-counts>div+div{border-top:1px solid var(--portal-line,#e3e4ed);padding-top:1rem}.dashboard-history-hint{margin-left:0}.dashboard-count-help{font-size:.8125rem}}
