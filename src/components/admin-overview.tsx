@@ -29,7 +29,7 @@ export function AdminOverview() {
 
     {portal && <section aria-labelledby="dashboard-summary">
       <div className="dashboard-section-heading">
-        <div><h2 id="dashboard-summary">Submission summary</h2><p>All years · New website and saved WordPress records</p></div>
+        <div><h2 id="dashboard-summary">Submission summary</h2><p>All years · All available submissions</p></div>
         <button type="button" className="secondary" disabled={report.loading || overview.loading}
           onClick={() => {report.reload(); overview.reload();}}>Refresh dashboard</button>
       </div>
@@ -44,7 +44,7 @@ export function AdminOverview() {
         <summary>What do these totals include?</summary>
         <p>Registrations count submitted forms, not unique people. Competition entries exclude drafts. Quality checks are separate from judge scores; earlier offline checks count here only after staff record them against individual entries.</p>
         {summary && <p>Other registration forms: {number(summary.educators)} educator · {number(summary.schoolRegistrations)} school.</p>}
-        <p>WordPress figures come from the saved archive. Later WordPress submissions appear after another sync.</p>
+        <p>Totals reflect records currently available in this workspace. Reconcile missing records before preparing final reports.</p>
         <Link href="/admin/reports">Open the full report and filters</Link>
       </details>
     </section>}
@@ -73,18 +73,7 @@ export function AdminOverview() {
       </div>
     </section>
 
-    <details className="panel dashboard-history">
-      <summary><span>Earlier records & files</span><span className="dashboard-history-hint">Find saved forms and attachments</span></summary>
-      <p>These are storage totals across different forms and years. Use the submission summary above for registration, competition and quality-check progress.</p>
-      {!overview.error && <ResourceState {...overview} retry={overview.reload}/>}
-      <dl className="dashboard-history-counts">
-        <div><dt>Forms submitted on the new website</dt><dd>{number(counts?.reference_submissions_all_editions)}</dd><dd><Link href="/admin/reference-forms">Browse new website forms</Link></dd></div>
-        <div><dt>Forms saved from WordPress</dt><dd>{number(counts?.archived_source_entries_all_editions)}</dd><dd><Link href="/admin/wordpress-history">Browse earlier forms</Link></dd></div>
-        <div><dt>Files saved from WordPress</dt><dd>{number(counts?.archived_source_files_all_editions)}</dd><dd><Link href="/admin/wordpress-history">Find earlier attachments</Link></dd></div>
-      </dl>
-      <p>The saved WordPress copy does not update automatically. File totals show saved attachment records, not completed quality checks.</p>
-      {portal && <Link href="/admin/school-records">Link earlier records to the correct school</Link>}
-    </details>
+    <section className="panel dashboard-records"><h2>Forms & attachments</h2><p>Find registrations, competition work and enquiries together. Each form keeps its original submission date and attachments.</p><Link href="/admin/reference-forms">Browse all forms & submissions</Link></section>
     {overview.error && <div className="dashboard-data-warning"><ResourceState {...overview} retry={overview.reload}/></div>}
   </div>;
 }

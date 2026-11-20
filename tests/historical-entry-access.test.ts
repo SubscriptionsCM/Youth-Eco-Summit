@@ -10,7 +10,7 @@ vi.mock('../src/components/shared',()=>({
 import {HistoricalEntry} from '../src/components/historical-entry';
 describe('historical entry page access',()=>{
  it.each(['owner','admin'])('lets %s reach the authorized archive details and staff return link',role=>{
-  session.role=role;const html=renderToStaticMarkup(createElement(HistoricalEntry,{id:'qa-record'}));expect(html).toContain('Retained QA entry');expect(html).toContain('/admin/wordpress-history');
+  session.role=role;const html=renderToStaticMarkup(createElement(HistoricalEntry,{id:'qa-record'}));expect(html).toContain('Retained QA entry');expect(html).toContain('/admin/reference-forms');
  });
  it('keeps judge access blocked',()=>{session.role='judge';expect(renderToStaticMarkup(createElement(HistoricalEntry,{id:'qa-record'}))).toContain('Access denied');});
  it('retains the participant dashboard return path',()=>{session.role='participant';expect(renderToStaticMarkup(createElement(HistoricalEntry,{id:'qa-record'}))).toContain('href="/dashboard"');});

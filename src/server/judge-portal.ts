@@ -6,6 +6,8 @@ import {referenceForms} from '../domain/wordpress-forms';
 import {fingerprint} from './wordpress-migration';
 import {judgingSource,type JudgingSnapshot,type JudgingSource} from './judge-portal-source';
 import type {RetainedDownload} from './storage/downloads';
+import {loadSubmissionRecords} from './submission-records';
+import {submissionDateOrder} from '../domain/source-dates';
 
 async function active(db:Db,actor:Actor,staff=false){
  if(staff)requireAdmin(actor);else if(!['judge','admin','owner'].includes(actor.role))throw new AppError(403,'Judge access required.');
@@ -26,17 +28,23 @@ export async function changeJudgingRound(db:Db,actor:Actor,roundId:string,input:
  return db.transaction(async tx=>{await active(tx,actor,true);const {rows:[round]}=await tx.query('UPDATE judging_rounds SET open=$2,updated_at=now() WHERE id=$1 RETURNING *',[roundId,v.open]);if(!round)throw new AppError(404,'Judging round not found.');await audit(tx,actor,'judging.round.state','judging_rounds',roundId,v);return round;});
 }
 export async function assignJudgingEntries(db:Db,actor:Actor,input:unknown){
- const v=z.object({roundId:z.uuid(),judgeId:z.uuid(),source:z.enum(['portal','wordpress']),entryIds:z.array(z.uuid()).min(1).max(100),reason}).strict().parse(input);
+ const common={roundId:z.uuid(),judgeId:z.uuid(),reason};
+ const v=z.union([
+  z.object({...common,source:z.enum(['portal','wordpress']),entryIds:z.array(z.uuid()).min(1).max(100)}).strict(),
+  z.object({...common,entries:z.array(z.object({source:z.enum(['portal','wordpress']),id:z.uuid()}).strict()).min(1).max(100)}).strict()
+ ]).parse(input);
+ const refs='entries' in v?v.entries:v.entryIds.map(entryId=>({source:v.source,id:entryId}));
+ const unique=[...new Map(refs.map(ref=>[ref.source+':'+ref.id,ref])).values()].sort((a,b)=>(a.source+':'+a.id).localeCompare(b.source+':'+b.id));
  return db.transaction(async tx=>{await active(tx,actor,true);
   const {rows:[round]}=await tx.query('SELECT * FROM judging_rounds WHERE id=$1 FOR UPDATE',[v.roundId]);if(!round)throw new AppError(422,'Choose a judging round.');
   const {rows:[judge]}=await tx.query("SELECT id FROM users WHERE id=$1 AND role IN ('judge','owner','admin') AND active=true FOR SHARE",[v.judgeId]);if(!judge)throw new AppError(422,'Choose an active reviewer.');
-  const items=[];for(const entryId of [...new Set(v.entryIds)].sort()){
-   const source=await judgingSource(tx,v.source,entryId);if(source.snapshot.formKey!==round.form_key)throw new AppError(422,'Entry competition does not match the round.');
-   const column=v.source==='portal'?'portal_record_id':'wordpress_record_id';
+  const items=[];for(const ref of unique){
+   const entryId=ref.id,source=await judgingSource(tx,ref.source,entryId);if(source.snapshot.formKey!==round.form_key)throw new AppError(422,'Entry competition does not match the round.');
+   const column=ref.source==='portal'?'portal_record_id':'wordpress_record_id';
    const {rows:[old]}=await tx.query(`SELECT id,active,source_checksum FROM judging_assignments WHERE round_id=$1 AND judge_id=$2 AND ${column}=$3 FOR UPDATE`,[round.id,v.judgeId,entryId]);
    if(old){if(!old.active||old.source_checksum!==source.checksum)throw new AppError(409,'This assignment was revoked or its source changed. Create an explicit new review round.');items.push({id:old.id});continue;}
    const assignmentId=id();await tx.query(`INSERT INTO judging_assignments(id,round_id,judge_id,${column},snapshot,snapshot_checksum,source_checksum,assigned_by,reason) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`,[assignmentId,round.id,v.judgeId,entryId,JSON.stringify(source.snapshot),fingerprint(source.snapshot),source.checksum,actor.id,v.reason]);
-   await audit(tx,actor,'judging.assign','judging_assignments',assignmentId,{source:v.source,entryId,roundId:round.id,judgeId:v.judgeId,reason:v.reason});items.push({id:assignmentId});
+   await audit(tx,actor,'judging.assign','judging_assignments',assignmentId,{source:ref.source,entryId,roundId:round.id,judgeId:v.judgeId,reason:v.reason});items.push({id:assignmentId});
   }return {items};
  });
 }
@@ -102,7 +110,15 @@ export async function judgingAdministration(db:Db,actor:Actor,params=new URLSear
  const {rows:assignments}=await db.query("SELECT a.id,a.round_id,a.active,a.reason,a.revoked_reason,a.judge_id,a.snapshot->>'reference' reference,a.snapshot->>'title' title,r.name round_name,r.edition,coalesce(v.status,'pending') status,v.scores,v.deductions,v.total,v.comment,v.flag,v.submitted_at FROM judging_assignments a JOIN judging_rounds r ON r.id=a.round_id LEFT JOIN judging_reviews v ON v.assignment_id=a.id ORDER BY a.created_at DESC,a.id LIMIT 50 OFFSET $1",[(page-1)*50]);
  return {rounds,judges,assignments,catalogue:judgingCatalogue,total:count.total,activeTotal:count.active_total,page,pageSize:50};
 }
-export async function listJudgingEntries(db:Db,actor:Actor,params:URLSearchParams){
+export async function listJudgingEntries(db:Db,actor:Actor,params:URLSearchParams):Promise<{items:Record<string,any>[];total:number;page:number;pageSize:number}>{
+ if(params.get('source')==='all'){
+  await active(db,actor,true);const form=referenceForms.find(f=>f.key===params.get('formKey')&&f.competition);if(!form)throw new AppError(422,'Choose a competition first.');
+  const page=Math.max(1,Math.min(100000,Math.floor(Number(params.get('page'))||1))),q=(params.get('q')||'').trim().toLowerCase().slice(0,100);
+  const entries=(await loadSubmissionRecords(db,{formKey:form.key})).filter(r=>r.kind==='competition'&&r.status==='submitted'&&r.formKey===form.key&&(!q||r.reference.toLowerCase().includes(q)))
+   .map(r=>({id:r.id,source:r.source,reference:r.reference,submitted_at:r.submittedAt,order:submissionDateOrder(r.submittedAt,r.source)}))
+   .sort((a,b)=>b.order.localeCompare(a.order)||(a.source+':'+a.id).localeCompare(b.source+':'+b.id));
+  return {items:entries.slice((page-1)*25,page*25).map(({order,...entry})=>entry),total:entries.length,page,pageSize:25};
+ }
  await active(db,actor,true);const source=z.enum(['portal','wordpress']).parse(params.get('source')||'portal'),form=referenceForms.find(f=>f.key===params.get('formKey')&&f.competition);if(!form)throw new AppError(422,'Choose a competition first.');
  const page=Math.max(1,Math.min(100000,Math.floor(Number(params.get('page'))||1))),q=(params.get('q')||'').slice(0,100);
  const where=source==='portal'?"FROM portal_form_records WHERE status='submitted' AND form_key=$1 AND reference ILIKE '%'||$2||'%'":"FROM wordpress_records WHERE kind='entry' AND payload->>'form_id'=$1 AND payload->>'status' IN ('active','submitted','completed') AND lower(trim(coalesce(payload->>'is_draft','0'))) IN ('0','false','') AND source_id ILIKE '%'||$2||'%'";

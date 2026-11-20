@@ -4,8 +4,9 @@ import {referenceForms,plainText,formTitle} from '../domain/wordpress-forms';
 import {fingerprint} from './wordpress-migration';
 import {validSourceDate} from '../domain/source-dates';
 import {z} from 'zod';
+import {supplementalSubmission} from './supplemental-submission';
 
-export type SubmissionRecord={id:string;source:'portal'|'wordpress';sourceChecksum:string;ownerIdentity:string|null;submitterRole:string|null;emails:Record<string,string>;formKey:string;title:string;kind:'competition'|'student'|'teacher'|'school'|'other';status:'submitted'|'draft'|'other';reference:string;submittedAt:string|null;year:string|null;schoolId:string|null;directSchoolId:string|null;schoolLinkVersion:number;schoolLinkStale:boolean;schoolLinkActive:boolean;name:string;email:string;className:string;section:string;answers:Record<string,unknown>};
+export type SubmissionRecord={id:string;source:'portal'|'wordpress';sourceChecksum:string;ownerIdentity:string|null;submitterRole:string|null;emails:Record<string,string>;formKey:string;title:string;kind:'competition'|'student'|'teacher'|'school'|'other';status:'submitted'|'draft'|'other';reference:string;submittedAt:string|null;year:string|null;schoolId:string|null;directSchoolId:string|null;schoolLinkVersion:number;schoolLinkStale:boolean;schoolLinkActive:boolean;name:string;recordedSchoolName?:string;email:string;className:string;section:string;answers:Record<string,unknown>};
 export async function requireActive(db:Db,actor:Actor,roles:readonly string[]){
  if(!roles.includes(actor.role))throw new AppError(403,'This account does not have access to this workspace.');
  const {rows}=await db.query('SELECT id FROM users WHERE id=$1 AND role=$2 AND active=true FOR SHARE',[actor.id,actor.role]);
@@ -19,12 +20,13 @@ function originalDate(value:unknown){
  return validSourceDate(raw)?raw:null;
 }
 /** Server-only read model. Never return answers from a school-scoped endpoint. */
-export async function loadSubmissionRecords(db:Db,only?:{source?:'portal'|'wordpress';recordId?:string;schoolId?:string}):Promise<SubmissionRecord[]>{
- const ids=referenceForms.map(f=>String(f.id));
+export async function loadSubmissionRecords(db:Db,only?:{source?:'portal'|'wordpress';recordId?:string;schoolId?:string;formKey?:string;includeUnknown?:boolean}):Promise<SubmissionRecord[]>{
+ const ids=referenceForms.filter(f=>!only?.formKey||f.key===only.formKey).map(f=>String(f.id));
  const nativeArgs:string[]=[],nativeWhere:string[]=[];
  if(only?.recordId){nativeArgs.push(only.recordId);nativeWhere.push(`id=$${nativeArgs.length}`);}
+ if(only?.formKey){nativeArgs.push(only.formKey);nativeWhere.push(`form_key=$${nativeArgs.length}`);}
  if(only?.schoolId){nativeArgs.push(only.schoolId);nativeWhere.push(`(school_id=$${nativeArgs.length} OR id IN (SELECT record_id FROM school_record_links WHERE source='portal' AND active AND school_id=$${nativeArgs.length}))`);}
- const archiveArgs:unknown[]=[ids],archiveWhere=["kind='entry'","payload->>'form_id'=ANY($1::text[])"];
+ const archiveArgs:unknown[]=only?.includeUnknown?[]:[ids],archiveWhere=only?.includeUnknown?["kind='entry'"]:["kind='entry'","payload->>'form_id'=ANY($1::text[])"];
  if(only?.recordId){archiveArgs.push(only.recordId);archiveWhere.push(`id=$${archiveArgs.length}`);}
  if(only?.schoolId){archiveArgs.push(only.schoolId);archiveWhere.push(`(EXISTS(SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(payload->'meta')='array' THEN payload->'meta' ELSE '[]'::jsonb END) m WHERE m->>'meta_key' IN ('text-yes-school-id','registered-school-id','_yes_school_id') AND upper(btrim(m->>'meta_value')) IN (SELECT reference FROM school_identifiers WHERE school_id=$${archiveArgs.length}::uuid)) OR id IN (SELECT record_id FROM school_record_links WHERE source='wordpress' AND active AND school_id=$${archiveArgs.length}::uuid))`);}
  const {rows:native}=only?.source==='wordpress'?{rows:[]}:await db.query('SELECT id,form_key,reference,answers,status,school_id,submitted_at,owner_id,submitter_role FROM portal_form_records'+(nativeWhere.length?' WHERE '+nativeWhere.join(' AND '):''),nativeArgs);
@@ -37,9 +39,11 @@ export async function loadSubmissionRecords(db:Db,only?:{source?:'portal'|'wordp
  const {rows:links}=await db.query('SELECT source,record_id,school_id,source_checksum,lock_version,active FROM school_record_links'+(linkWhere.length?' WHERE '+linkWhere.join(' AND '):''),linkArgs);
  const schoolLinks=new Map(links.map(link=>[link.source+':'+link.record_id,link]));
  const project=(row:any,source:'portal'|'wordpress'):SubmissionRecord|null=>{
-  const form=source==='portal'?referenceForms.find(f=>f.key===row.form_key):referenceForms.find(f=>String(f.id)===String(row.payload.form_id));
+  if(source==='wordpress'&&fingerprint(row.payload)!==row.checksum)throw new AppError(409,'A submission failed its integrity check. Contact the summit team.');
+  const known=source==='portal'?referenceForms.find(f=>f.key===row.form_key):referenceForms.find(f=>String(f.id)===String(row.payload.form_id));
+  const supplemental=source==='wordpress'&&!known&&only?.includeUnknown?supplementalSubmission(row.payload):null;
+  const form=known||(only?.includeUnknown?{id:0,key:supplemental?.formKey||(source==='portal'?row.form_key:'other-form-'+String(row.payload.form_id??'unknown')),title:supplemental?.title||'Other form',competition:false,fields:[],settings:{}}:undefined);
   if(!form)return null;
-  if(source==='wordpress'&&fingerprint(row.payload)!==row.checksum)throw new AppError(409,'A preserved submission failed its integrity check. Contact the summit team.');
   const answers:Record<string,unknown>=source==='portal'?row.answers||{}:Object.fromEntries((Array.isArray(row.payload.meta)?row.payload.meta:[]).filter((m:any)=>m&&typeof m.meta_key==='string').map((m:any)=>[m.meta_key,m.meta_value]));
   const originalValues=(field:string):unknown[]=>source==='portal'?(answers[field]===undefined?[]:[answers[field]]):(Array.isArray(row.payload.meta)?row.payload.meta:[]).filter((m:any)=>m?.meta_key===field).map((m:any)=>m.meta_value);
   const emails:Record<string,string>={};
@@ -53,8 +57,8 @@ export async function loadSubmissionRecords(db:Db,only?:{source?:'portal'|'wordp
   const submitterRole=roleValues.length&&roleValues.every(v=>['student','educator'].includes(v)&&v===roleValues[0])?roleValues[0]:null;
   const draft=source==='wordpress'?row.payload.is_draft:null;
   const nonDraft=draft===undefined||draft===null||draft===false||draft===0||typeof draft==='string'&&['','0','false'].includes(draft.trim().toLowerCase());
-  const status:SubmissionRecord['status']=source==='portal'?(row.status==='submitted'?'submitted':row.status==='draft'?'draft':'other'):!nonDraft?'draft':['active','submitted','completed'].includes(row.payload.status)?'submitted':'other';
-  const submittedAt=originalDate(source==='portal'?row.submitted_at:row.payload.date_created);
+  const status:SubmissionRecord['status']=source==='portal'?(row.status==='submitted'?'submitted':row.status==='draft'?'draft':'other'):supplemental?supplemental.status:!nonDraft?'draft':['active','submitted','completed'].includes(row.payload.status)?'submitted':'other';
+  const submittedAt=originalDate(source==='portal'?row.submitted_at:supplemental?supplemental.submittedAt:row.payload.date_created);
   const pointerKeys=['text-yes-school-id','registered-school-id','_yes_school_id'];
   // Inspect every source occurrence before collapsing metadata. HTML is not an ID.
   const pointers:unknown[]=source==='wordpress'?(Array.isArray(row.payload.meta)?row.payload.meta:[]).filter((m:any)=>pointerKeys.includes(m?.meta_key)).map((m:any)=>m.meta_value):pointerKeys.filter(k=>answers[k]!==undefined).map(k=>answers[k]);
@@ -68,7 +72,7 @@ export async function loadSubmissionRecords(db:Db,only?:{source?:'portal'|'wordp
   const kind:SubmissionRecord['kind']=form.competition?'competition':['student','teacher','school'].includes(form.key)?form.key as 'student'|'teacher'|'school':historicalKinds[form.key]||'other';
   const year=submittedAt?(source==='portal'?new Intl.DateTimeFormat('en',{year:'numeric',timeZone:'Asia/Kolkata'}).format(new Date(submittedAt)):submittedAt.slice(0,4)):null;
   return {id:row.id,source,sourceChecksum,ownerIdentity,submitterRole,emails,formKey:form.key,title:kind==='student'?'Student registration':kind==='teacher'?'Educator registration':formTitle(form),kind,status,reference:source==='portal'?row.reference:`WP-${row.source_id}`,submittedAt,year,schoolId,directSchoolId,schoolLinkVersion:schoolLink?.lock_version||0,schoolLinkStale,schoolLinkActive,
-   name:name(answers['text-yes-name']||answers['name-1']||answers['text-1']||answers['name-2']),email:emails[form.competition?'email-yes-student-1':'email-1']||'',className:text(answers['select-yes-class'])||name(answers['name-6']),section:text(answers['text-yes-section']||answers['section']),answers};
+   name:supplemental?.name||name(answers['text-yes-name']||answers['name-1']||answers['text-1']||answers['name-2']),recordedSchoolName:supplemental?.schoolName,email:emails[form.competition?'email-yes-student-1':'email-1']||'',className:text(answers['select-yes-class'])||name(answers['name-6']),section:text(answers['text-yes-section']||answers['section']),answers};
  };
  return [...native.map(row=>project(row,'portal')),...archive.map(row=>project(row,'wordpress'))].filter((r):r is SubmissionRecord=>!!r);
 }

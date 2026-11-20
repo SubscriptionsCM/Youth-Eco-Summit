@@ -21,10 +21,10 @@ it('keeps dedicated and legacy judging destinations separate',()=>{
 });
 it('keeps the active website admin menu focused on populated submission and judging workflows',()=>{
  for(const role of ['admin','owner']){
-  expect(links(role)).toEqual(['/admin','/admin/reports','/admin/reference-forms','/admin/schools','/admin/school-access','/admin/school-records','/admin/judging','/admin/judges','/admin/wordpress-history','/admin/jobs','/admin/audit','/admin/trash']);
+  expect(links(role)).toEqual(['/admin','/admin/reports','/admin/reference-forms','/admin/schools','/admin/school-access','/admin/school-records','/admin/judging','/admin/judges','/admin/jobs','/admin/audit','/admin/trash']);
   expect(portalGroups(role)[0].items.map(i=>i.href)).toEqual(['/admin','/admin/reports','/admin/reference-forms']);
   expect(portalGroups(role)[0].items[0].label).toBe('Dashboard');
-  expect(portalGroups(role).find(g=>g.items.some(i=>i.href==='/admin/wordpress-history'))?.primary).not.toBe(true);
+  expect(links(role)).not.toContain('/admin/wordpress-history');
   const groups=portalGroups(role),tools=groups.filter(g=>g.label==='Tools');
   expect(tools).toHaveLength(1);expect(tools[0].items.map(i=>i.label)).toEqual(['Background tasks','Activity log','Trash']);
   expect(groups.some(g=>g.label==='Support')).toBe(false);
@@ -41,7 +41,8 @@ it('routes older registration links into filtered current forms while preserving
 it('replaces duplicate judging and empty configuration screens without redirecting current or legacy-mode pages',()=>{
  for(const section of ['assignments','rules','rounds','reviews','results'])expect(currentAdminDestination(section,new URLSearchParams(),'portal')).toBe('/admin/judging');
  for(const section of ['files','repairs','imports','editions','competitions','content'])expect(currentAdminDestination(section,new URLSearchParams(),'portal')).toBe('/admin/tools');
- for(const section of ['overview','judging','judges','reference-forms','wordpress-history','schools','tools','jobs','audit','trash'])expect(currentAdminDestination(section,new URLSearchParams(),'portal')).toBeNull();
+ for(const section of ['overview','judging','judges','reference-forms','schools','tools','jobs','audit','trash'])expect(currentAdminDestination(section,new URLSearchParams(),'portal')).toBeNull();
+ expect(currentAdminDestination('wordpress-history',new URLSearchParams({id:'old-record',q:'Green'}),'portal')).toBe('/admin/reference-forms?q=Green&id=old-record');
  expect(currentAdminDestination('students',new URLSearchParams(),'legacy')).toBeNull();
  expect(currentAdminDestination('editions',new URLSearchParams(),'manual')).toBeNull();
 });

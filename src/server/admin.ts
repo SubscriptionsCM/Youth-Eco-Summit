@@ -5,6 +5,7 @@ import { AppError,type Actor,id,audit,requireAdmin } from './core';
 import { competitionSchema,rubricSchema } from '../domain/rules';
 import { assign,recordDecision } from './judging';
 import { archivedEntrySummary, type SourceRecord } from './wordpress-projection';
+import {submissionInbox} from './submission-inbox';
 export async function overview(db:Db,edition:string){
  const {rows:[counts]}=await db.query(`SELECT
  (SELECT count(*)::int FROM portal_form_records WHERE status='submitted') reference_submissions_all_editions,
@@ -100,6 +101,7 @@ const resources:Record<string,{from:string;select:string;search:string;where?:st
  reviews:{from:"reviews t JOIN judge_assignments a ON a.id=t.assignment_id JOIN submissions s ON s.id=a.submission_id JOIN competitions c ON c.id=s.competition_id",select:reviewDetails,search:'s.reference',where:"t.status='submitted' AND s.trashed_at IS NULL",order:'t.created_at'}
 };
 export async function adminList(db:Db,actor:Actor,resource:string,params:URLSearchParams){
+ if(resource==='submission-inbox')return submissionInbox(db,actor,params);
  requireAdmin(actor);if(resource==='overview')return overview(db,params.get('editionId')??'');
  const r=resources[resource];if(!r)throw new AppError(404,'Resource not found.');
  if(['reference-forms','wordpress-history'].includes(resource)){

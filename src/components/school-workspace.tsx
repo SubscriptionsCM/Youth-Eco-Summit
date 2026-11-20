@@ -169,7 +169,7 @@ function StudentCard({student, schoolId, changed}: {student: Student; schoolId: 
   const path = [endpoint, 'schools', schoolId, 'students', student.source, student.id].join('/');
   return <article className="panel">
     <h4>{student.name || 'Name unavailable'}</h4>
-    <p>{[...classDetails, student.reference, student.source === 'wordpress' ? 'WordPress archive' : 'Website', student.year ?? 'Unknown year'].join(' · ')}</p>
+    <p>{[...classDetails, student.reference, student.year ?? 'Unknown year'].join(' · ')}</p>
     {student.competitions.length ? <ul>{student.competitions.map(item =>
       <li key={item.source + ':' + item.reference}>{item.title} · Submitted · {item.reference}</li>
     )}</ul> : <p>No linked competition submissions for this filter.</p>}
@@ -189,7 +189,7 @@ function StudentCard({student, schoolId, changed}: {student: Student; schoolId: 
 
 export function SchoolAccessAdministration() {
   return <>
-    <PageTitle title="School access">Review requests from school representatives and manage their access.</PageTitle><p><Link href="/admin/school-records">Link earlier student records to their school</Link></p>
+    <PageTitle title="School access">Review requests from school representatives and manage their access.</PageTitle><p><Link href="/admin/school-records">Link student records to their school</Link></p>
     <AuthGate roles={['owner', 'admin']}>{() => <StaffRequests/>}</AuthGate>
   </>;
 }

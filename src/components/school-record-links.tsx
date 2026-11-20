@@ -40,7 +40,7 @@ function RecordCard({ record, schools, saved }: { record: SchoolRecord; schools:
   }
   return <article className="panel">
     <h2>{record.name || record.reference}</h2>
-    <p>{record.title} · {record.reference} · {record.source === 'wordpress' ? 'WordPress archive' : 'New website'}</p><JudgePickerDate source={record.source} entry={{submitted_at:record.submittedAt}}/>
+    <p>{record.title} / {record.reference}</p><JudgePickerDate source={record.source} entry={{submitted_at:record.submittedAt}}/>
     <p><a href={record.href} target="_blank" rel="noopener">Original submission (opens in a new tab)</a></p>
     <p>{record.directSchoolId
       ? 'Permanent school ID in original submission' + (current ? ` · ${current.name} (${current.reference})` : '')
@@ -102,9 +102,7 @@ function LinkWorkspace() {
       <Field name="status" title="School link status"><select name="status" defaultValue="unlinked">
         <option value="unlinked">Unlinked</option><option value="linked">Linked</option>
       </select></Field>
-      <Field name="source" title="Source"><select name="source">
-        <option value="">All sources</option><option value="portal">Portal</option><option value="wordpress">WordPress archive</option>
-      </select></Field>
+
       <Field name="kind" title="Record type"><select name="kind">
         <option value="">All types</option><option value="student">Student registration</option><option value="teacher">Teacher registration</option><option value="competition">Competition</option>
       </select></Field>

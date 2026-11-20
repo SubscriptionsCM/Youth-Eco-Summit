@@ -5,6 +5,7 @@ import { AppError, audit, type Actor } from './core';
 import { fingerprint } from './wordpress-migration';
 import { referenceForms, plainText, isFieldVisible } from '../domain/wordpress-forms';
 import {structuredAnswerKeys} from '../domain/reference-values';
+import {supplementalSubmission} from './supplemental-submission';
 
 export type SourceRecord = { id:string; source:string; source_id:string; checksum:string; payload:Record<string,unknown> };
 function verify(record:SourceRecord) {
@@ -137,13 +138,17 @@ function safeValue(raw:unknown,type?:string):string|number|boolean|string[]|Reco
 }
 function present(record:SourceRecord){
  const form=referenceForms.find(form=>String(form.id)===String(record.payload.form_id));
+ const supplemental=!form?supplementalSubmission(record.payload):null;
+ if(supplemental)return {id:record.id,sourceId:record.source_id,formKey:supplemental.formKey,title:supplemental.title,formTitle:supplemental.title,status:supplemental.status,submissionStatus:supplemental.status,createdAt:supplemental.submittedAt,fields:supplemental.fields};
  const answers:Record<string,unknown>=Object.create(null);
  for(const item of metadata(record)){const type=form?.fields.find(field=>field.id===item.meta_key)?.type;const value=safeValue(item.meta_value,type);if(value!==undefined)answers[item.meta_key]=value;}
  const fields=(form?.fields??[]).filter(field=>allowedTypes.has(field.type)&&!field.id.startsWith('_')&&!/password|upload|hidden/i.test(field.id)&&isFieldVisible(field,answers)).flatMap(field=>{
   const value=safeValue(answers[field.id],field.type);return value===undefined?[]:[{id:field.id,type:field.type,label:plainText(field.field_label||field.id),value}];
  });
  const formTitle=form?plainText(form.title):'Historical entry';
- return {id:record.id,sourceId:record.source_id,formKey:form?.key??null,title:formTitle,formTitle,status:text(record.payload.status),createdAt:text(record.payload.date_created),fields};
+ const draft=record.payload.is_draft,nonDraft=draft===undefined||draft===null||draft===false||draft===0||typeof draft==='string'&&['','0','false'].includes(draft.trim().toLowerCase());
+ const submissionStatus=!nonDraft?'draft':['active','submitted','completed'].includes(String(record.payload.status))?'submitted':'other';
+ return {id:record.id,sourceId:record.source_id,formKey:form?.key??null,title:formTitle,formTitle,status:text(record.payload.status),submissionStatus,createdAt:text(record.payload.date_created),fields};
 }
 /** Staff collections expose a verified entry summary, never the raw source payload. */
 export function archivedEntrySummary(record:SourceRecord){

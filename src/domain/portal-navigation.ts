@@ -1,7 +1,7 @@
 export type PortalItem={label:string;href:string};
 export type PortalGroup={label:string;items:PortalItem[];primary?:boolean;root?:string};
 const item=(label:string,href:string):PortalItem=>({label,href});
-export const adminTitles:Record<string,string>={'school-records':'School record links',overview:'Overview',judging:'Manage judging','reference-forms':'Forms inbox','wordpress-history':'WordPress archive',files:'File library',repairs:'File recovery',schools:'Schools',nominations:'School nominations','partner-enquiries':'Partner enquiries',teachers:'Educators',students:'Students',entries:'Competition entries',judges:'Staff accounts',assignments:'Assignments',rules:'Assignment rules',rounds:'Review rounds',reviews:'Reviews',results:'Results',editions:'Summit editions',competitions:'Competitions',content:'Website content',trash:'Trash',audit:'Activity log',jobs:'Background tasks',imports:'Imports',tools:'Tools'};
+export const adminTitles:Record<string,string>={'school-records':'School record links',overview:'Overview',judging:'Manage judging','reference-forms':'Forms & submissions','wordpress-history':'Forms & submissions',files:'File library',repairs:'File recovery',schools:'Schools',nominations:'School nominations','partner-enquiries':'Partner enquiries',teachers:'Educators',students:'Students',entries:'Competition entries',judges:'Staff accounts',assignments:'Assignments',rules:'Assignment rules',rounds:'Review rounds',reviews:'Reviews',results:'Results',editions:'Summit editions',competitions:'Competitions',content:'Website content',trash:'Trash',audit:'Activity log',jobs:'Background tasks',imports:'Imports',tools:'Tools'};
 export function portalGroups(role:string,mode='portal'):PortalGroup[]{
  if(role==='participant')return [
   {label:'Your workspace',primary:true,items:[item('My forms & entries','/dashboard'),item('New competition entry','/competitions/enter')]},
@@ -12,10 +12,9 @@ export function portalGroups(role:string,mode='portal'):PortalGroup[]{
  if(!['owner','admin'].includes(role))return [];
  const admin=(key:string)=>item(adminTitles[key],key==='overview'?'/admin':`/admin/${key}`);
  if(mode==='portal')return [
-  {label:'Daily work',primary:true,items:[item('Dashboard','/admin'),item('Submissions & quality checks','/admin/reports'),item('New website forms','/admin/reference-forms')]},
-  {label:'Schools',items:[admin('schools'),item('School access','/admin/school-access'),item('Link earlier school records','/admin/school-records')]},
+  {label:'Daily work',primary:true,items:[item('Dashboard','/admin'),item('Submissions & quality checks','/admin/reports'),item('Forms & submissions','/admin/reference-forms')]},
+  {label:'Schools',items:[admin('schools'),item('School access','/admin/school-access'),item('Link school records','/admin/school-records')]},
   {label:'Judging',items:['judging','judges'].map(admin)},
-  {label:'Earlier records',items:[item('Earlier forms & files','/admin/wordpress-history')]},
   {label:'Tools',root:'/admin/tools',items:['jobs','audit','trash'].map(admin)}
  ];
  return [
@@ -29,6 +28,7 @@ export function portalGroups(role:string,mode='portal'):PortalGroup[]{
 /** Older menu URLs lead to the current website workflow; stored records and APIs are retained. */
 export function currentAdminDestination(section:string,query:URLSearchParams,mode='portal'):string|null{
  if(mode!=='portal')return null;
+ if(section==='wordpress-history'){const filters=new URLSearchParams();for(const key of ['q','id','schoolId','formKey']){const value=query.get(key);if(value)filters.set(key,value);}return '/admin/reference-forms'+(filters.size?'?'+filters:'');}
  const forms:Record<string,string>={students:'student',teachers:'teacher',nominations:'nomination','partner-enquiries':'partner',entries:''};
  if(Object.hasOwn(forms,section)){
   const filters=new URLSearchParams();
@@ -56,7 +56,7 @@ export function portalLocation(path:string){
  if(path==='/admin/reports')return 'Submissions & quality checks';
  if(path==='/admin/school-access')return 'School access';
  if(path.startsWith('/admin/'))return adminTitles[path.split('/')[2]]||'Administration';
- if(path.startsWith('/history/'))return 'Earlier entry';
+ if(path.startsWith('/history/'))return 'Submission';
  if(path.startsWith('/forms/'))return 'Saved form';
  if(path.startsWith('/judge/'))return 'Review entry';
  const labels:Record<string,string>={'/dashboard':'My forms & entries','/judge':'Assigned entries','/register':'Student registration','/teachers/register':'Educator registration','/schools/register':'School registration','/competitions/enter':'New competition entry'};

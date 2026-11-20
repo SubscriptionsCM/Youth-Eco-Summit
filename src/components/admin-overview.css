@@ -13,3 +13,5 @@
 .dashboard-data-warning{margin-top:1rem}
 @media(max-width:1150px){.admin-dashboard .dashboard-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:640px){.dashboard-section-heading{align-items:flex-start}.dashboard-section-heading button{font-size:.8125rem}.dashboard-history-counts{grid-template-columns:minmax(0,1fr);gap:1rem}.dashboard-history-counts>div+div{border-top:1px solid var(--portal-line,#e3e4ed);padding-top:1rem}.dashboard-history-hint{margin-left:0}.dashboard-count-help{font-size:.8125rem}}
+
+.dashboard-records p{color:var(--portal-muted,#655f73);font-size:.875rem;line-height:1.65}.dashboard-records a{font-size:.875rem;font-weight:650}

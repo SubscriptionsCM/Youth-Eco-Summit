@@ -14,7 +14,7 @@ afterEach(async()=>{await act(async()=>root.unmount());host.remove();vi.unstubAl
 it('provides current operations and file access without exposing obsolete import/configuration tools',async()=>{
  await act(async()=>root.render(createElement(AdminPage,{section:'tools'})));
  const links=[...host.querySelectorAll('a')].map(a=>a.getAttribute('href'));
- for(const href of ['/admin/jobs','/admin/audit','/admin/trash','/admin/reference-forms','/admin/wordpress-history'])expect(links).toContain(href);
+ for(const href of ['/admin/jobs','/admin/audit','/admin/trash','/admin/reference-forms'])expect(links).toContain(href);
  for(const href of ['/admin/imports','/admin/editions','/admin/competitions','/admin/content','/admin/rules'])expect(links).not.toContain(href);
  expect(host.textContent).not.toContain('Configuration JSON');
 });
@@ -22,8 +22,9 @@ it('removes empty earlier-workflow totals from the active dashboard',async()=>{
  await act(async()=>root.render(createElement(AdminOverview)));
  expect(host.querySelectorAll('.dashboard-metrics .portal-metric')).toHaveLength(4);
  expect(host.querySelectorAll('.dashboard-actions>a')).toHaveLength(3);
- expect(host.querySelector('.dashboard-history')?.hasAttribute('open')).toBe(false);
- expect(host.querySelector('.dashboard-history')?.textContent).toContain('Forms submitted on the new website');
+ expect(host.querySelector('.dashboard-history')).toBeNull();
+ expect(host.querySelector('.dashboard-records')?.textContent).toContain('Forms & attachments');
+ expect(host.textContent).not.toMatch(/WordPress|New website|saved from|archive/i);
  expect(host.textContent).not.toContain('Additional record totals');expect(host.textContent).not.toContain('Student participations');
 });
 it('shows readable staff details and removes actions the acting admin is not allowed to perform',async()=>{
@@ -34,7 +35,7 @@ it('shows readable staff details and removes actions the acting admin is not all
  expect(details.querySelector('select[name="action"]')).toBeNull();
  expect([...host.querySelectorAll('select[name="role"] option')].map(o=>(o as HTMLOptionElement).value)).not.toContain('admin');
 });
-it('keeps the owner’s staff invitation and administrative-account management available',async()=>{
+it('keeps the ownerâ€™s staff invitation and administrative-account management available',async()=>{
  state.actor={id:'acting-owner',role:'owner'};state.resource={...state.resource,id:'another-admin',role:'admin'};
  await act(async()=>root.render(createElement(AdminPage,{section:'judges'})));
  expect([...host.querySelectorAll('select[name="role"] option')].map(o=>(o as HTMLOptionElement).value)).toContain('admin');
