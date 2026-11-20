@@ -74,6 +74,6 @@ export function nextState(from:string,to:string,kind:string,reason:string,juryRe
   if(['shortlisted','finalized','not_selected'].includes(to)&&(kind!=='jury'||!juryReference.trim()))throw new AppError(422,'Record an authorized jury decision reference.');
   return to;
 }
-export function csvCell(value:unknown){let text=value==null?'':String(value);if(/^[\s]*[=+@-]/.test(text)||/^[\t\r\n]/.test(text))text="'"+text;return '"'+text.replaceAll('"','""')+'"';}
+export {csvCell} from './csv';
 export const phone=z.string().trim().regex(/^\+[1-9]\d{7,14}$/,'Use an international phone number, for example +919876543210.');
 export const schoolSchema=z.object({name:z.string().trim().min(2).max(200),address:z.string().trim().min(5).max(1000),city:z.string().trim().min(2).max(100),state:z.string().trim().min(2).max(100),postalCode:z.string().trim().min(3).max(20),contactName:z.string().trim().min(2).max(150),contactRole:z.string().trim().min(2).max(100),email:z.email(),phone,coordinator:z.string().max(200).optional()});

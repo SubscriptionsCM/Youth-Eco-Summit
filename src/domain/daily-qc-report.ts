@@ -1,4 +1,4 @@
-import {csvCell} from './rules';
+import {csvCell} from './csv';
 
 export type DailyQCReport = {
  date: string;
@@ -64,4 +64,3 @@ export function formatDailyQCCsv(report: DailyQCReport): string {
  ];
  return rows.map(row => row.map(csvCell).join(',')).join('\r\n') + '\r\n';
 }
-
