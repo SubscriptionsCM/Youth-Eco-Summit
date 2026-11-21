@@ -47,6 +47,7 @@ export function formSteps(form: ReferenceForm) {
  steps.push({ label: form.settings.paginationData?.['last-steps'] || (steps.length ? 'Review' : formTitle(form)), fields });
  return steps;
 }
+export function normalizeReferenceTitle(value:string){return value.normalize('NFC').trim().replace(/[^\p{L}\p{M}\p{N}]+/gu,'_').replace(/^_+|_+$/g,'');}
 export function validateReferenceAnswers(form: ReferenceForm, input: Answers, options: { final: boolean; now?: Date; step?: number }) {
  const answers: Answers = {}, errors: Record<string,string> = {};
  const final = options.final, guideline = competitionGuidelines2027.find(g=>g.slug===form.key);
@@ -106,6 +107,11 @@ export function validateReferenceAnswers(form: ReferenceForm, input: Answers, op
   answers[field.id] = value;
  }
  if (form.competition) {
+  if(answers['text-yes-title']!==undefined&&typeof answers['text-yes-title']!=='string')errors['text-yes-title']='Enter a single submission title.';
+  if(typeof answers['text-yes-title']==='string'){
+   const title=normalizeReferenceTitle(answers['text-yes-title']);answers['text-yes-title']=title;
+   if(final&&!/^[\p{L}\p{N}][\p{L}\p{M}\p{N}]*(?:_[\p{L}\p{N}][\p{L}\p{M}\p{N}]*)+$/u.test(title))errors['text-yes-title']='Include the school, class, category, project title and authors, separated by underscores.';
+  }
   const role = input['hidden-yes-submitter'], mode = input['radio-yes-entry-mode'];
   if ((final || role) && !['student','educator'].includes(String(role))) errors['hidden-yes-submitter'] = 'Choose Student or Educator.';
   if ((final || mode) && !['individual','team'].includes(String(mode))) errors['radio-yes-entry-mode'] = 'Choose individual or team.';
@@ -126,7 +132,6 @@ export function validateReferenceAnswers(form: ReferenceForm, input: Answers, op
    }
    const topics = guideline.classTopics.filter(group=>group.classes.includes(Number(input['select-yes-class']))).flatMap(group=>group.topics.map(topic=>topic.title));
    if (!topics.includes(String(input['select-yes-topic']))) errors['select-yes-topic'] = 'Choose a published topic for the student’s class.';
-   if (!/^[\p{L}\p{N}]+(?:_[\p{L}\p{N}]+)+$/u.test(String(input['text-yes-title'] || ''))) errors['text-yes-title'] = 'Use SchoolName_Class_Category_ProjectTitle_Authors with underscores.';
   }
  }
  if(['student','teacher'].includes(form.key)&&typeof input['registered-school-id']==='string')answers['registered-school-id']=input['registered-school-id'];

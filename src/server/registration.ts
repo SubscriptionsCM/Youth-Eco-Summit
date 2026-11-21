@@ -83,11 +83,14 @@ export async function participantDashboard(db:Db,actor:Actor){
 export async function publicSchools(db:Db,params:URLSearchParams){
  const q=(params.get('q')??'').trim().slice(0,150),city=(params.get('city')??'').trim().slice(0,100);
  const page=Math.max(1,Math.min(100000,Math.floor(Number(params.get('page'))||1)));
- const where="s.status='active' AND s.trashed_at IS NULL AND NOT s.purging AND (s.name ILIKE '%'||$1||'%' OR EXISTS(SELECT 1 FROM school_identifiers i WHERE i.school_id=s.id AND i.reference ILIKE '%'||$1||'%')) AND (s.city ILIKE '%'||$2||'%' OR s.state ILIKE '%'||$2||'%')";
+ // Remove separators from names only; preserve Indic vowel marks and conjuncts.
+ const separators="!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~‐‑‒–—―‘’‚‛“”„‟…।॥ \t\n\r\f\v\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff";
+ const nameQuery="translate(lower($1::text),$3,'')";
+ const where=`s.status='active' AND s.trashed_at IS NULL AND NOT s.purging AND ($1='' OR (${nameQuery}<>'' AND (translate(lower(s.name),$3,'') LIKE '%'||${nameQuery}||'%' OR EXISTS(SELECT 1 FROM school_identifiers i WHERE i.school_id=s.id AND i.reference ILIKE '%'||$1||'%')))) AND (s.city ILIKE '%'||$2||'%' OR s.state ILIKE '%'||$2||'%')`;
  const {rows:items}=await db.query(`SELECT s.id,s.reference,s.name,s.address,s.city,s.state,s.postal_code,
  COALESCE((SELECT jsonb_agg(i.reference ORDER BY i.reference) FROM school_identifiers i WHERE i.school_id=s.id AND i.reference<>upper(s.reference)),'[]') alternate_references
- FROM schools s WHERE ${where} ORDER BY s.name,s.city,s.address,s.id LIMIT 25 OFFSET $3`,[q,city,(page-1)*25]);
- const {rows:[count]}=await db.query(`SELECT count(*)::int total FROM schools s WHERE ${where}`,[q,city]);
+ FROM schools s WHERE ${where} ORDER BY s.name,s.city,s.address,s.id LIMIT 25 OFFSET $4`,[q,city,separators,(page-1)*25]);
+ const {rows:[count]}=await db.query(`SELECT count(*)::int total FROM schools s WHERE ${where}`,[q,city,separators]);
  return {items,total:count.total,page,pageSize:25};
 }
 

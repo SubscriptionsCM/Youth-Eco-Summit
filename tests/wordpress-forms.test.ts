@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { referenceForms, visibleFields, validateReferenceAnswers } from '../src/domain/wordpress-forms';
+import { referenceForms, visibleFields, validateReferenceAnswers, formSteps, normalizeReferenceTitle } from '../src/domain/wordpress-forms';
 
 describe('WordPress reference forms', () => {
  it('retains the fifteen current forms and all thirty-nine live source definitions', () => {
@@ -35,11 +35,31 @@ describe('WordPress reference forms', () => {
  });
  it('validates class-specific topics and duplicate team participants on the server', () => {
   const form = referenceForms.find(f => f.key === 'eco-business-model')!;
-  const result = validateReferenceAnswers(form, { 'hidden-yes-submitter': 'educator', 'radio-yes-entry-mode': 'team', 'number-yes-team-size': '2', 'text-yes-name': 'Asha Singh', 'text-yes-student-2': 'asha singh', 'select-yes-class': '5', 'select-yes-topic': 'invented', 'text-yes-title': 'invalid title' }, { final: true });
+  const result = validateReferenceAnswers(form, { 'hidden-yes-submitter': 'educator', 'radio-yes-entry-mode': 'team', 'number-yes-team-size': '2', 'text-yes-name': 'Asha Singh', 'text-yes-student-2': 'asha singh', 'select-yes-class': '5', 'select-yes-topic': 'invented', 'text-yes-title': '___' }, { final: true });
   expect(result.errors).toHaveProperty('text-yes-student-2');
   expect(result.errors).toHaveProperty('select-yes-class');
   expect(result.errors).toHaveProperty('select-yes-topic');
   expect(result.errors).toHaveProperty('text-yes-title');
+ });
+ it.each(['S.J.PublicSchool_class v_painting_Save Earth_Asha','विद्यालय_५_चित्रकला_जल जीवन_एकता शर्मा'])('normalizes the reported title format consistently in drafts, steps and final submissions: %s',title=>{
+  const form=referenceForms.find(f=>f.key==='painting')!,index=formSteps(form).findIndex(step=>step.fields.some(field=>field.id==='text-yes-title'));
+  const input={'hidden-yes-submitter':'educator','radio-yes-entry-mode':'individual','text-yes-title':title};
+  const normalized=normalizeReferenceTitle(title);
+  for(const options of [{final:false},{final:true,step:index},{final:true,now:new Date('2026-11-04T12:00:00Z')}]){
+   const result=validateReferenceAnswers(form,input,options);
+   expect(result.answers['text-yes-title']).toBe(normalized);expect(result.errors).not.toHaveProperty('text-yes-title');
+  }
+  expect(input['text-yes-title']).toBe(title);
+ });
+ it('catches incomplete titles on their own step without errors on earlier steps',()=>{
+  const form=referenceForms.find(f=>f.key==='painting')!,index=formSteps(form).findIndex(step=>step.fields.some(field=>field.id==='text-yes-title'));
+  for(const title of ['___','painting']){
+   expect(validateReferenceAnswers(form,{'text-yes-title':title},{final:true,step:index-1}).errors).not.toHaveProperty('text-yes-title');
+   expect(validateReferenceAnswers(form,{'text-yes-title':title},{final:true,step:index}).errors).toHaveProperty('text-yes-title');
+  }
+  expect(normalizeReferenceTitle('  School__5__Painting  ')).toBe('School_5_Painting');
+  expect(normalizeReferenceTitle('E\u0301cole_5_Painting')).toBe('École_5_Painting');
+  for(const final of [false,true])expect(validateReferenceAnswers(form,{'text-yes-title':['School_5_Painting']},{final}).errors).toHaveProperty('text-yes-title');
  });
  it.each(['2026-11-10T12:00:00.000Z', '2026-11-15T18:29:59.999Z'])('keeps student registration and all competition submissions open at %s', timestamp => {
   const now = new Date(timestamp);
