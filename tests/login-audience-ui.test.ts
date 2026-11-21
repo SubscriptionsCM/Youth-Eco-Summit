@@ -10,6 +10,7 @@ import {ApiError} from '../src/components/api';
 import {LoginPage} from '../src/components/auth-pages';
 import {EmailAccount} from '../src/components/email-account';
 import {ReferenceLogin} from '../src/components/reference-login';
+import {loginAudienceFromSearch} from '../src/components/auth-navigation';
 let host:HTMLDivElement,root:Root;
 beforeEach(()=>{
  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);window.history.replaceState(null,'','/login');request.mockReset();
@@ -56,6 +57,16 @@ it('clears pending verification and its password when changing account type',asy
 it('selects an educator URL hint and safe return without changing the stored account kind',async()=>{
  window.history.replaceState(null,'','/login?type=educator&next=%2Fadmin');await act(async()=>root.render(createElement(LoginPage)));
  expect(host.querySelector('h1')?.textContent).toBe('Educator sign in');expect(button('Educator').getAttribute('aria-pressed')).toBe('true');
+});
+it('replaces the selected URL type and preserves the safe return and hash across refresh',async()=>{
+ const next='/forms/teacher?edition=2027';window.history.replaceState(null,'',`/login?${new URLSearchParams({type:'educator',next})}#account`);
+ const entries=window.history.length,replace=vi.spyOn(window.history,'replaceState');
+ try{
+  await act(async()=>root.render(createElement(LoginPage)));await fill('contact','synthetic-alias');await fill('password','Synthetic-password-123');await click('Student');
+  expect(replace).toHaveBeenCalledTimes(1);expect(window.history.length).toBe(entries);expect(new URLSearchParams(window.location.search).get('type')).toBe('student');expect(new URLSearchParams(window.location.search).get('next')).toBe(next);expect(window.location.hash).toBe('#account');expect(loginAudienceFromSearch(window.location.search)).toBe('student');
+  expect(host.querySelector<HTMLInputElement>('[name=contact]')?.value).toBe('synthetic-alias');expect(host.querySelector<HTMLInputElement>('[name=password]')?.value).toBe('');
+  await act(async()=>root.unmount());root=createRoot(host);await act(async()=>root.render(createElement(LoginPage)));expect(host.querySelector('h1')?.textContent).toBe('Student sign in');
+ }finally{replace.mockRestore();}
 });
 it('gives embedded forms matching role copy, native hint and a safe link after mismatch',async()=>{
  const signedIn=vi.fn();window.history.replaceState(null,'','/register');await act(async()=>root.render(createElement(EmailAccount,{registrationForm:'teacher',onSignedIn:signedIn})));

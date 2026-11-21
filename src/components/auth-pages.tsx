@@ -15,7 +15,13 @@ export function LoginPage({ provider: fixedProvider }: { provider?: 'supabase'|'
   const registrationForm = audience === 'educator' ? 'teacher' : audience === 'school' ? 'school' : 'student';
   useEffect(() => { setDestination(safeReturnPath(new URLSearchParams(window.location.search).get('next'))); setAudience(loginAudienceFromSearch(window.location.search)); }, []);
   useEffect(() => { if (!cooldown) return; const timer = setTimeout(() => setCooldown(cooldown - 1), 1000); return () => clearTimeout(timer); }, [cooldown]);
-  function changeAudience(next:LoginAudience) { setAudience(next); setSent(false); setCooldown(0); setError(null); }
+  function changeAudience(next:LoginAudience) {
+    setAudience(next); setSent(false); setCooldown(0); setError(null);
+    const parameters=new URLSearchParams(window.location.search),destination=safeReturnPath(parameters.get('next'));
+    parameters.set('type',next);
+    if(destination)parameters.set('next',destination);else parameters.delete('next');
+    window.history.replaceState(window.history.state,'',`${window.location.pathname}?${parameters}${window.location.hash}`);
+  }
   async function requestCode() { setBusy(true); setError(null); try { const result = await api<Row>('/api/auth/otp/request', json('POST', { contact })); setSent(true); setCooldown(result.retryAfter || 60); } catch (e) { setError(e); } finally { setBusy(false); } }
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (!staff && !sent) return requestCode(); setBusy(true); setError(null);

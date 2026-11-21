@@ -75,7 +75,7 @@ beforeEach(() => {
   harness.values = []; harness.dependencies = []; harness.effects = []; harness.cursor = 0;
   harness.config = { data: { emailAccounts: true, accountProvider:'native' }, loading: false, error: '', reload: vi.fn() };
   harness.api.mockReset(); harness.assign.mockReset();
-  vi.stubGlobal('window', { location: { search: '', assign: harness.assign },dispatchEvent:vi.fn() });
+  vi.stubGlobal('window', { location: { pathname:'/login',search:'',hash:'',assign:harness.assign },history:{state:null,replaceState:vi.fn()},dispatchEvent:vi.fn() });
 });
 afterEach(() => vi.unstubAllGlobals());
 
