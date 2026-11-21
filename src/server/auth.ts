@@ -54,6 +54,11 @@ function password(value: unknown) {
   if (typeof value !== 'string' || value.length < 12 || value.length > 256) throw new AppError(400, 'Use a password between 12 and 256 characters.');
   return value;
 }
+function staffUsername(value: unknown) {
+  if (value === undefined || value === null || value === '') return null;
+  if (typeof value !== 'string' || !/^[A-Za-z][A-Za-z0-9._-]{2,59}$/.test(value.trim())) throw new AppError(400, 'Use a staff username of 3–60 letters, numbers, dots, underscores or hyphens, starting with a letter.');
+  return value.trim().toLowerCase();
+}
 export async function hashPassword(value: string) {
   password(value);
   return hashStoredPassword(value);
@@ -192,11 +197,13 @@ export function createAuth(db: Db, options: AuthOptions) {
         return startSession(user, false);
       }
       if (route === 'login') {
-        const email = contact(input.contact);
-        await rate(request, 'login', email);
-        const user = (await db.query<User>('SELECT * FROM users WHERE contact=$1', [email])).rows[0];
+        const identifier = typeof input.contact === 'string' && input.contact.length <= 254 ? input.contact.trim() : '';
+        const normalized = identifier.toLowerCase();
+        const validIdentifier = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier) || /^[A-Za-z][A-Za-z0-9._-]{2,59}$/.test(identifier);
+        const user = validIdentifier ? (await db.query<User>("SELECT * FROM users WHERE (contact=$1 OR lower(staff_username)=$1) AND role IN ('owner','admin','judge')", [normalized])).rows[0] : undefined;
+        await rate(request, 'login', user?.contact || normalized);
         const validPassword = await verifyPassword(input.password, user?.password_hash || null);
-        if (!user?.active || user.role === 'participant' || !validPassword) throw new AppError(401, 'Sign-in failed. Check your email and password.');
+        if (!user?.active || !['owner','admin','judge'].includes(user.role) || !validPassword) throw new AppError(401, 'Sign-in failed. Check your email or username and password.');
         return startSession(user, false);
       }
       if (route === 'logout') {
@@ -208,14 +215,16 @@ export function createAuth(db: Db, options: AuthOptions) {
         const email = contact(input.contact), role = input.role;
         if (!actor || (actor.role !== 'owner' && !(actor.role === 'admin' && role === 'judge'))) throw new AppError(403, 'Owners can invite staff; admins can invite judges.');
         if (!['owner','admin','judge'].includes(String(role))) throw new AppError(400, 'Choose an invited staff role.');
+        const username = staffUsername(input.staffUsername);
         await rate(request, 'invite', actor.id, 20);
         if (!options.sendEmail) throw new AppError(503, 'Email delivery is not configured.');
         if ((await db.query('SELECT id FROM users WHERE contact=$1', [email])).rows.length) throw new AppError(409, 'An account already exists for this contact.');
+        if (username && (await db.query('SELECT id FROM users WHERE lower(staff_username)=$1', [username])).rows.length) throw new AppError(409, 'An account already uses this staff username.');
         const token = randomBytes(32).toString('hex'), invitationId = randomUUID();
         const name = typeof input.name === 'string' ? input.name.trim().slice(0, 160) : '';
         // Preserve the legacy NOT NULL invitation column without requiring or exposing enrollment.
-        await db.query(`INSERT INTO auth_invitations(id,token_hash,contact,name,role,totp_secret,invited_by,expires_at)
-          VALUES($1,$2,$3,$4,$5,$6,$7,now()+interval '24 hours')`, [invitationId, digest(token), email, name, role, encrypt(new Secret({size:20}).base32, options.secret), actor.id]);
+        await db.query(`INSERT INTO auth_invitations(id,token_hash,contact,name,role,totp_secret,invited_by,staff_username,expires_at)
+          VALUES($1,$2,$3,$4,$5,$6,$7,$8,now()+interval '24 hours')`, [invitationId, digest(token), email, name, role, encrypt(new Secret({size:20}).base32, options.secret), actor.id, username]);
         try { await options.sendEmail(email, 'Your Youth Eco Summit invitation', `${options.origin}/invite?token=${token}`); }
         catch { await db.query('UPDATE auth_invitations SET consumed_at=now() WHERE id=$1', [invitationId]); throw new AppError(503, 'Invitation delivery is unavailable.'); }
         await audit(db, actor, 'auth.invite', 'user', invitationId, {role});
@@ -224,20 +233,22 @@ export function createAuth(db: Db, options: AuthOptions) {
       if (route === 'invitation/setup' || route === 'invitation/accept') {
         const token = typeof input.token === 'string' ? input.token.slice(0, 128) : '';
         await rate(request, 'invitation', digest(token), 20);
-        const invitation = (await db.query<{id:string;contact:string;name:string;role:Actor['role'];totp_secret:string}>(`SELECT i.* FROM auth_invitations i JOIN users inviter ON inviter.id=i.invited_by
+        const invitation = (await db.query<{id:string;contact:string;name:string;role:Actor['role'];totp_secret:string;staff_username:string|null}>(`SELECT i.* FROM auth_invitations i JOIN users inviter ON inviter.id=i.invited_by
           WHERE i.token_hash=$1 AND i.consumed_at IS NULL AND i.expires_at>now() AND inviter.active=true
           AND (inviter.role='owner' OR (inviter.role='admin' AND i.role='judge'))`, [digest(token)])).rows[0];
         if (!invitation) throw new AppError(401, 'Invitation is invalid or expired.');
-        if (route === 'invitation/setup') return json({ contact: invitation.contact });
+        if (route === 'invitation/setup') return json({ contact: invitation.contact, staffUsername: invitation.staff_username, role: invitation.role });
         const hash = await hashPassword(password(input.password));
-        await db.transaction(async tx => {
-          const claimed = await tx.query(`UPDATE auth_invitations SET consumed_at=now() WHERE id=$1 AND consumed_at IS NULL AND expires_at>now()
-            AND EXISTS(SELECT 1 FROM users WHERE id=auth_invitations.invited_by AND active=true AND (role='owner' OR (role='admin' AND auth_invitations.role='judge'))) RETURNING id`, [invitation.id]);
+        const accepted = await db.transaction(async tx => {
+          const claimed = await tx.query<typeof invitation>(`UPDATE auth_invitations SET consumed_at=now() WHERE id=$1 AND consumed_at IS NULL AND expires_at>now()
+            AND EXISTS(SELECT 1 FROM users WHERE id=auth_invitations.invited_by AND active=true AND (role='owner' OR (role='admin' AND auth_invitations.role='judge'))) RETURNING *`, [invitation.id]);
           if (!claimed.rows.length) throw new AppError(401, 'Invitation is invalid or expired.');
-          const created = await tx.query(`INSERT INTO users(id,contact,name,role,password_hash) VALUES($1,$2,$3,$4,$5) ON CONFLICT(contact) DO NOTHING RETURNING id`, [randomUUID(), invitation.contact, invitation.name, invitation.role, hash]);
-          if (!created.rows.length) throw new AppError(409, 'An account already exists for this contact.');
+          const bound = claimed.rows[0];
+          const created = await tx.query(`INSERT INTO users(id,contact,name,role,password_hash,staff_username) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING RETURNING id`, [randomUUID(), bound.contact, bound.name, bound.role, hash, bound.staff_username]);
+          if (!created.rows.length) throw new AppError(409, 'An account already exists for this email or staff username.');
+          return bound;
         });
-        return json({ accepted: true, message: 'Account created. Sign in with your email and password.' });
+        return json({ accepted: true, staffUsername: accepted.staff_username, role: accepted.role, message: `Account created. Sign in with your ${accepted.staff_username ? 'email or username' : 'email'} and password.` });
       }
       if (route === 'recovery/request') {
         const email = contact(input.contact);

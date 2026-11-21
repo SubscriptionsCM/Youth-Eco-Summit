@@ -9,9 +9,9 @@ vi.mock('../src/components/api',async original=>({...await original<typeof impor
 import {Field} from '../src/components/shared';
 import {EmailAccount} from '../src/components/email-account';
 import {JudgeSignIn} from '../src/components/judge-portal-login';
-import {AccountSetup} from '../src/components/auth-pages';
+import {AccountSetup,LoginPage} from '../src/components/auth-pages';
 let host:HTMLDivElement,root:Root;
-beforeEach(()=>{(globalThis as any).IS_REACT_ACT_ENVIRONMENT=true;request.mockReset();host=document.createElement('div');document.body.append(host);root=createRoot(host);});
+beforeEach(()=>{(globalThis as any).IS_REACT_ACT_ENVIRONMENT=true;request.mockReset();window.history.replaceState(null,'','/login');host=document.createElement('div');document.body.append(host);root=createRoot(host);});
 afterEach(async()=>{await act(async()=>root.unmount());host.remove();});
 it('masks passwords initially and toggles each field independently without submitting',async()=>{
  const submit=vi.fn();await act(async()=>root.render(createElement('form',{onSubmit:submit},createElement(Field,{name:'password',title:'Password',type:'password',required:true}),createElement(Field,{name:'confirmPassword',title:'Confirm password',type:'password',required:true}))));
@@ -27,8 +27,15 @@ it.each(['wordpress','supabase'] as const)('requires matching participant login 
 });
 it('shows password confirmation instead of an authenticator on judge sign-in and rejects mismatches',async()=>{
  await act(async()=>root.render(createElement(JudgeSignIn)));expect(host.textContent).not.toMatch(/authenticator/i);expect(host.querySelector('[name=totp]')).toBeNull();
+ const contact=host.querySelector<HTMLInputElement>('[name=contact]')!;expect(contact.type).toBe('text');expect(contact.autocomplete).toBe('username');expect(contact.labels?.[0].textContent).toContain('Judge email or username');
  host.querySelector<HTMLInputElement>('[name=password]')!.value='One password';host.querySelector<HTMLInputElement>('[name=confirmPassword]')!.value='Another';
  await act(async()=>host.querySelector('form')!.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));expect(request).not.toHaveBeenCalled();expect(host.querySelector('[role=alert]')?.textContent).toContain('passwords must match');
+});
+it('accepts a staff username while preserving participant contact input',async()=>{
+ request.mockResolvedValue({emailAccounts:false});await act(async()=>root.render(createElement(LoginPage)));
+ expect(host.querySelector<HTMLInputElement>('[name=contact]')?.type).toBe('tel');
+ await act(async()=>[...host.querySelectorAll('button')].find(button=>button.textContent==='Admin or judge')!.click());
+ const contact=host.querySelector<HTMLInputElement>('[name=contact]')!;expect(contact.type).toBe('text');expect(contact.autocomplete).toBe('username');expect(contact.labels?.[0].textContent).toContain('Staff email or username');
 });
 it('keeps invitation setup password-only and never requests enrollment information',async()=>{
  window.history.replaceState(null,'','/invite?token=test-only');request.mockResolvedValue({contact:'judge@example.org'});
@@ -40,4 +47,16 @@ it('requires matching new passwords for staff recovery without an authenticator'
  expect(host.textContent).not.toMatch(/authenticator/i);expect(host.querySelector('[name=totp]')).toBeNull();
  host.querySelector<HTMLInputElement>('[name=password]')!.value='New password long enough';host.querySelector<HTMLInputElement>('[name=confirmPassword]')!.value='Different';
  await act(async()=>host.querySelector('form')!.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));expect(request).not.toHaveBeenCalled();expect(host.querySelector('[role=alert]')?.textContent).toContain('passwords must match');
+});
+it.each([['admin','/login?next=%2Fadmin'],['owner','/login?next=%2Fadmin'],['judge','/judge/login']])('shows the token-bound staff username and correct %s sign-in link',async(role,href)=>{
+ window.history.replaceState(null,'','/invite?token=test-only');request.mockResolvedValueOnce({contact:'staff@example.org',staffUsername:'rudhraksh',role}).mockResolvedValueOnce({accepted:true,staffUsername:'rudhraksh',role});
+ await act(async()=>root.render(createElement(AccountSetup)));await act(async()=>host.querySelector<HTMLButtonElement>('button')!.click());
+ expect(host.textContent).toContain('rudhraksh');expect(host.textContent).toContain('staff@example.org');expect(host.querySelector('[name=staffUsername]')).toBeNull();
+ for(const name of ['password','confirmPassword']){const input=host.querySelector<HTMLInputElement>(`[name=${name}]`)!;expect(input.minLength).toBe(12);input.value='Long enough test password';}
+ await act(async()=>host.querySelector('form')!.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
+ expect(JSON.parse(request.mock.calls[1][1].body)).toEqual({token:'test-only',password:'Long enough test password',confirmPassword:'Long enough test password'});
+ expect(host.querySelector('a')?.getAttribute('href')).toBe(href);expect(host.textContent).toContain('email or username');
+});
+it('keeps staff recovery email-only',async()=>{
+ await act(async()=>root.render(createElement(AccountSetup,{recovery:true})));expect(host.querySelector<HTMLInputElement>('[name=contact]')?.type).toBe('email');
 });
