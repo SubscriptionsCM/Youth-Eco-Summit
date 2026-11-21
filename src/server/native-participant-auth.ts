@@ -3,6 +3,8 @@ import { compare as bcryptCompare } from 'bcryptjs';
 import { z } from 'zod';
 import { AppError, audit, id, type Actor } from './core';
 import type { Db } from './db';
+import { participantKind, type ParticipantKind } from '../domain/participant-access';
+import { loginAudienceLabels, type LoginAudience } from '../domain/login-audience';
 
 const registrationCookie = 'yes_native_participant';
 const alphabet = './0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
@@ -13,13 +15,14 @@ const email = z.string().trim().toLowerCase().pipe(z.email().max(254));
 const username = z.string().trim().toLowerCase().pipe(z.string().min(1).max(60).refine(value => !/[\u0000-\u001f\u007f]/.test(value)));
 const profileSchema = z.object({ contact: email, username, formKey: z.enum(['student', 'teacher', 'school']) });
 type Profile = z.infer<typeof profileSchema>;
-type NativeUser = Actor & { contact: string; active: boolean; auth_version: number; password_hash: string | null; totp_secret: string | null; totp_last_counter: string | number; native_username: string; verified_contact: string };
+type NativeUser = Actor & { contact: string; active: boolean; auth_version: number; password_hash: string | null; totp_secret: string | null; totp_last_counter: string | number; native_username: string; verified_contact: string; participant_kind: ParticipantKind };
 type Challenge = { id: string; purpose: 'signup' | 'recovery'; browser_hash: string; form_key: string; identifier: string; recipient: string; username: string; user_id: string | null; code_hash: string; consumed_at: unknown; cooling?: boolean };
 type NativeOptions = {
  request: Request; secret: string; secureCookies?: boolean;
  sendEmail?: (contact: string, subject: string, body: string) => Promise<void>;
  hashPassword: (value: string, existingPassword?: boolean) => Promise<string>;
  verifyPassword: (value: unknown, stored: string | null) => Promise<boolean>;
+ rateLogin: (candidates: NativeUser[], login: string) => Promise<void>;
 };
 
 function identifier(value: unknown) {
@@ -90,6 +93,52 @@ async function findCandidates(db: Db, login: string) {
  return rows.length <= 2 ? rows : [];
 }
 const eligible = (user: NativeUser | undefined): user is NativeUser => !!user?.active && user.role === 'participant' && user.verified_contact === user.contact && !!user.password_hash;
+
+const loginFailure = () => new AppError(401, 'Sign-in failed. Check your username or email, password and selected sign-in option.');
+export function readLoginAudience(value: unknown): LoginAudience | undefined {
+ if (value === undefined) return undefined;
+ if (typeof value !== 'string' || !Object.hasOwn(loginAudienceLabels, value)) throw new AppError(400, 'Choose a valid sign-in option.');
+ return value as LoginAudience;
+}
+
+/** Login alone checks all three unique identifiers; recovery keeps its email-owner rules. */
+export async function localPasswordLogin(db: Db, input: Record<string, unknown>, endpoint: 'participant' | 'staff', startSession: (user: NativeUser, mfa: boolean) => Promise<Response>, options: Pick<NativeOptions, 'verifyPassword' | 'hashPassword' | 'rateLogin'>) {
+ const audience = readLoginAudience(input.loginAudience), login = identifier(input.contact), value = input.password;
+ const { rows: candidates } = await db.query<NativeUser>(`SELECT u.*,a.username AS native_username,a.verified_contact FROM users u
+  LEFT JOIN native_participant_accounts a ON a.user_id=u.id
+  WHERE lower(u.contact)=$1 OR lower(a.username)=$1 OR lower(u.staff_username)=$1 LIMIT 3`, [login]);
+ await options.rateLogin(candidates, login);
+ const possible = candidates.filter(user => (user.active && ['owner','admin','judge'].includes(user.role) && !!user.password_hash) || eligible(user));
+ const matches: { user: NativeUser; stored: string; native: boolean }[] = [];
+ if (!possible.length) await options.verifyPassword(value, null);
+ for (const user of possible) {
+  const stored = user.password_hash!, native = /^scrypt-32768-8-3\$/.test(stored);
+  const validNative = await options.verifyPassword(value, native ? stored : null);
+  if (native ? validNative : user.role === 'participant' && await verifyImportedPassword(value, stored)) matches.push({ user, stored, native });
+ }
+ if (matches.length !== 1) throw loginFailure();
+ const { user, stored, native } = matches[0];
+ const current = await db.transaction(async tx => {
+  const { rows: [locked] } = await tx.query<NativeUser>(`SELECT u.*,a.username AS native_username,a.verified_contact FROM users u
+   LEFT JOIN native_participant_accounts a ON a.user_id=u.id WHERE u.id=$1 FOR UPDATE OF u`, [user.id]);
+  if (!locked?.active || locked.role !== user.role || locked.password_hash !== stored || locked.contact !== user.contact || locked.auth_version !== user.auth_version || (locked.role === 'participant' && !eligible(locked))) throw loginFailure();
+  const kind = participantKind({role:locked.role,participantKind:locked.participant_kind});
+  const actual: LoginAudience | undefined = locked.role === 'participant' ? kind === 'unclassified' ? undefined : kind : 'admin';
+  const wrongEndpoint = (endpoint === 'participant') !== (locked.role === 'participant');
+  if (wrongEndpoint || (actual && audience !== undefined && audience !== actual)) {
+   if (!actual) throw loginFailure();
+   throw new AppError(409, `Use the ${loginAudienceLabels[actual]} sign-in option for this account.`, {code:'LOGIN_AUDIENCE_MISMATCH',loginAudience:actual});
+  }
+  if (!native) {
+   const newHash = await options.hashPassword(value as string, true);
+   const { rows: [updated] } = await tx.query<NativeUser>('UPDATE users SET password_hash=$2,updated_at=now() WHERE id=$1 RETURNING *', [user.id, newHash]);
+   await tx.query('UPDATE auth_sessions SET revoked_at=now() WHERE user_id=$1 AND revoked_at IS NULL', [user.id]);
+   return updated;
+  }
+  return locked;
+ });
+ return startSession(current, false);
+}
 async function assertAvailable(db: Db, profile: Profile) {
  const found = await db.query(`SELECT id FROM users WHERE lower(contact) IN ($1,$2)
   UNION ALL SELECT user_id AS id FROM native_participant_accounts WHERE lower(username) IN ($1,$2) LIMIT 1`, [profile.contact, profile.username]);
@@ -166,30 +215,7 @@ export async function nativeParticipantAction(db: Db, route: string, input: Reco
    return startSession(user, false);
   }
   if (route === 'participant/login') {
-   const login = identifier(input.contact), value = input.password;
-   if (typeof value !== 'string' || !value || Buffer.byteLength(value) > 4096) throw new AppError(400, 'Enter your password.');
-   const candidates = (await findCandidates(db, login)).filter(eligible);
-   const matches: { user: NativeUser; stored: string; native: boolean }[] = [];
-   if (!candidates.length) await options.verifyPassword(value, null);
-   for (const user of candidates) {
-    const stored = user.password_hash!, native = /^scrypt-32768-8-3\$/.test(stored);
-    const validNative = await options.verifyPassword(value, native ? stored : null);
-    if (native ? validNative : await verifyImportedPassword(value, stored)) matches.push({ user, stored, native });
-   }
-   if (matches.length !== 1) throw new AppError(401, 'Sign-in failed. Check your username or email and password.');
-   const { user, stored, native } = matches[0];
-   const newHash = native ? stored : await options.hashPassword(value, true);
-   const current = await db.transaction(async tx => {
-    const { rows: [locked] } = await tx.query<NativeUser>('SELECT * FROM users WHERE id=$1 FOR UPDATE', [user.id]);
-    if (!locked?.active || locked.role !== 'participant' || locked.password_hash !== stored || locked.contact !== user.contact || locked.auth_version !== user.auth_version) throw new AppError(401, 'This account changed. Sign in again.');
-    if (!native) {
-     const { rows: [updated] } = await tx.query<NativeUser>('UPDATE users SET password_hash=$2,updated_at=now() WHERE id=$1 RETURNING *', [user.id, newHash]);
-     await tx.query('UPDATE auth_sessions SET revoked_at=now() WHERE user_id=$1 AND revoked_at IS NULL', [user.id]);
-     return updated;
-    }
-    return locked;
-   });
-   return startSession(current, false);
+   return localPasswordLogin(db, input, 'participant', startSession, options);
   }
   if (route === 'participant/recovery/request') {
    const login = identifier(input.contact), candidates = await findCandidates(db, login);

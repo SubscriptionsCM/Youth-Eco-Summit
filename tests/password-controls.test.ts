@@ -19,17 +19,19 @@ it('masks passwords initially and toggles each field independently without submi
  inputs[0].value='Private test value';await act(async()=>buttons[0].click());expect(inputs[0].type).toBe('text');expect(inputs[0].value).toBe('Private test value');expect(inputs[1].type).toBe('password');expect(buttons[0].getAttribute('aria-pressed')).toBe('true');expect(submit).not.toHaveBeenCalled();
  await act(async()=>buttons[0].click());expect(inputs[0].type).toBe('password');
 });
-it.each(['wordpress','supabase'] as const)('requires matching participant login passwords for %s before requesting authentication',async provider=>{
+it.each(['native','wordpress','supabase'] as const)('uses one password for %s sign-in and keeps confirmation for signup',async provider=>{
  await act(async()=>root.render(createElement(EmailAccount,{provider,onSignedIn:vi.fn()})));
- const password=host.querySelector<HTMLInputElement>('[name=password]')!,confirm=host.querySelector<HTMLInputElement>('[name=confirmPassword]');expect(confirm?.required).toBe(true);
- password.value='Example password';confirm!.value='Different password';await act(async()=>host.querySelector('form')!.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
- expect(request).not.toHaveBeenCalled();expect(host.querySelector('[role=alert]')?.textContent).toContain('passwords must match');
+ expect(host.querySelector('[name=password]')).not.toBeNull();expect(host.querySelector('[name=confirmPassword]')).toBeNull();
+ await act(async()=>[...host.querySelectorAll('button')].find(button=>button.textContent==='Create a new account')!.click());
+ expect(host.querySelector<HTMLInputElement>('[name=confirmPassword]')?.required).toBe(true);
 });
-it('shows password confirmation instead of an authenticator on judge sign-in and rejects mismatches',async()=>{
+it('uses one password on judge sign-in and submits the staff audience',async()=>{
+ request.mockRejectedValue(new Error('Synthetic sign-in rejected'));
  await act(async()=>root.render(createElement(JudgeSignIn)));expect(host.textContent).not.toMatch(/authenticator/i);expect(host.querySelector('[name=totp]')).toBeNull();
  const contact=host.querySelector<HTMLInputElement>('[name=contact]')!;expect(contact.type).toBe('text');expect(contact.autocomplete).toBe('username');expect(contact.labels?.[0].textContent).toContain('Judge email or username');
- host.querySelector<HTMLInputElement>('[name=password]')!.value='One password';host.querySelector<HTMLInputElement>('[name=confirmPassword]')!.value='Another';
- await act(async()=>host.querySelector('form')!.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));expect(request).not.toHaveBeenCalled();expect(host.querySelector('[role=alert]')?.textContent).toContain('passwords must match');
+ contact.value='synthetic-judge';host.querySelector<HTMLInputElement>('[name=password]')!.value='One synthetic password';expect(host.querySelector('[name=confirmPassword]')).toBeNull();
+ await act(async()=>host.querySelector('form')!.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
+ expect(request).toHaveBeenCalledWith('/api/auth/login',expect.objectContaining({body:JSON.stringify({contact:'synthetic-judge',password:'One synthetic password',loginAudience:'admin'})}));
 });
 it('accepts a staff username while preserving participant contact input',async()=>{
  request.mockResolvedValue({emailAccounts:false});await act(async()=>root.render(createElement(LoginPage)));

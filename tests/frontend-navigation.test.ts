@@ -1,8 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { afterLoginPath, dashboardLabel, dashboardPath, loginPath, safeReturnPath } from '../src/components/auth-navigation';
+import { afterLoginPath, dashboardLabel, dashboardPath, loginPath, loginAudienceFromSearch, safeReturnPath, signedOutPath } from '../src/components/auth-navigation';
 import { catalogueCompetitions, competitionAvailability, competitionExcerpt, competitionPath, findProgrammeCompetition, findPublicCompetition } from '../src/components/competition-public';
 
 describe('authenticated navigation', () => {
+  it.each([['?type=educator','educator'],['?type=school','school'],['?type=admin','admin'],['?type=student&next=/admin','student'],['?next=/teachers/register','educator'],['?next=/forms/teacher','educator'],['?next=/competitions/enter?submitter=educator','educator'],['?next=/forms/painting?submitter=educator','educator'],['?next=/forms/school','school'],['?next=/schools/nominate','student'],['?next=/school','school'],['?next=/schools/register','school'],['?next=/judge/assignments','admin'],['?next=/admin','admin'],['?next=https://outside.test/admin','student'],['?next=//outside.test/admin','student'],['?next=/%2foutside.test/admin','student'],['?type=owner','student']])('selects the safe sign-in audience for %s', (search,expected)=>{
+    expect(loginAudienceFromSearch(search)).toBe(expected);
+  });
+  it('retains known educator and school choices after sign-out without reclassifying anyone',()=>{
+    expect(signedOutPath('participant','educator')).toBe('/login?type=educator');
+    expect(signedOutPath('participant','school')).toBe('/login?type=school');
+    expect(signedOutPath('participant','unclassified')).toBe('/login');
+    expect(loginPath('https://outside.test','educator')).toBe('/login?type=educator');
+    expect(afterLoginPath('participant','/school','student')).toBe('/dashboard');
+  });
   it('preserves shared file links for their permitted account roles',()=>{
     const path='/files/123e4567-e89b-42d3-a456-426614174000';
     for(const role of ['participant','owner','admin'])expect(afterLoginPath(role,path)).toBe(path);

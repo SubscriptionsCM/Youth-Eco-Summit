@@ -114,14 +114,14 @@ describe('global participant login provider', () => {
     const html = renderToStaticMarkup(tree);
     expect(html).toContain('Staff email');
     expect(html).not.toContain('Authenticator code');
-    expect(html).toContain('Confirm password');
+    expect(html).not.toContain('Confirm password');
     expect(html).toContain('Show password');
-    expect(html).toContain('Recover account access');
+    expect(html).toContain('Recover admin or judge access');
     element(tree, node => node.props.name === 'contact').props.onChange({ target: { value: 'judge@example.org' } });
-    vi.stubGlobal('FormData', class extends Map<string, string> { constructor() { super([['password', 'test passphrase'], ['confirmPassword', 'test passphrase']]); } });
+    vi.stubGlobal('FormData', class extends Map<string, string> { constructor() { super([['password', 'test passphrase']]); } });
     harness.api.mockResolvedValueOnce({ actor: { role: 'judge' } });
     await element(page(), node => node.type === 'form').props.onSubmit({ preventDefault() {}, currentTarget: {} });
-    expect(harness.api).toHaveBeenCalledWith('/api/auth/login', expect.objectContaining({ body: JSON.stringify({ password: 'test passphrase', confirmPassword: 'test passphrase', contact: 'judge@example.org' }) }));
+    expect(harness.api).toHaveBeenCalledWith('/api/auth/login', expect.objectContaining({ body: JSON.stringify({ password: 'test passphrase', contact: 'judge@example.org', loginAudience: 'admin' }) }));
     expect(harness.assign).toHaveBeenCalledWith('/judge');
   });
 
@@ -134,7 +134,7 @@ describe('global participant login provider', () => {
     page();
     let tree = page();
     // An admin destination initially selects staff. The participant can switch back.
-    element(tree, node => node.type === 'button' && node.props.children === 'Participant').props.onClick();
+    element(tree, node => node.type === 'button' && node.props.children === 'Student').props.onClick();
     tree = page();
     harness.api.mockResolvedValueOnce({ actor: { role: 'participant',participantKind:'student' } });
     await element(tree, node => node.type === EmailAccount).props.onSignedIn();
@@ -152,10 +152,9 @@ describe('global participant login provider', () => {
   it.each(['missing actor', 'session request failed'])('keeps email sign-in actionable when %s', async failure => {
     if (failure === 'missing actor') harness.api.mockResolvedValueOnce({ actor: null });
     else harness.api.mockRejectedValueOnce(new Error('Session temporarily unavailable'));
-    await element(page(), node => node.type === EmailAccount).props.onSignedIn();
+    await expect(element(page(), node => node.type === EmailAccount).props.onSignedIn()).rejects.toThrow();
     expect(harness.assign).not.toHaveBeenCalled();
     const html = renderToStaticMarkup(page());
-    expect(html).toContain('role="alert"');
     expect(html).toContain('Username or email');
   });
 
@@ -229,7 +228,7 @@ describe('WordPress signup and recovery UI', () => {
     const html = renderToStaticMarkup(account(props));
     expect(html).toContain('Follow the emailed password-reset link.');
     expect(html).not.toContain('Recovery code');
-    expect(html).toContain('Sign in to your account');
+    expect(html).toContain('Sign in to your student, educator or school account');
     expect(props.onSignedIn).not.toHaveBeenCalled();
   });
 });

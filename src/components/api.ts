@@ -1,17 +1,21 @@
+import type { LoginAudience } from '../domain/login-audience';
 export type Row = Record<string, any>;
 export type PublicConfig = { configured?: boolean; editions: Row[]; competitions: Row[]; content: Row[] };
 export class ApiError extends Error {
   fields?: Record<string, string>;
   status?: number;
-  constructor(message: string, fields?: Record<string, string>, status?: number) { super(message); this.fields = fields; this.status = status; }
+  code?: string;
+  loginAudience?: LoginAudience;
+  constructor(message: string, fields?: Record<string, string>, status?: number, metadata?: {code?:string;loginAudience?:LoginAudience}) { super(message); this.fields = fields; this.status = status; this.code = metadata?.code; this.loginAudience = metadata?.loginAudience; }
 }
 export async function api<T = Row>(path: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(path, { ...options, credentials: 'same-origin', headers: { ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...options.headers }, cache: 'no-store' });
   let result;
-  try { result = await response.json(); } catch { throw new ApiError('The service could not respond. Please try again.'); }
+  try { result = await response.json(); } catch { throw new ApiError('The service could not respond. Please try again.', undefined, response.status); }
   if (!response.ok || result.error) {
     const fields = result.fields?.fieldErrors ? Object.fromEntries(Object.entries(result.fields.fieldErrors).map(([key, value]) => [key, Array.isArray(value) ? value.join(' ') : String(value)])) : result.fields;
-    throw new ApiError(typeof result.error === 'string' ? result.error : result.error?.message || 'The request could not be completed.', fields, response.status);
+    const metadata = {code: typeof result.code === 'string' ? result.code : undefined, loginAudience: ['student','educator','school','admin'].includes(result.loginAudience) ? result.loginAudience as LoginAudience : undefined};
+    throw new ApiError(typeof result.error === 'string' ? result.error : result.error?.message || 'The request could not be completed.', fields, response.status, metadata);
   }
   return result.data as T;
 }

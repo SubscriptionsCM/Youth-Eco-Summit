@@ -4,7 +4,7 @@ import { db as database, type Db } from './db';
 import { AppError, type Actor, audit } from './core';
 import { supabaseParticipantAction } from './supabase-auth';
 import { environmentWordPressBridge, verifyWordPressActor, wordPressParticipantAction, type WordPressBridge } from './wordpress-auth';
-import { nativeParticipantAction } from './native-participant-auth';
+import { localPasswordLogin, nativeParticipantAction, readLoginAudience } from './native-participant-auth';
 import {participantKind,type ParticipantKind} from '../domain/participant-access';
 import { sendTransactionalEmail, smtpConfigured } from './email';
 
@@ -116,15 +116,23 @@ export function createAuth(db: Db, options: AuthOptions) {
     if (!current?.wordpress_bound || current.id !== actor.id || current.role !== actor.role || current.contact !== actor.contact) return null;
     return actor;
   }
-  async function rate(request: Request, purpose: string, identity: string, limit = 10) {
-    const network = options.trustedIpHeader ? request.headers.get(options.trustedIpHeader)?.split(',')[0]?.trim() || 'unknown' : 'untrusted';
-    for (const [scope, value, ceiling] of [['contact', identity, limit], ['network', network, limit * 8]] as const) {
+  const networkIdentity = (request: Request) => options.trustedIpHeader ? request.headers.get(options.trustedIpHeader)?.split(',')[0]?.trim() || 'unknown' : 'untrusted';
+  async function rateCounter(purpose: string, scope: 'contact' | 'network', value: string, ceiling: number) {
       const rateKey = `${purpose}:${scope}:${digest(value)}`;
       const { rows } = await db.query<{count: number}>(`INSERT INTO auth_rates(key,count,resets_at) VALUES($1,1,now()+interval '15 minutes')
         ON CONFLICT(key) DO UPDATE SET count=CASE WHEN auth_rates.resets_at<=now() THEN 1 ELSE auth_rates.count+1 END,
         resets_at=CASE WHEN auth_rates.resets_at<=now() THEN now()+interval '15 minutes' ELSE auth_rates.resets_at END RETURNING count`, [rateKey]);
       if (rows[0].count > ceiling) throw new AppError(429, 'Too many attempts. Please try again later.');
-    }
+  }
+  async function rate(request: Request, purpose: string, identity: string, limit = 10) {
+    await rateCounter(purpose, 'contact', identity, limit);
+    await rateCounter(purpose, 'network', networkIdentity(request), limit * 8);
+  }
+  async function rateLogin(request: Request, candidates: {contact:string}[], login: string) {
+    // Every password check for a known account spends its existing canonical budget, across endpoints and aliases.
+    for (const user of candidates) await rateCounter('login', 'contact', user.contact.toLowerCase(), 10);
+    if (!candidates.length) await rateCounter('login', 'contact', login, 10);
+    await rateCounter('login', 'network', networkIdentity(request), 80);
   }
   async function startSession(user: User, mfa: boolean) {
     const token = randomBytes(32).toString('hex'), seconds = user.role === 'participant' ? 43_200 : 28_800;
@@ -158,13 +166,15 @@ export function createAuth(db: Db, options: AuthOptions) {
       if (route === 'session' && request.method === 'GET') return json({ actor: await getActor(request) });
       if (request.method !== 'POST') throw new AppError(405, 'Method not allowed.');
       const input = await body(request);
-      // Older API clients may omit confirmation; browser forms require it.
+      if (route === 'login' || route === 'participant/login') readLoginAudience(input.loginAudience);
+      // Password-creation forms require confirmation; older API clients may omit it.
       if (input.confirmPassword !== undefined && (typeof input.password !== 'string' || input.password !== input.confirmPassword)) throw new AppError(400, 'The passwords must match.');
       if (['participant/signup','participant/login','participant/verify','participant/resend','participant/recovery/request','participant/recovery/complete'].includes(route)) {
         const participantProvider = process.env.AUTH_PARTICIPANT_PROVIDER === 'native' ? 'native' : process.env.AUTH_PARTICIPANT_PROVIDER === 'wordpress' ? 'wordpress' : 'supabase';
         await rate(request,participantProvider+'-'+route,String(input.contact||'').trim().toLowerCase(),5);
         if (participantProvider === 'native') return await nativeParticipantAction(db,route,input,startSession,{...options,request,verifyPassword,
-          hashPassword: (value, existingPassword = false) => existingPassword ? hashStoredPassword(value) : hashPassword(value)});
+          hashPassword: (value, existingPassword = false) => existingPassword ? hashStoredPassword(value) : hashPassword(value),
+          rateLogin: (candidates, login) => rateLogin(request, candidates, login)});
         if (process.env.AUTH_PARTICIPANT_PROVIDER === 'wordpress') return await wordPressParticipantAction(db,route,input,wordpressBridge,startSession,{...options,request});
         return await supabaseParticipantAction(db,route,input,startSession);
       }
@@ -197,14 +207,9 @@ export function createAuth(db: Db, options: AuthOptions) {
         return startSession(user, false);
       }
       if (route === 'login') {
-        const identifier = typeof input.contact === 'string' && input.contact.length <= 254 ? input.contact.trim() : '';
-        const normalized = identifier.toLowerCase();
-        const validIdentifier = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier) || /^[A-Za-z][A-Za-z0-9._-]{2,59}$/.test(identifier);
-        const user = validIdentifier ? (await db.query<User>("SELECT * FROM users WHERE (contact=$1 OR lower(staff_username)=$1) AND role IN ('owner','admin','judge')", [normalized])).rows[0] : undefined;
-        await rate(request, 'login', user?.contact || normalized);
-        const validPassword = await verifyPassword(input.password, user?.password_hash || null);
-        if (!user?.active || !['owner','admin','judge'].includes(user.role) || !validPassword) throw new AppError(401, 'Sign-in failed. Check your email or username and password.');
-        return startSession(user, false);
+        return await localPasswordLogin(db,input,'staff',startSession,{verifyPassword,
+          hashPassword: (value, existingPassword = false) => existingPassword ? hashStoredPassword(value) : hashPassword(value),
+          rateLogin: (candidates, login) => rateLogin(request,candidates,login)});
       }
       if (route === 'logout') {
         await db.query('UPDATE auth_sessions SET revoked_at=now() WHERE token_hash=$1', [digest(sessionToken(request))]);
@@ -280,7 +285,7 @@ export function createAuth(db: Db, options: AuthOptions) {
       }
       return null;
     } catch (error) {
-      if (error instanceof AppError) return Response.json({ error: error.message }, { status: error.status, headers: { 'Cache-Control': 'no-store' } });
+      if (error instanceof AppError) return Response.json({ error: error.message, ...error.details }, { status: error.status, headers: { 'Cache-Control': 'no-store' } });
       throw error;
     }
   }

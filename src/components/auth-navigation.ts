@@ -1,4 +1,5 @@
 import {canUseForm,canUseSchoolWorkspace,type ParticipantKind} from '../domain/participant-access';
+import type { LoginAudience } from '../domain/login-audience';
 const localOrigin = 'https://youth-eco.local';
 
 /** Accept a local page destination without allowing an open redirect. */
@@ -23,9 +24,22 @@ export function dashboardLabel(role?: string): string {
   return role === 'judge' ? 'Judging dashboard' : role === 'owner' || role === 'admin' ? 'Administration' : 'My dashboard';
 }
 
-export function loginPath(destination?: unknown): string {
+export function loginAudienceFromSearch(search:string):LoginAudience {
+  const parameters=new URLSearchParams(search),type=parameters.get('type');
+  if(type==='student'||type==='educator'||type==='school'||type==='admin')return type;
+  const next=safeReturnPath(parameters.get('next'));
+  if(!next)return 'student';
+  const parsed=new URL(next,localOrigin),path=decodeURIComponent(parsed.pathname);
+  if(/^\/(admin|judge)(\/|$)/.test(path))return 'admin';
+  if(/^\/(?:teachers|forms\/teacher)(?:\/|$)/.test(path)||(/^\/(?:forms\/|competitions\/enter(?:\/|$))/.test(path)&&parsed.searchParams.get('submitter')==='educator'))return 'educator';
+  if(/^\/(?:school(?:s\/register)?|forms\/school)(?:\/|$)/.test(path))return 'school';
+  return 'student';
+}
+
+export function loginPath(destination?: unknown, type?:LoginAudience): string {
   const next = safeReturnPath(destination);
-  return next ? `/login?${new URLSearchParams({ next })}` : '/login';
+  const parameters=new URLSearchParams({...type?{type}:{},...next?{next}:{}});
+  return parameters.size ? `/login?${parameters}` : '/login';
 }
 
 export function judgeLoginPath(destination?:unknown):string{
@@ -52,6 +66,6 @@ export function afterLoginPath(role: string, destination?: unknown, kind?:Partic
 }
 
 /** Keep the appropriate sign-in flow after a deliberate sign-out. */
-export function signedOutPath(role?:string):string{
- return role==='judge'?'/judge/login':['owner','admin'].includes(role||'')?loginPath('/admin'):'/login';
+export function signedOutPath(role?:string,kind?:ParticipantKind|null):string{
+ return role==='judge'?'/judge/login':['owner','admin'].includes(role||'')?loginPath('/admin'):kind==='educator'||kind==='school'?loginPath(undefined,kind):'/login';
 }

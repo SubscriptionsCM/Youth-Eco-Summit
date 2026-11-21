@@ -3,27 +3,49 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { api, json, type Row } from './api';
 import { Errors, Field, Notice, PageTitle, ResourceState, useResource } from './shared';
-import { afterLoginPath, safeReturnPath, signedOutPath } from './auth-navigation';
-import { EmailAccount } from './email-account';
+import { afterLoginPath, loginAudienceFromSearch, safeReturnPath, signedOutPath } from './auth-navigation';
+import { EmailAccount, LoginErrors } from './email-account';
+import { loginAudienceLabels, type LoginAudience } from '../domain/login-audience';
 
-export function LoginPage() {
+export function LoginPage({ provider: fixedProvider }: { provider?: 'supabase'|'wordpress'|'native' } = {}) {
   const configuration = useResource<Row>('/api/forms/config');
-  const [staff, setStaff] = useState(false), [contact, setContact] = useState(''), [sent, setSent] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState<unknown>(null), [cooldown, setCooldown] = useState(0);
+  const [audience, setAudience] = useState<LoginAudience>('student'), [contact, setContact] = useState(''), [sent, setSent] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState<unknown>(null), [cooldown, setCooldown] = useState(0);
   const [destination, setDestination] = useState<string | null>(null);
-  useEffect(() => { const next = safeReturnPath(new URLSearchParams(window.location.search).get('next')); setDestination(next); if (next && /^\/(admin|judge)(\/|\?|$)/.test(next)) setStaff(true); }, []);
+  const staff = audience === 'admin';
+  const registrationForm = audience === 'educator' ? 'teacher' : audience === 'school' ? 'school' : 'student';
+  useEffect(() => { setDestination(safeReturnPath(new URLSearchParams(window.location.search).get('next'))); setAudience(loginAudienceFromSearch(window.location.search)); }, []);
   useEffect(() => { if (!cooldown) return; const timer = setTimeout(() => setCooldown(cooldown - 1), 1000); return () => clearTimeout(timer); }, [cooldown]);
+  function changeAudience(next:LoginAudience) { setAudience(next); setSent(false); setCooldown(0); setError(null); }
   async function requestCode() { setBusy(true); setError(null); try { const result = await api<Row>('/api/auth/otp/request', json('POST', { contact })); setSent(true); setCooldown(result.retryAfter || 60); } catch (e) { setError(e); } finally { setBusy(false); } }
-  async function submit(event: React.FormEvent<HTMLFormElement>) { event.preventDefault(); if (!staff && !sent) return requestCode(); setBusy(true); setError(null); const form = Object.fromEntries(new FormData(event.currentTarget)); try { if (staff && form.password !== form.confirmPassword) throw new Error('The passwords must match.'); const response = await api<Row>(staff ? '/api/auth/login' : '/api/auth/otp/verify', json('POST', { ...form, contact })); const actor = response.actor || response; window.location.assign(afterLoginPath(actor.role, destination, actor.participantKind)); } catch (e) { setError(e); } finally { setBusy(false); } }
-  async function emailSignedIn() {
-    setError(null);
-    try {
-      const response = await api<Row>('/api/auth/session');
-      if (!response.actor?.role) throw new Error('Your sign-in could not be confirmed. Please sign in again.');
-      window.location.assign(afterLoginPath(response.actor.role, destination, response.actor.participantKind));
-    } catch (error) { setError(error); }
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault(); if (!staff && !sent) return requestCode(); setBusy(true); setError(null);
+    const form = Object.fromEntries(new FormData(event.currentTarget));
+    try { const response = await api<Row>(staff ? '/api/auth/login' : '/api/auth/otp/verify', json('POST', { ...form, contact, ...staff ? {loginAudience:'admin'} : {} })); const actor = response.actor || response; window.location.assign(afterLoginPath(actor.role, destination, actor.participantKind)); }
+    catch (e) { setError(e); } finally { setBusy(false); }
   }
-  return <><PageTitle title="Sign in">Access your saved registrations, drafts and receipts.</PageTitle><div className="actions login-role-switch"><button className={!staff ? '' : 'secondary'} aria-pressed={!staff} onClick={() => { setStaff(false); setSent(false); setError(null); }}>Participant</button><button className={staff ? '' : 'secondary'} aria-pressed={staff} onClick={() => { setStaff(true); setSent(false); setError(null); }}>Admin or judge</button></div>{!staff && (configuration.loading || configuration.error) ? <ResourceState {...configuration} retry={configuration.reload} /> : !staff && configuration.data?.emailAccounts === true ? <><Errors error={error} /><EmailAccount provider={configuration.data?.accountProvider === 'wordpress' ? 'wordpress' : configuration.data?.accountProvider === 'supabase' ? 'supabase' : 'native'} onSignedIn={emailSignedIn} /></> : <form className="form panel" onSubmit={submit}><Errors error={error} /><Field name="contact" title={staff ? 'Staff email or username' : 'Verified contact phone'} type={staff ? 'text' : 'tel'} required value={contact} onChange={(e: React.ChangeEvent<HTMLInputElement>) => { setContact(e.target.value); setSent(false); }} autoComplete={staff ? 'username' : 'tel'} hint={staff ? 'Use your staff email address or the username on your invitation.' : 'Include the country code, for example +91.'} />{staff ? <><Field name="password" title="Password" type="password" required autoComplete="current-password" /><Field name="confirmPassword" title="Confirm password" type="password" required autoComplete="current-password" hint="Enter the same password again." /><Link href="/recover">Recover account access</Link></> : sent && <><Notice>A verification code has been sent. It expires in 5 minutes.</Notice><Field name="code" title="Verification code" required inputMode="numeric" pattern="[0-9]{6}" autoComplete="one-time-code" /><button type="button" className="secondary" disabled={busy || cooldown > 0} onClick={requestCode}>{cooldown ? `Resend in ${cooldown}s` : 'Resend code'}</button></>}<div className="actions"><button disabled={busy}>{busy ? 'Please wait…' : staff || sent ? 'Sign in' : 'Send verification code'}</button></div></form>}</>;
+  async function emailSignedIn() {
+    const response = await api<Row>('/api/auth/session');
+    if (!response.actor?.role) throw new Error('Your sign-in could not be confirmed. Please sign in again.');
+    window.location.assign(afterLoginPath(response.actor.role, destination, response.actor.participantKind));
+  }
+  return <>
+    <PageTitle title={`${loginAudienceLabels[audience]} sign in`}>{loginPurposes[audience]}</PageTitle>
+    <div className="actions login-role-switch" role="group" aria-label="Choose your account type">{(Object.keys(loginAudienceLabels) as LoginAudience[]).map(type=><button key={type} type="button" aria-pressed={audience===type} disabled={busy} onClick={()=>changeAudience(type)}>{loginAudienceLabels[type]}</button>)}</div>
+    {!staff && !fixedProvider && (configuration.loading || configuration.error) ? <ResourceState {...configuration} retry={configuration.reload} /> : !staff && (fixedProvider || configuration.data?.emailAccounts === true) ? <EmailAccount key={audience} provider={fixedProvider || (configuration.data?.accountProvider === 'wordpress' ? 'wordpress' : configuration.data?.accountProvider === 'supabase' ? 'supabase' : 'native')} registrationForm={registrationForm} loginAudience={audience} initialIdentifier={contact} onIdentifierChange={setContact} onAudienceChange={changeAudience} onBusyChange={setBusy} onSignedIn={emailSignedIn} /> : <form key={audience} className="form panel" onSubmit={submit}>
+      <h2>{staff ? 'Your admin or judge account' : `Your ${loginAudienceLabels[audience].toLowerCase()} account`}</h2>
+      <LoginErrors error={error} onAudienceChange={changeAudience} />
+      <Field name="contact" title={staff ? 'Staff email or username' : 'Verified contact phone'} type={staff ? 'text' : 'tel'} required value={contact} onChange={(e: React.ChangeEvent<HTMLInputElement>) => { setContact(e.target.value); setSent(false); }} autoComplete={staff ? 'username' : 'tel'} hint={staff ? 'Use your staff email address or the username on your invitation.' : 'Include the country code, for example +91.'} />
+      {staff ? <><Field name="password" title="Password" type="password" required autoComplete="current-password" /><Link href="/recover">Recover admin or judge access</Link></> : sent && <><Notice>A verification code has been sent. It expires in 5 minutes.</Notice><Field name="code" title="Verification code" required inputMode="numeric" pattern="[0-9]{6}" autoComplete="one-time-code" /><button type="button" className="secondary" disabled={busy || cooldown > 0} onClick={requestCode}>{cooldown ? `Resend in ${cooldown}s` : 'Resend code'}</button></>}
+      <div className="actions"><button disabled={busy}>{busy ? 'Please wait…' : staff || sent ? 'Sign in' : 'Send verification code'}</button></div>
+    </form>}
+  </>;
 }
+const loginPurposes:Record<LoginAudience,string> = {
+  student:'Access your student registrations, competition entries, drafts and receipts.',
+  educator:'Manage student participation and return to your educator registrations and entries.',
+  school:'Manage your school registration and approved school workspace.',
+  admin:'Use your invitation account to administer the summit or review assigned entries.'
+};
 export function AccountSetup({ recovery = false }: { recovery?: boolean }) {
   const [token, setToken] = useState(''), [setup, setSetup] = useState<Row | null>(null), [error, setError] = useState<unknown>(null), [message, setMessage] = useState(''), [busy, setBusy] = useState(false);
   useEffect(() => { setToken(new URLSearchParams(window.location.search).get('token') || ''); }, []);

@@ -190,7 +190,9 @@ describe('native participant authentication', () => {
    await fixture.db.query('INSERT INTO users(id,contact,role,password_hash) VALUES($1,$2,$3,$4)', [userId, contact, role, stored]);
    await fixture.db.query('INSERT INTO wordpress_account_identities(source,source_user_id,user_id,credential_fingerprint) VALUES($1,$2,$3,$4)', ['https://legacy.example.org', String(100 + ['owner', 'admin', 'judge'].indexOf(role)), userId, 'a'.repeat(64)]);
    await expect(fixture.db.transaction(tx => importNativeParticipantCredentials(tx, userId, { username: role, email: contact, passwordHash: legacyBcrypt }))).rejects.toMatchObject({ status: 409 });
-   expect((await action('participant/login', { contact, password }))?.status).toBe(401);
+   const guidance = await action('participant/login', { contact, password });
+   expect(guidance?.status).toBe(409);
+   expect(await guidance!.json()).toMatchObject({code:'LOGIN_AUDIENCE_MISMATCH',loginAudience:'admin'});
    const staff = await action('login', { contact, password });
    expect(staff?.status).toBe(200);
    expect(await auth.getActor(request('session', {}, staff!.headers.get('set-cookie')!))).toMatchObject({ role });

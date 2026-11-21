@@ -42,7 +42,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
   },[]);
   async function signOut() {
     setSigningOut(true); setAccountError('');
-    try { await api('/api/auth/logout', json('POST', {})); setActor(null); window.location.assign(signedOutPath(actor?.role)); }
+    try { await api('/api/auth/logout', json('POST', {})); setActor(null); window.location.assign(signedOutPath(actor?.role,actor?.participantKind)); }
     catch (error) { setAccountError(error instanceof Error ? error.message : 'Sign out failed. Please try again.'); setSigningOut(false); }
   }
   return <>
