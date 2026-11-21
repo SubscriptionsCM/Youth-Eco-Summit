@@ -38,7 +38,12 @@ function conditions(notification:Record<string,any>,answers:Record<string,unknow
 }
 export function nativeNotificationPackets(form:{post_title?:string;definition:Record<string,any>},context:Context):Packet[]{
  const definition=form.definition,reference=referenceForms.find(form=>form.id===context.formId);
- const fields=(definition.fields||[]).map((field:Record<string,any>)=>({...field,id:field.id||field.element_id})) as ReferenceField[];
+ const archivedFields=(definition.fields||[]).map((field:Record<string,any>)=>({...field,id:field.id||field.element_id})) as ReferenceField[];
+ // Previously planned deliveries must retain their exact archived packet body.
+ const nativeNomination=context.formId===8916&&reference?.key==='nomination'&&Object.hasOwn(context.normalizedAnswers,'name-2')&&Object.hasOwn(context.normalizedAnswers,'select-2');
+ const fields=nativeNomination
+  ? [...reference.fields,...archivedFields.filter(field=>!reference.fields.some(current=>current.id===field.id))]
+  : archivedFields;
  const visible=fields.filter(field=>!['password','captcha','recaptcha','html','group','page-break','section'].includes(field.type)&&isFieldVisible(field,context.normalizedAnswers));
  const files=new Map(context.verifiedFileDescriptors.map(file=>[file.fieldId,file]));
  const value=(id:string,html:boolean)=>{
@@ -50,11 +55,11 @@ export function nativeNotificationPackets(form:{post_title?:string;definition:Re
  const tags:Record<string,string>={form_name:form.post_title||definition.settings?.formName||reference?.title||'Youth Eco Summit',form_id:String(context.formId),submission_id:context.reference,
   site_url:context.portalOrigin,site_title:'Youth Eco Summit',submission_url:`${context.portalOrigin}/dashboard`,activation_url:`${context.portalOrigin}/login`,
   submission_date:new Date(context.submittedAt).toLocaleDateString('en-IN',{timeZone:'Asia/Kolkata'}),submission_time:new Date(context.submittedAt).toLocaleTimeString('en-IN',{timeZone:'Asia/Kolkata'}),user_ip:''};
- const render=(template:unknown,html=false)=>String(template??'').replace(/\{([^{}]+)\}/g,(_whole,key:string)=>{
+ const render=(template:unknown,html=false,knownFields=fields)=>String(template??'').replace(/\{([^{}]+)\}/g,(_whole,key:string)=>{
   if(['all_fields','all_non_empty_fields'].includes(key))return html?`<table>${all}</table>`:visible.map(field=>`${field.field_label||field.id}: ${value(field.id,false)}`).join('\n');
   if(Object.hasOwn(tags,key))return html?escape(tags[key]):tags[key];
   const field=key.split(':')[0];
-  if(fields.some(candidate=>candidate.id===field))return value(field,html);
+  if(knownFields.some(candidate=>candidate.id===field))return value(field,html);
   throw unavailable();
  });
  const notifications=definition.notifications||definition.email_notifications||[];
@@ -65,12 +70,12 @@ export function nativeNotificationPackets(form:{post_title?:string;definition:Re
   if(notification['email-recipients']&&notification['email-recipients']!=='default'||notification.routing?.length||notification['email-pdfs']?.length)throw unavailable();
   const slug=String(notification.slug||'');if(!/^[A-Za-z0-9_-]{1,200}$/.test(slug)||slugs.has(slug))throw unavailable();slugs.add(slug);
   // The source mailer omits recipient fields removed from a form definition.
-  const recipientTemplate=String(notification.recipients||'').replace(/\{(email-\d+)\}/g,(tag,key)=>fields.some(field=>field.id===key)?tag:'');
-  const to=recipients(render(recipientTemplate)),subject=render(notification['email-subject']);
+  const recipientTemplate=String(notification.recipients||'').replace(/\{(email-\d+)\}/g,(tag,key)=>archivedFields.some(field=>field.id===key)?tag:'');
+  const to=recipients(render(recipientTemplate,false,archivedFields)),subject=render(notification['email-subject'],false,archivedFields);
   if(!subject||/[\r\n\0]/.test(subject))throw unavailable();
   const headers=['Content-Type: text/html; charset=UTF-8'];
   for(const [key,label]of [['replyto-email','Reply-To'],['cc-email','Cc'],['bcc-email','Bcc']]as const){
-   if(notification[key])headers.push(`${label}: ${recipients(render(notification[key])).join(', ')}`);
+   if(notification[key])headers.push(`${label}: ${recipients(render(notification[key],false,archivedFields)).join(', ')}`);
   }
   const body=render(notification['email-editor'],true);
   if(!body)throw unavailable();

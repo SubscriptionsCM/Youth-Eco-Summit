@@ -37,7 +37,7 @@ it('returns a school-ID error to the school step without marking unrelated contr
  expect(host.querySelector('h2')?.textContent).toBe('School');
  expect(host.querySelectorAll('.field p[role=alert]')).toHaveLength(1);
  expect(host.querySelector('.field p[role=alert]')?.textContent).toContain('Select a registered school');
- expect(host.querySelector('a[href="/schools"]')?.textContent).toContain('nominate');
+ expect([...host.querySelectorAll('button')].some(button=>button.textContent==='Nominate your school')).toBe(true);
  expect(host.querySelector('input[name=email-1]')).toBeNull();
 });
 it('returns final title errors to the work step with the error visible',async()=>{

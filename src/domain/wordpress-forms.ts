@@ -2,11 +2,12 @@ import snapshot from '../data/wordpress-forms.json';
 import { competitionGuidelines2027 } from '../data/guidelines-2027';
 import { participationWindow, participationWindowStatus } from '../data/participation-window';
 import {nameParts} from './reference-values';
+import {nativeSchoolNomination, normalizeSchoolNominationAnswers, validateSchoolNominationAnswers} from './school-nomination';
 
 export type Answers = Record<string, unknown>;
 export type ReferenceField = Record<string, any> & { id: string; type: string; field_label?: string; conditions?: { element_id: string; rule: string; value: string }[] };
 export type ReferenceForm = { id: number; key: string; title: string; competition: boolean; fields: ReferenceField[]; settings: Record<string, any> };
-export const referenceForms = snapshot.forms as ReferenceForm[];
+export const referenceForms = (snapshot.forms as ReferenceForm[]).map(nativeSchoolNomination);
 export const referenceCapturedAt = snapshot.capturedAt;
 export const enabled = (value: unknown) => value === true || value === 'true' || value === '1' || value === 1;
 export const plainText = (value: unknown) => String(value ?? '').replace(/<[^>]*>/g, '').replace(/&amp;/g, '&').replace(/&nbsp;/g, ' ').trim();
@@ -49,6 +50,7 @@ export function formSteps(form: ReferenceForm) {
 }
 export function normalizeReferenceTitle(value:string){return value.normalize('NFC').trim().replace(/[^\p{L}\p{M}\p{N}]+/gu,'_').replace(/^_+|_+$/g,'');}
 export function validateReferenceAnswers(form: ReferenceForm, input: Answers, options: { final: boolean; now?: Date; step?: number }) {
+ if (form.id === 8916 && form.key === 'nomination') input = normalizeSchoolNominationAnswers(input);
  const answers: Answers = {}, errors: Record<string,string> = {};
  const final = options.final, guideline = competitionGuidelines2027.find(g=>g.slug===form.key);
  const controls = new Set(['html','section','group','page-break','upload','password']);
@@ -106,6 +108,7 @@ export function validateReferenceAnswers(form: ReferenceForm, input: Answers, op
   }
   answers[field.id] = value;
  }
+ if (form.id === 8916 && form.key === 'nomination') validateSchoolNominationAnswers(input, answers, scoped.filter(field=>isFieldVisible(field,input)), errors, final && options.step === undefined);
  if (form.competition) {
   if(answers['text-yes-title']!==undefined&&typeof answers['text-yes-title']!=='string')errors['text-yes-title']='Enter a single submission title.';
   if(typeof answers['text-yes-title']==='string'){

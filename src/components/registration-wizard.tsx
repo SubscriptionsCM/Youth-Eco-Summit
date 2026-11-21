@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { api, ApiError, json, type PublicConfig, type Row } from './api';
 import { SchoolAutocomplete } from './registration';
+import { schoolNominationHref } from './school-nomination-navigation';
 import { FormSteps } from './form-steps';
 import { Empty, Errors, Field, Notice, ResourceState, useResource } from './shared';
 import { studentRegisteredFor } from './participant-options';
@@ -83,7 +84,7 @@ function Summary({ data, labels }: { data: Row; labels: Record<string,string> })
 const exit = () => window.location.assign('/dashboard');
 function selectedSchool(school: Row) { return { schoolId: school.id, schoolName: school.name, schoolReference: school.reference, schoolLocation: [school.address, school.city, school.state, school.postal_code].filter(Boolean).join(', ') }; }
 function SchoolSelection({ draft }: { draft: Draft }) {
- return draft.data.schoolId ? <><Notice><strong>{draft.data.schoolName}</strong><br />{draft.data.schoolLocation}<br />School ID: {draft.data.schoolReference}<div className="actions"><button className="secondary" type="button" onClick={() => draft.change({ schoolId: undefined, schoolName: '', schoolReference: '', schoolLocation: '' })}>Change school</button></div></Notice></> : <><SchoolAutocomplete onSelect={school => draft.change(selectedSchool(school))} /><p>School not registered? <Link href="/schools/register">Register your school</Link>, or <Link href="/schools">nominate the school</Link>.</p></>;
+ return draft.data.schoolId ? <><Notice><strong>{draft.data.schoolName}</strong><br />{draft.data.schoolLocation}<br />School ID: {draft.data.schoolReference}<div className="actions"><button className="secondary" type="button" onClick={() => draft.change({ schoolId: undefined, schoolName: '', schoolReference: '', schoolLocation: '' })}>Change school</button></div></Notice></> : <><SchoolAutocomplete onSelect={school => draft.change(selectedSchool(school))} onNominate={async () => { if (await draft.persist()) window.location.assign(schoolNominationHref(`${window.location.pathname}${window.location.search}${window.location.hash}`)); }} /></>;
 }
 function BoundField({ draft, name, title, ...props }: { draft: Draft; name: string; title: string; [key: string]: any }) {
  return <Field name={name} title={title} {...props} value={draft.data[name] ?? ''} onChange={(e: React.ChangeEvent<HTMLInputElement>) => draft.change({ [name]: props.type === 'number' ? e.target.value === '' ? undefined : Number(e.target.value) : e.target.value })} />;
