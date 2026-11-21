@@ -6,7 +6,8 @@ vi.mock('next/link', () => ({ default: 'a' }));
 vi.mock('../src/components/unsaved-navigation', () => ({ useUnsavedNavigation: () => {} }));
 const request = vi.hoisted(() => vi.fn());
 vi.mock('../src/components/api', async original => ({ ...await original<typeof import('../src/components/api')>(), api: request }));
-import { ReferenceFormPage } from '../src/components/reference-form';
+import { ApiError } from '../src/components/api';
+import { ReferenceControl, ReferenceFormPage } from '../src/components/reference-form';
 import { SchoolAutocomplete, SchoolsPage } from '../src/components/registration';
 import { StudentWizard } from '../src/components/registration-wizard';
 import { schoolNominationHref, studentRegistrationReturnPath } from '../src/components/school-nomination-navigation';
@@ -51,7 +52,7 @@ it('keeps a real nomination button available before searching and after zero res
   input.dispatchEvent(new Event('input', { bubbles: true }));
  });
  await act(async () => { await vi.advanceTimersByTimeAsync(300); });
- expect(host.textContent).toContain('0 matching schools'); expect(nominate()?.type).toBe('button');
+ expect(host.textContent).toContain('0 matching schools. Nominate your school for follow-up.'); expect(host.textContent).not.toContain('0 matching schools. Select the correct branch.'); expect(nominate()?.type).toBe('button');
  const focused = host.querySelector<HTMLInputElement>('[role=combobox]')!; await act(async () => focused.focus()); expect(document.activeElement).toBe(focused);
 });
 it('saves the student draft before navigating to the canonical nomination with its saved link', async () => {
@@ -119,6 +120,9 @@ it('shows the native school contact fields, conditional designation, optional no
  expect(input('select-1').type).toBe('text'); expect(input('select-1').required).toBe(true); expect(input('select-1').maxLength).toBe(200);
  expect(input('name-2').required).toBe(true); expect(input('name-2').maxLength).toBe(160);
  expect(input('text-2').required).toBe(true); expect(input('text-2').maxLength).toBe(100);
+ for (const [name, label] of [['select-1', 'School name'], ['name-2', 'School contact name'], ['text-2', 'Other designation'], ['email-2', 'School contact email'], ['phone-2', 'School contact phone']]) {
+  expect(input(name).labels?.[0]?.htmlFor).toBe(input(name).id); expect(input(name).labels?.[0]?.textContent).toContain(label);
+ }
  expect(input('email-2').maxLength).toBe(254); expect(input('email-2').required).toBe(false); expect(input('phone-2').required).toBe(false);
  for (const name of ['name-1', 'email-1', 'phone-1']) expect(input(name).required).toBe(false);
  expect(host.textContent).toContain('Provide at least one school contact email or phone');
@@ -143,6 +147,37 @@ it('restores and saves the actual school from a legacy Other-school nomination d
  expect(host.querySelector<HTMLInputElement>('[name="select-1"]')?.value).toBe('Actual School');
  expect(host.textContent).toContain('Your progress is saved.');
  expect(request.mock.calls.some(call => String(call[0]).endsWith('/submit'))).toBe(false);
+});
+it('keeps the school contact label associated with its input when an error is shown', async () => {
+ await act(async () => root.render(createElement(ReferenceControl, { field: { id: 'name-2', type: 'name', field_label: 'School contact name', required: '1' }, answers: {}, change: vi.fn(), formKey: 'nomination', record: {}, token: '', refresh: async () => {}, error: 'Enter the school contact name.' })));
+ const input = host.querySelector<HTMLInputElement>('[name="name-2"]')!;
+ expect(input.id).toBe('name-2'); expect(input.labels?.[0]?.htmlFor).toBe(input.id);
+ expect(input.labels?.[0]?.textContent).toContain('School contact name'); expect(input.getAttribute('aria-invalid')).toBe('true');
+ expect(host.querySelector('#name-2-error')?.textContent).toBe('Enter the school contact name.');
+});
+it.each([['phone-2', '+919876543210'], ['email-2', 'school@example.test']])('shows labelled nomination errors and clears the coupled missing-contact errors when %s is edited', async (field, value) => {
+ window.history.replaceState(null, '', '/schools/nominate#saved=nomination.private');
+ request.mockImplementation(async (path: string) => {
+  if (path === '/api/forms/config') return { enabled: true };
+  if (path === '/api/auth/session') return { actor: null };
+  if (path.endsWith('/submit')) throw new ApiError('Check the highlighted information.', { 'email-2': 'Provide a school contact email or phone number.', 'phone-2': 'Provide a school contact email or phone number.', _form: 'Fixture form-level guidance.' }, 422);
+  return { id: 'nomination', form_key: 'nomination', status: 'draft', current_step: 0, lock_version: 0, answers: { 'select-1': 'Fixture School', 'name-2': 'Fixture Teacher', 'select-2': 'Teacher' }, files: [] };
+ });
+ await act(async () => root.render(createElement(ReferenceFormPage, { formKey: 'nomination' })));
+ await act(async () => host.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })));
+ expect(host.textContent).toContain('Check the highlighted information.'); expect(host.textContent).toContain('Fixture form-level guidance.');
+ expect(host.textContent).not.toContain('email-2'); expect(host.textContent).not.toContain('phone-2'); expect(host.querySelector('.notice.error ul')).toBeNull();
+ expect(host.querySelector('#email-2-error')?.textContent).toContain('Provide a school contact email or phone number.');
+ expect(host.querySelector('#phone-2-error')?.textContent).toContain('Provide a school contact email or phone number.');
+ const contact = host.querySelector<HTMLInputElement>(`[name="${field}"]`)!;
+ await act(async () => {
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(contact, value);
+  contact.dispatchEvent(new Event('input', { bubbles: true }));
+ });
+ expect(host.querySelector('#email-2-error')).toBeNull(); expect(host.querySelector('#phone-2-error')).toBeNull();
+ expect(host.querySelector<HTMLInputElement>('[name="email-2"]')?.getAttribute('aria-invalid')).toBe('false');
+ expect(contact.getAttribute('aria-invalid')).toBe('false'); expect(host.textContent).toContain('Fixture form-level guidance.');
+ expect(request.mock.calls.filter(call => String(call[0]).endsWith('/submit'))).toHaveLength(1);
 });
 it.each(['/register?competitionId=fixture#saved=student-draft.private-key', 'https://outside.test/register', '/admin', ''])('shows an honest nomination receipt and a safe return for %s', async returnTo => {
  window.history.replaceState(null, '', `/schools/nominate?${new URLSearchParams({ returnTo })}#saved=nomination.private`);
