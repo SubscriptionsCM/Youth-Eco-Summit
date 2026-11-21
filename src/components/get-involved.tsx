@@ -1,3 +1,4 @@
+import { Icon } from './icon';
 import { SummitCarousel } from './summit-carousel';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -16,7 +17,7 @@ export function GetInvolved({ standalone = false }: { standalone?: boolean }) {
       <div className="get-involved-heading" data-reveal><div><p className="section-label">Your next step</p><Heading id="get-involved-title">Get involved.</Heading></div><p>Choose how you want to take part.</p></div>
       <SummitCarousel label="Ways to get involved" className="audience-options">{audiences.map((item, index) => <article className="audience-option" key={item.title}>
         <div className="audience-photo"><Image src={`/images/${item.image}`} alt="" fill sizes="(max-width:600px) 80vw, 30vw"/><span aria-hidden="true">0{index + 1}</span></div>
-        <div className="audience-option-copy"><h3>{item.title}</h3><p>{item.text}</p><Link className="text-link" href={item.href}>{item.label}<span aria-hidden="true">→</span></Link><Link className="audience-secondary" href={item.secondaryHref}>{item.secondary}</Link></div>
+        <div className="audience-option-copy"><h3>{item.title}</h3><p>{item.text}</p><Link className="text-link" href={item.href}>{item.label}<span aria-hidden="true"><Icon name="arrow-right" /></span></Link><Link className="audience-secondary" href={item.secondaryHref}>{item.secondary}</Link></div>
       </article>)}</SummitCarousel>
       <p className="audience-note">School registration is lifetime. Competition entry and summit attendance are separate.</p>
     </div>

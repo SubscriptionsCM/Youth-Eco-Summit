@@ -1,4 +1,5 @@
 'use client';
+import { Icon } from './icon';
 
 import Image from 'next/image';
 import Link from 'next/link';
@@ -19,7 +20,7 @@ function SectionEyebrow({ children }: { children: React.ReactNode }) {
 }
 
 function OutwardArrow() {
-  return <span className="summit-arrow" aria-hidden="true">→</span>;
+  return <span className="summit-arrow" aria-hidden="true"><Icon name="arrow-right" /></span>;
 }
 
 export function PartnerStrip() {
@@ -93,7 +94,7 @@ export function PreviousWinners() {
         <div className="summit-winner-layout">
           <div className="summit-winner-photo" data-reveal><Image src="/images/awards.jpg" alt="An award presentation at Youth Eco Summit" fill sizes="(max-width: 760px) 90vw, 44vw" /><span>Recognising ideas.<br/>Celebrating effort.</span></div>
           <SummitCarousel label="Winner lists" className="summit-winner-carousel">
-            {winnerDocuments.map(document => <a className="summit-winner-document" href={document.href} target="_blank" rel="noreferrer" key={document.href} draggable={false}><span className="summit-document-mark" aria-hidden="true">PDF<span>→</span></span><div><span className="summit-document-year">{document.year ? `${document.year} EDITION` : 'WINNERS ARCHIVE'}</span><h3>{document.title}</h3><span className="summit-document-action">Open winner list <span className="summit-screenreader">PDF, opens in a new tab</span></span></div><OutwardArrow /></a>)}
+            {winnerDocuments.map(document => <a className="summit-winner-document" href={document.href} target="_blank" rel="noreferrer" key={document.href} draggable={false}><span className="summit-document-mark" aria-hidden="true">PDF<span><Icon name="arrow-right" /></span></span><div><span className="summit-document-year">{document.year ? `${document.year} EDITION` : 'WINNERS ARCHIVE'}</span><h3>{document.title}</h3><span className="summit-document-action">Open winner list <span className="summit-screenreader">PDF, opens in a new tab</span></span></div><OutwardArrow /></a>)}
           </SummitCarousel>
         </div>
       </div>

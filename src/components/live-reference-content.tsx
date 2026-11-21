@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import { shouldPlayHero } from './live-media-policy';
 import { LivePublications } from './live-publications';
 import { connectWinners } from './live-winner-controls';
+import { iconMarkup, withSvgIcons } from './icon-shapes';
 
 const participation = [
   ['Already registered? Use your permanent school ID. If your school is missing, nominate it for review.', 'Find your school', '/schools'],
@@ -76,7 +77,7 @@ export function LiveReferenceContent({ html }: { html: string }) {
       }
       partnerWindow.dataset.paused = String(paused); partnerToggle.setAttribute('aria-pressed', String(paused));
       partnerToggle.setAttribute('aria-label', paused ? 'Play partner logo slider' : 'Pause partner logo slider');
-      partnerToggle.textContent = paused ? '▶ Play' : 'Ⅱ Pause';
+      partnerToggle.innerHTML = `<span aria-hidden="true">${iconMarkup(paused ? 'play' : 'pause')}</span>${paused ? 'Play' : 'Pause'}`;
       if (!paused) { delete partnerWindow.dataset.yesExplore; partnerWindow.scrollLeft = 0; }
     };
     let partnerDrag: { pointer: number; x: number; left: number } | null = null;
@@ -126,7 +127,7 @@ export function LiveReferenceContent({ html }: { html: string }) {
       const [detail, cta, href] = participation[index];
       const paragraph = document.createElement('p'); paragraph.className = 'participation-detail'; paragraph.textContent = detail;
       const link = document.createElement('a'); link.className = 'text-link'; link.href = href; link.textContent = cta + ' ';
-      const arrow = document.createElement('span'); arrow.setAttribute('aria-hidden', 'true'); arrow.textContent = '↗'; link.append(arrow);
+      const arrow = document.createElement('span'); arrow.setAttribute('aria-hidden', 'true'); arrow.innerHTML = iconMarkup('arrow-up-right'); link.append(arrow);
       panel.replaceChildren(paragraph, link);
       if (focus) tab.focus();
     };
@@ -180,5 +181,5 @@ export function LiveReferenceContent({ html }: { html: string }) {
       root.removeEventListener('click', click); root.removeEventListener('keydown', keydown);
     };
   }, [html]);
-  return <><div className="live-reference-content" ref={host} dangerouslySetInnerHTML={{ __html: html }} />{publicationsTarget && createPortal(<LivePublications />, publicationsTarget)}</>;
+  return <><div className="live-reference-content" ref={host} dangerouslySetInnerHTML={{ __html: withSvgIcons(html) }} />{publicationsTarget && createPortal(<LivePublications />, publicationsTarget)}</>;
 }

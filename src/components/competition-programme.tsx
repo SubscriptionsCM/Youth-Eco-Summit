@@ -1,3 +1,4 @@
+import { Icon } from './icon';
 import Image from 'next/image';
 import Link from 'next/link';
 import { competitionProgramme2027 } from '../data/competition-programme';
@@ -9,7 +10,7 @@ import { participationWindowStatus, type ParticipationWindowStatus } from '../da
 import '../app/competition-programme.css';
 
 export function GuidelinesDownload({ className = 'text-link' }: { className?: string }) {
-  return <a className={className} href={guidelines2027Source.href} target="_blank" rel="noopener noreferrer">Download 2027 guidelines <span className="sr-only">PDF, opens in a new tab</span><span aria-hidden="true">→</span></a>;
+  return <a className={className} href={guidelines2027Source.href} target="_blank" rel="noopener noreferrer">Download 2027 guidelines <span className="sr-only">PDF, opens in a new tab</span><span aria-hidden="true"><Icon name="arrow-right" /></span></a>;
 }
 
 export function GuidelinesEssentials() {
@@ -33,7 +34,7 @@ export function CompetitionGuidelineDetails({ guideline, showTitle = true }: { g
 }
 
 export function GuidelinesRecognition() {
-  return <section className="editorial-section editorial-container guidelines-recognition"><div className="editorial-section-heading"><p className="editorial-eyebrow">From the 2027 guidelines</p><h2>Where your work could go.</h2><p>Different formats offer different recognition opportunities. Selection and partner arrangements determine what is available.</p><GuidelinesDownload /></div><div className="guidelines-recognition-grid">{competitionGuidelines2027.filter(item => !['blog-writing', 'article-writing', 'case-study', 'digital-art'].includes(item.slug)).map(item => <article key={item.slug}><h3>{item.category === 'Writing' ? 'Written work' : item.title}</h3><ul>{item.rewards.map(reward => <li key={reward}>{reward}</li>)}</ul><Link className="text-link" href={`/competitions#guidelines-${item.slug}`}>View the guidelines <span aria-hidden="true">→</span></Link></article>)}</div></section>;
+  return <section className="editorial-section editorial-container guidelines-recognition"><div className="editorial-section-heading"><p className="editorial-eyebrow">From the 2027 guidelines</p><h2>Where your work could go.</h2><p>Different formats offer different recognition opportunities. Selection and partner arrangements determine what is available.</p><GuidelinesDownload /></div><div className="guidelines-recognition-grid">{competitionGuidelines2027.filter(item => !['blog-writing', 'article-writing', 'case-study', 'digital-art'].includes(item.slug)).map(item => <article key={item.slug}><h3>{item.category === 'Writing' ? 'Written work' : item.title}</h3><ul>{item.rewards.map(reward => <li key={reward}>{reward}</li>)}</ul><Link className="text-link" href={`/competitions#guidelines-${item.slug}`}>View the guidelines <span aria-hidden="true"><Icon name="arrow-right" /></span></Link></article>)}</div></section>;
 }
 
 export function CompetitionProgramme({ competitions = [], editions = [], referenceFormsEnabled = false, participationStatus = participationWindowStatus() }: {
@@ -46,10 +47,10 @@ export function CompetitionProgramme({ competitions = [], editions = [], referen
         <div className="competition-programme-photo">{item.image ? <Image src={`/images/summit/${item.image}`} alt={item.alt} fill unoptimized sizes="(max-width: 600px) 90vw, (max-width: 1100px) 45vw, 30vw" style={{ objectPosition: item.position }} /> : <div className={`competition-format-art competition-format-art--${item.slug}`} aria-hidden="true"><b>{item.slug === 'short-film-making' ? 'REC' : item.slug === 'blog-writing' ? 'POST' : item.slug === 'digital-art' ? 'ART' : 'Aa'}</b><span>{item.format}</span></div>}<span aria-hidden="true">{String(index + 1).padStart(2, '0')}</span></div>
         <div className="competition-programme-copy"><p>{item.format}</p><h3>{item.title}</h3><p className="competition-programme-description">{item.description}</p><p className="competition-programme-eligibility">{guidelineClassesLabel(item)} · {item.team.allowed ? `Solo or up to ${item.team.maxMembers} students` : 'Individual'}</p>
           <details className="competition-programme-rules"><summary>Topics & submission guidelines <span aria-hidden="true">+</span></summary><CompetitionGuidelineDetails guideline={item} showTitle={false} /></details>
-          {referenceFormsEnabled ? <div className="competition-programme-entry"><p>{participationStatus.label}. {participationStatus.detail}</p>{participationStatus.isOpen && <Link className="text-link" href={`/competitions/enter?competition=${item.slug}`}>Start your entry <span aria-hidden="true">→</span></Link>}</div> : published && !item.eligibilityPending && <div className="competition-programme-entry"><p>{competitionAvailability(published, editions).label} · Closes: {date(published.closes_at || published.closesAt)}</p><Link className="text-link" href={competitionPath(published)}>Entry information <span aria-hidden="true">→</span></Link></div>}
+          {referenceFormsEnabled ? <div className="competition-programme-entry"><p>{participationStatus.label}. {participationStatus.detail}</p>{participationStatus.isOpen && <Link className="text-link" href={`/competitions/enter?competition=${item.slug}`}>Start your entry <span aria-hidden="true"><Icon name="arrow-right" /></span></Link>}</div> : published && !item.eligibilityPending && <div className="competition-programme-entry"><p>{competitionAvailability(published, editions).label} · Closes: {date(published.closes_at || published.closesAt)}</p><Link className="text-link" href={competitionPath(published)}>Entry information <span aria-hidden="true"><Icon name="arrow-right" /></span></Link></div>}
         </div>
       </article>;
     })}</div>
-    <div className="competition-programme-footer"><p>Photographs from previous summits.</p><GuidelinesDownload /><a className="text-link" href="/documents/winners/Final-Winner-sheet2026.pdf" target="_blank" rel="noopener noreferrer">View the 2026 results <span className="sr-only">PDF, opens in a new tab</span><span aria-hidden="true">→</span></a></div>
+    <div className="competition-programme-footer"><p>Photographs from previous summits.</p><GuidelinesDownload /><a className="text-link" href="/documents/winners/Final-Winner-sheet2026.pdf" target="_blank" rel="noopener noreferrer">View the 2026 results <span className="sr-only">PDF, opens in a new tab</span><span aria-hidden="true"><Icon name="arrow-right" /></span></a></div>
   </div>;
 }

@@ -1,4 +1,5 @@
 import data from '@/data/live-winners.json';
+import { withSvgIcons } from './icon-shapes';
 
 /** Controls for the publicly published winner highlights; contains no participant records. */
 export function connectWinners(root: HTMLElement): () => void {
@@ -13,7 +14,7 @@ export function connectWinners(root: HTMLElement): () => void {
     if (disposed) return;
     if (replace) {
       const template = document.createElement('template');
-      template.innerHTML = data.panels[String(year) as keyof typeof data.panels];
+      template.innerHTML = withSvgIcons(data.panels[String(year) as keyof typeof data.panels]);
       section.querySelector('#winner-edition-panel')?.replaceWith(template.content);
     }
     section.querySelectorAll<HTMLElement>('[role="tab"]').forEach(tab => {

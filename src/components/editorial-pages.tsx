@@ -1,3 +1,4 @@
+import { Icon } from './icon';
 import Link from 'next/link';
 import type { CSSProperties, ReactNode } from 'react';
 import { CampaignMotion } from './campaign-motion';
@@ -10,7 +11,7 @@ import { ParticipationDeadline } from './participation-deadline';
 import { participationWindow } from '../data/participation-window';
 import '../app/editorial.css';
 
-const arrow = <span aria-hidden="true">→</span>;
+const arrow = <span aria-hidden="true"><Icon name="arrow-right" /></span>;
 export function EditorialButton({ href, children, light = false }: { href: string; children: ReactNode; light?: boolean }) {
   return <Link className={`yes-button${light ? ' yellow' : ''}`} href={href}>{children}{arrow}</Link>;
 }
@@ -25,7 +26,7 @@ function AboutContent() {
   return <div className="editorial-page editorial-about"><EditorialHero eyebrow="About the summit" title="Ideas need a platform." text="Youth Eco Summit gives school students space to explore environmental issues through creativity, competition and conversation." image="hero-cutout.webp" alt="Young participants in the Youth Eco Summit community" cta={{ label: 'Take part', href: '/register' }} />
     <section className="editorial-section editorial-container editorial-purpose"><p className="editorial-eyebrow" data-reveal>Our purpose</p><div data-reveal><AboutCopy /></div></section>
     <section className="editorial-learn"><div className="editorial-container editorial-feature-grid"><div className="editorial-photo"><img src="/images/workshop.jpg" alt="Students exploring environmental learning at a Summit workshop" loading="lazy" /></div><div data-reveal><p className="editorial-eyebrow">What happens here</p><h2>Learn.<br />Create.<br /><em>Connect.</em></h2><p>Competitions spark ideas. Conversations open minds. Experiences bring environmental learning to life.</p><Link className="text-link" href="/experience">Explore the experience {arrow}</Link></div></div></section>
-    <section className="editorial-section editorial-container"><div className="editorial-section-heading" data-reveal><p className="editorial-eyebrow">The community</p><h2>Growing together.</h2><p>Students, parents, teachers, schools and environmental voices come together around one shared purpose: helping young people participate, not just observe.</p></div><div className="editorial-audience-grid">{[{label:'Students',text:'Your voice belongs here.',href:'/students',image:'students.jpg'},{label:'Parents',text:'Give ideas room.',href:'/parents',image:'about-cutout-complete.webp'},{label:'Teachers & schools',text:'Take learning further.',href:'/teachers-schools',image:'school.jpg'}].map(item=><Link href={item.href} key={item.href} className="editorial-audience-card"><div><p className="editorial-eyebrow">{item.label}</p><h3>{item.text}</h3></div><img src={`/images/${item.image}`} alt="" loading="lazy" /><span className="editorial-round-arrow" aria-hidden="true">→</span></Link>)}</div></section>
+    <section className="editorial-section editorial-container"><div className="editorial-section-heading" data-reveal><p className="editorial-eyebrow">The community</p><h2>Growing together.</h2><p>Students, parents, teachers, schools and environmental voices come together around one shared purpose: helping young people participate, not just observe.</p></div><div className="editorial-audience-grid">{[{label:'Students',text:'Your voice belongs here.',href:'/students',image:'students.jpg'},{label:'Parents',text:'Give ideas room.',href:'/parents',image:'about-cutout-complete.webp'},{label:'Teachers & schools',text:'Take learning further.',href:'/teachers-schools',image:'school.jpg'}].map(item=><Link href={item.href} key={item.href} className="editorial-audience-card"><div><p className="editorial-eyebrow">{item.label}</p><h3>{item.text}</h3></div><img src={`/images/${item.image}`} alt="" loading="lazy" /><span className="editorial-round-arrow" aria-hidden="true"><Icon name="arrow-right" /></span></Link>)}</div></section>
     <EditorialClosing title="Be part of it." text="Explore environmental issues. Make something that matters to you." />
   </div>;
 }

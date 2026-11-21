@@ -1,4 +1,5 @@
 'use client';
+import { Icon } from './icon';
 import '@/app/summit-sections.css';
 
 import { Children, useCallback, useEffect, useId, useRef, useState, type PointerEvent, type ReactNode } from 'react';
@@ -144,8 +145,8 @@ export function SummitCarousel({ children, label, className, autoplay = false }:
       <div className="summit-carousel-controls">
         <span className="summit-carousel-count">{position.first === position.last ? position.first : `${position.first}–${position.last}`} / {count}{!autoplay && <span className="summit-carousel-hint">Swipe or drag to explore</span>}</span>
         <div className="summit-carousel-buttons">
-          <button type="button" onClick={() => move(-1)} disabled={!position.back} aria-label={`Previous ${label.toLowerCase()}`} aria-controls={id}>←</button>
-          <button type="button" onClick={() => move(1)} disabled={!position.forward} aria-label={`Next ${label.toLowerCase()}`} aria-controls={id}>→</button>
+          <button type="button" onClick={() => move(-1)} disabled={!position.back} aria-label={`Previous ${label.toLowerCase()}`} aria-controls={id}><Icon name="arrow-left" /></button>
+          <button type="button" onClick={() => move(1)} disabled={!position.forward} aria-label={`Next ${label.toLowerCase()}`} aria-controls={id}><Icon name="arrow-right" /></button>
         </div>
       </div>
       <div id={id} className="summit-carousel-viewport" ref={viewport} tabIndex={0} aria-label={`${label}. Use left and right arrow keys to browse.`} data-dragging={dragging} data-autoplay={autoplay}

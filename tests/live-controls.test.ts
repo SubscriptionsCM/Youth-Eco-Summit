@@ -49,6 +49,8 @@ describe('live public controls', () => {
     expect(tab.getAttribute('aria-selected')).toBe('true');
     expect(container.querySelector('[data-winner-name]')?.textContent).toBe('Sohan khan');
     expect(container.querySelector('#winner-edition-panel a')?.getAttribute('href')).toMatch(/^\/reference-20261112\//);
+    expect(container.querySelector('[aria-label="Next winner"] svg path')).not.toBeNull();
+    expect(container.querySelector('.winner-edition-downloads svg path')).not.toBeNull();
     await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Next winner"]')!.click());
     expect(container.querySelector('[data-winner-name]')?.textContent).toBe('Yashita Sharma');
     expect(container.querySelector('#step-tab-0')?.getAttribute('aria-selected')).toBe('true');
@@ -84,8 +86,10 @@ describe('live public controls', () => {
     await act(async () => button.click());
     expect(window.dataset.paused).toBe('true'); expect(window.dataset.yesExplore).toBe('true');
     expect(button.getAttribute('aria-pressed')).toBe('true');
+    expect(button.textContent).toBe('Play'); expect(button.querySelector('svg path')).not.toBeNull();
     await act(async () => button.click());
     expect(window.dataset.paused).toBe('false'); expect(window.dataset.yesExplore).toBeUndefined();
+    expect(button.textContent).toBe('Pause'); expect(button.querySelector('svg path')).not.toBeNull();
   });
   it('updates FAQ access state and participation tab content without replacing the page', async () => {
     await mount();
@@ -98,6 +102,7 @@ describe('live public controls', () => {
     await act(async () => tab.click());
     expect(tab.getAttribute('aria-selected')).toBe('true');
     expect(container.querySelector('#step-panel a')?.getAttribute('href')).toBe('/dashboard');
+    expect(container.querySelector('#step-panel a svg path')).not.toBeNull();
     expect(container.querySelector('h1')?.textContent).toContain('Waste Segregation:');
   });
   it('lets a mouse drag the partner logos and keeps them paused for browsing', async () => {
