@@ -12,7 +12,7 @@ main.workspace-main.shell{width:calc(100% - 3rem);max-width:1480px;padding-block
 .workspace-nav-group{padding:.2rem 0}
 .workspace-nav-group>summary{font-size:.75rem;letter-spacing:.025em;padding:.6rem .75rem;color:var(--portal-muted)}
 .workspace-nav-group a{border-radius:7px;font-size:.875rem;padding:.65rem .75rem;transition:background-color .12s ease,border-color .12s ease}
-.workspace-nav-group a[aria-current=page]{background:var(--portal-soft);border-color:#e1d8ef;box-shadow:inset 3px 0 0 var(--portal-accent);color:var(--portal-accent)}
+.workspace-nav-group a[aria-current=page]{background:var(--portal-soft);border:0;box-shadow:none;color:var(--portal-accent)}
 .workspace-nav-help{padding:.9rem .75rem .25rem;margin-top:.5rem;border-color:var(--portal-line)}
 .workspace-nav-help p{font-weight:600;color:var(--portal-ink)}
 .workspace-nav-help a{font-size:.8125rem}
@@ -117,3 +117,11 @@ main.workspace-main.shell{width:calc(100% - 3rem);max-width:1480px;padding-block
  .submission-card-grid{grid-template-columns:minmax(0,1fr)}.submission-card{padding:1.1rem}.portal-attention-banner{padding:1rem}
 }
 @media(prefers-reduced-motion:reduce){.workspace-body button,.workspace-body .button,.workspace-nav-group a{transition:none}.workspace-body button:active:not(:disabled),.workspace-body .button:active{transform:none}}
+
+/* Selection uses fill and weight; decorative controls have no outlined frame. */
+.workspace-body .portal-view-switch button,
+.workspace-body .inbox-quick-types button,
+.workspace-body .inbox-layout-switch,
+.workspace-body .inbox-layout-switch button,
+.workspace-body .inbox-layout-switch button[aria-pressed=true],
+.portal-status,.badge{border:0;box-shadow:none}

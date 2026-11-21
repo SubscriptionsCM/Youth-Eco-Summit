@@ -12,3 +12,9 @@
 .live-reference-content .format-kicker{display:inline;line-height:inherit}
 :where(.live-reference-content) .format-bottom{line-height:inherit}
 .live-reference-content .format-film::after{display:block}
+
+/* Override captured route styles, which are inserted after the shared stylesheet. */
+body .participation-tabs button,body .participation-tabs button[aria-selected=true],
+body .winner-edition-tabs button,body .winner-edition-tabs button[aria-selected=true],
+body .voice-formats span,body .participation-panel,body .yes-challenge-status{border:0;box-shadow:none}
+body .participation-tabs button[aria-selected=true]{color:var(--purple);font-weight:700}
