@@ -4,6 +4,8 @@ import {loadSubmissionRecords,recordLink,requireActive} from './submission-recor
 import {plainText,referenceForms,isFieldVisible} from '../domain/wordpress-forms';
 import {displayReferenceValue} from '../domain/reference-values';
 import {submissionDateOrder} from '../domain/source-dates';
+import {contactMessagePreviewLimit,type ContactSubmissionSummary} from '../domain/contact-submission';
+const contactText=(value:unknown)=>typeof value==='string'||typeof value==='number'?plainText(value).trim():'';
 
 /** Unified staff read model. No source records are merged, edited or reassigned. */
 export async function submissionInbox(db:Db,actor:Actor,params:URLSearchParams){
@@ -17,14 +19,18 @@ export async function submissionInbox(db:Db,actor:Actor,params:URLSearchParams){
  ]);
  const files=new Map([...native.rows.map(r=>['portal:'+r.record_id,r.total] as const),...imported.rows.map(r=>['wordpress:'+r.record_id,r.total] as const)]);
  const q=(params.get('q')||'').trim().toLowerCase().slice(0,200),school=params.get('schoolId'),recordId=params.get('id'),type=params.get('formKey');
- const items=records.map(r=>{
+ const items=records.flatMap(r=>{
   const key=r.source+':'+r.id,formKey=['student','teacher','school'].includes(r.kind)?r.kind:r.formKey;
+  const message=r.formKey==='legacy-12146'?contactText(r.answers['text-1']):'';
+  const preview=message.replace(/\s+/g,' ');
+  const contact:ContactSubmissionSummary|undefined=r.formKey==='legacy-12146'?{name:r.name,email:r.email,phone:contactText(r.answers['phone-1']),messagePreview:preview.length>contactMessagePreviewLimit?preview.slice(0,contactMessagePreviewLimit-1).trimEnd()+'…':preview}:undefined;
   const schoolFields=referenceForms.find(f=>f.key===r.formKey)?.fields.filter(field=>
    ['text','select','name'].includes(field.type)&&/^(?:school(?:\s*\/\s*branch)?\s+name|name of (?:the )?school)\b/i.test(plainText(field.field_label))&&isFieldVisible(field,r.answers))||[];
   const recordedSchool=schoolFields.map(field=>plainText(displayReferenceValue(field.type,r.answers[field.id]))).find(value=>value&&!/^(?:other\b|not listed\b)/i.test(value));
   const schoolName=names.get(r.schoolId)||r.recordedSchoolName||recordedSchool||'';
-  return {key,id:r.id,form_key:formKey,title:r.title,reference:r.reference,status:r.status,name:r.name,school_id:r.schoolId,school_name:schoolName,submitted_at:r.submittedAt,dateSource:r.source,file_count:Number(files.get(key)||0),href:recordLink(r)};
- }).filter(r=>(!school||r.school_id===school)&&(!recordId||r.id===recordId)&&(!q||`${r.reference} ${r.name} ${r.school_name} ${r.title}`.toLowerCase().includes(q)));
+  if((school&&r.schoolId!==school)||(recordId&&r.id!==recordId)||(q&&!`${r.reference} ${r.name} ${schoolName} ${r.title} ${contact?`${contact.email} ${contact.phone} ${message}`:''}`.toLowerCase().includes(q)))return [];
+  return [{key,id:r.id,form_key:formKey,title:r.title,reference:r.reference,status:r.status,name:r.name,school_id:r.schoolId,school_name:schoolName,submitted_at:r.submittedAt,dateSource:r.source,file_count:Number(files.get(key)||0),href:recordLink(r),...(contact?{contact}:{})}];
+ });
  const formTotals:Record<string,number>={};for(const r of items)formTotals[r.form_key]=(formTotals[r.form_key]||0)+1;
  const dates=new Map(items.map(r=>[r.key,submissionDateOrder(r.submitted_at,r.dateSource)]));
  const matching=items.filter(r=>!type||r.form_key===type).sort((a,b)=>dates.get(b.key)!.localeCompare(dates.get(a.key)!)||a.key.localeCompare(b.key));

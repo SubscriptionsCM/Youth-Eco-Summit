@@ -52,7 +52,11 @@ describe('current live public presentation', () => {
       expect(page.html).not.toMatch(/href="\/#|>Loading(?:…|\.\.\.)</);
       for (const match of page.html.matchAll(/aria-controls="([^"]+)"/g)) expect(page.html).toContain(`id="${match[1]}"`);
     }
-    expect(pages['/contact'].html).toContain('href="/forms/legacy-12146"');
+    expect(pages['/contact'].html).toContain('data-live-contact-form="true"');
+    expect(pages['/contact'].html).not.toContain('/forms/legacy-12146');
+    const generator = readFileSync(resolve('scripts/sync-live-presentation.py'), 'utf8');
+    expect(generator).toContain("'data-live-contact-form':'true'");
+    expect(generator).not.toContain("href='/forms/legacy-12146'");
     expect(pages['/showcase'].html).toContain('data-live-publications');
     expect(pages['/competitions'].html).toContain('href="#challenges"');
   });

@@ -10,6 +10,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { api, json, type Row } from './api';
 import { dashboardLabel, dashboardPath, signedOutPath } from './auth-navigation';
 import '../app/account-navigation.css';
+import '../app/public-header-navigation.css';
 import '../app/portal-workspace.css';
 import '../app/portal-refinement.css';
 import {PortalWorkspace} from './portal-workspace';
@@ -17,7 +18,7 @@ import {isWorkspacePath} from '../domain/portal-navigation';
 
 import {manualReviewMode,dedicatedJudgingMode} from '../domain/review-mode';
 const marketingPaths = ['/', '/about', '/students', '/parents', '/teachers-schools', '/experience', '/awards', '/partners', '/resources', '/competitions', '/how-to-participate', '/faq', '/contact', '/showcase', '/get-involved'];
-const nav = [['The summit', '/about'], ['Competitions', '/competitions'], ['How to participate', '/how-to-participate'], ['For schools', '/teachers-schools']];
+const nav = [['The summit', '/about'], ['Competitions', '/competitions'], ['How to participate', '/how-to-participate'], ['For schools', '/teachers-schools'], ['Contact Us', '/contact']];
 export function SiteShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const footerCopy = footerReference[pathname as keyof typeof footerReference] || footerReference['/about'];

@@ -1,0 +1,7 @@
+/* Five public links switch to the existing menu before the header becomes crowded. */
+@media(max-width:1100px){
+ .yes-header:not(.workspace-site-header) .yes-desktop-nav{display:none}
+ .yes-header:not(.workspace-site-header) .yes-mobile-nav:not([hidden]){display:grid}
+ .yes-header:not(.workspace-site-header) .yes-menu-toggle{display:flex;align-items:center;gap:12px;background:transparent;border:0;color:var(--purple);font-size:.9375rem;padding:10px;min-height:44px}
+ .yes-header:not(.workspace-site-header) .yes-menu-toggle span{font-size:22px;line-height:1}
+}

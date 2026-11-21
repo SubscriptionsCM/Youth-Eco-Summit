@@ -6,6 +6,8 @@ import {fingerprint} from '../src/server/wordpress-migration';
 import {historicalEntry} from '../src/server/wordpress-projection';
 import {referenceForms} from '../src/domain/wordpress-forms';
 import type {Actor} from '../src/server/core';
+import {getFormRecord} from '../src/server/portal-forms';
+import {contactMessagePreviewLimit} from '../src/domain/contact-submission';
 let f:Awaited<ReturnType<typeof testDb>>,owner:Actor,shared:string,school:string,before:any[];
 beforeAll(async()=>{
  f=await testDb();owner={id:randomUUID(),role:'owner'};shared=randomUUID();school=randomUUID();
@@ -59,4 +61,41 @@ it('uses the original form field labels for school text instead of mistaking edu
  payload.meta[2].meta_value=String(condition.value);payload.meta.push({meta_key:'text-10',meta_value:'QA Custom School'});
  await f.db.query('UPDATE wordpress_records SET payload=$2,checksum=$3 WHERE id=$1',[id,JSON.stringify(payload),fingerprint(payload)]);
  expect((await list({id})).items[0]).toMatchObject({school_name:'QA Custom School',school_id:null});
+});
+it('shows and searches minimal native and archived Contact summaries while retaining private complete details',async()=>{
+ const nativeId=randomUUID(),archiveId=randomUUID(),message='Please help with our school visit.\n'+ 'Details about the visit. '.repeat(30)+'\nFinal unique follow-up phrase.';
+ const answers={'name-3':{'first-name':'Asha','last-name':'Singh'},'email-1':'asha@qa.example','phone-1':'+91 90000 00001','text-1':message,'password-1':'NEVER EXPOSE','_internal':'PRIVATE METADATA'};
+ const payload={form_id:12146,status:'active',meta:Object.entries(answers).map(([meta_key,meta_value])=>({meta_key,meta_value}))};
+ await f.db.query("INSERT INTO portal_form_records(id,form_key,reference,status,answers,submitted_at) VALUES($1,'legacy-12146','CONTACT-NATIVE','submitted',$2,now())",[nativeId,JSON.stringify(answers)]);
+ await f.db.query("INSERT INTO wordpress_records(id,source,kind,source_id,payload,checksum,captured_at) VALUES($1,'https://contact.local','entry','contact-archive',$2,$3,now())",[archiveId,JSON.stringify(payload),fingerprint(payload)]);
+ try{
+  const result=await list({formKey:'legacy-12146',q:'Asha Singh'});expect(result.total).toBe(2);
+  for(const item of result.items){
+   expect(item).toMatchObject({name:'Asha Singh',contact:{name:'Asha Singh',email:'asha@qa.example',phone:'+91 90000 00001'}});
+   expect(Object.keys(item.contact!)).toEqual(['name','email','phone','messagePreview']);
+   expect(item.contact!.messagePreview.length).toBeLessThanOrEqual(contactMessagePreviewLimit);expect(item.contact!.messagePreview).toMatch(/…$/);expect(item.contact!.messagePreview).not.toContain('\n');
+  }
+  for(const q of ['asha@qa.example','90000 00001','Final unique follow-up phrase'])expect((await list({formKey:'legacy-12146',q})).total).toBe(2);
+  expect(JSON.stringify(result)).not.toMatch(/NEVER EXPOSE|PRIVATE METADATA|password|answers|payload|meta_key|sourceChecksum|ownerIdentity|Final unique/);
+  expect((await getFormRecord(f.db,owner,nativeId)).answers['text-1']).toBe(message);
+  expect((await historicalEntry(f.db,owner,archiveId)).fields.find(field=>field.id==='text-1')?.value).toBe(message);
+  for(const actor of [{id:randomUUID(),role:'participant'},{id:randomUUID(),role:'judge'}] as Actor[]){
+   await expect(adminList(f.db,actor,'submission-inbox',new URLSearchParams({q:'asha@qa.example'}))).rejects.toMatchObject({status:403});
+   await expect(getFormRecord(f.db,actor,nativeId)).rejects.toMatchObject({status:404});
+   await expect(historicalEntry(f.db,actor,archiveId)).rejects.toMatchObject({status:404});
+  }
+  await expect(getFormRecord(f.db,null,nativeId)).rejects.toMatchObject({status:404});
+ }finally{
+  await f.db.query('DELETE FROM portal_form_records WHERE id=$1',[nativeId]);await f.db.query('DELETE FROM wordpress_records WHERE id=$1',[archiveId]);
+ }
+});
+it('never presents the Contact query as a person and retains archived email ambiguity checks',async()=>{
+ const nativeId=randomUUID(),archiveId=randomUUID(),payload={form_id:12146,status:'active',meta:[{meta_key:'text-1',meta_value:'A long query is not a person'},{meta_key:'email-1',meta_value:'one@qa.example'},{meta_key:'email-1',meta_value:'two@qa.example'}]};
+ await f.db.query("INSERT INTO portal_form_records(id,form_key,reference,status,answers,submitted_at) VALUES($1,'legacy-12146','CONTACT-MISSING','submitted',$2,now())",[nativeId,JSON.stringify({'text-1':'A long query is not a person'})]);
+ await f.db.query("INSERT INTO wordpress_records(id,source,kind,source_id,payload,checksum,captured_at) VALUES($1,'https://contact.local','entry','contact-missing',$2,$3,now())",[archiveId,JSON.stringify(payload),fingerprint(payload)]);
+ try{
+  const result=await list({q:'A long query is not a person'});expect(result.total).toBe(2);
+  for(const item of result.items)expect(item).toMatchObject({name:'',contact:{name:'',email:'',phone:'',messagePreview:'A long query is not a person'}});
+  expect((await list({formKey:'legacy-12146',q:'one@qa.example'})).total).toBe(0);
+ }finally{await f.db.query('DELETE FROM portal_form_records WHERE id=$1',[nativeId]);await f.db.query('DELETE FROM wordpress_records WHERE id=$1',[archiveId]);}
 });

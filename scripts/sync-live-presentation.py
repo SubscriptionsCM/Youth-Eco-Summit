@@ -109,8 +109,8 @@ def clean(record):
     contact=next((x for x in config['content'] if x['key']=='contact'),{})
     copy=re.sub(r'\[[^\]]+\]','',contact.get('body',''))
     paragraph=soup.new_tag('p',attrs={'class':'prose'});paragraph.string=' '.join(copy.split())
-    link=soup.new_tag('a',href='/forms/legacy-12146',attrs={'class':'yes-button'});link.string='Send a message ↗'
-    status.replace_with(paragraph);paragraph.insert_after(link)
+    form=soup.new_tag('div',attrs={'data-live-contact-form':'true'})
+    status.replace_with(paragraph);paragraph.insert_after(form)
    else:status.decompose()
  html=''.join(str(child) for child in main.contents)
  return {'html':html,'sourceSha256':record['sourceSha256'],'title':record['title']}

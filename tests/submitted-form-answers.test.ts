@@ -18,4 +18,10 @@ describe('submitted form information',()=>{
   const record={answers:{'text-1':'<img src=x onerror=alert(1)>','password-1':'PRIVATE_PASSWORD','hidden-1':'PRIVATE_INTERNAL','upload-1':'PRIVATE_STORAGE','_private':'PRIVATE_KEY'},form_snapshot:{fields:[...form.fields,{id:'password-1',type:'password'},{id:'hidden-1',type:'hidden'},{id:'upload-1',type:'upload'},{id:'_private',type:'text'}]}};
   const html=renderToStaticMarkup(createElement(SubmittedFormAnswers,{form,record}));expect(html).toContain('&lt;img');expect(html).not.toContain('<img');expect(html).not.toContain('PRIVATE_');
  });
+ it('keeps a complete multiline Contact query as escaped text in submitted details',()=>{
+  const message='First line\n'+'Long query. '.repeat(60)+'\n<img src=x onerror=alert(1)> Last line';
+  const contact:ReferenceForm={id:12146,key:'legacy-12146',title:'Contact',competition:false,settings:{},fields:[{id:'name-3',type:'name',field_label:'Name'},{id:'email-1',type:'email',field_label:'Email'},{id:'phone-1',type:'phone',field_label:'Phone'},{id:'text-1',type:'text',field_label:'Query'}]};
+  const html=renderToStaticMarkup(createElement(SubmittedFormAnswers,{form:contact,record:{answers:{'text-1':message}}}));
+  expect(html).toContain('white-space:pre-wrap');expect(html).toContain('First line\n');expect(html).toContain('&lt;img');expect(html).toContain('Last line');expect(html).not.toContain('<img');expect(html).not.toContain('…');
+ });
 });

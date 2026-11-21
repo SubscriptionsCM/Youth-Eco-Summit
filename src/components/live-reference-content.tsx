@@ -3,8 +3,11 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { shouldPlayHero } from './live-media-policy';
 import { LivePublications } from './live-publications';
+import dynamic from 'next/dynamic';
 import { connectWinners } from './live-winner-controls';
 import { iconMarkup, withSvgIcons } from './icon-shapes';
+
+const ContactMessageForm = dynamic(() => import('./contact-message-form').then(module => module.ContactMessageForm), { loading: () => <p role="status">Loading contact form…</p> });
 
 const participation = [
   ['Already registered? Use your permanent school ID. If your school is missing, nominate it for review.', 'Find your school', '/schools'],
@@ -59,9 +62,11 @@ function connectHero(root: HTMLElement): () => void {
 export function LiveReferenceContent({ html }: { html: string }) {
   const host = useRef<HTMLDivElement>(null);
   const [publicationsTarget, setPublicationsTarget] = useState<HTMLElement | null>(null);
+  const [contactTarget, setContactTarget] = useState<HTMLElement | null>(null);
   useEffect(() => {
     const root = host.current!;
     setPublicationsTarget(root.querySelector<HTMLElement>('[data-live-publications]'));
+    setContactTarget(root.querySelector<HTMLElement>('[data-live-contact-form]'));
     const disconnectHero = connectHero(root);
     const disconnectWinners = connectWinners(root);
     const speakers = root.querySelector<HTMLElement>('#summit-speaker-list');
@@ -181,5 +186,5 @@ export function LiveReferenceContent({ html }: { html: string }) {
       root.removeEventListener('click', click); root.removeEventListener('keydown', keydown);
     };
   }, [html]);
-  return <><div className="live-reference-content" ref={host} dangerouslySetInnerHTML={{ __html: withSvgIcons(html) }} />{publicationsTarget && createPortal(<LivePublications />, publicationsTarget)}</>;
+  return <><div className="live-reference-content" ref={host} dangerouslySetInnerHTML={{ __html: withSvgIcons(html) }} />{publicationsTarget && createPortal(<LivePublications />, publicationsTarget)}{contactTarget && createPortal(<ContactMessageForm />, contactTarget)}</>;
 }
