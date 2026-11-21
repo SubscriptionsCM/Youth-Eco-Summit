@@ -4,6 +4,7 @@ import { getActor, assertSameOrigin } from '@/server/auth';
 import { AppError, ok } from '@/server/core';
 import { supabaseAuthConfigured } from '@/server/supabase-auth';
 import { wordPressAuthConfigured } from '@/server/wordpress-auth';
+import { smtpConfigured } from '@/server/email';
 import { createFormRecord, getFormRecord, saveFormRecord, submitFormRecord, FormValidationError } from '@/server/portal-forms';
 import { portalUploadAction } from '@/server/portal-uploads';
 import { historicalEntries, historicalEntry, linkWordPressUser } from '@/server/wordpress-projection';
@@ -15,8 +16,9 @@ async function route(request:Request,context:{params:Promise<{path:string[]}>}) 
  try {
   const {path}=await context.params;
   if(path[0]==='config'&&request.method==='GET'){
-   const wordpress=process.env.AUTH_PARTICIPANT_PROVIDER==='wordpress';
-   return ok({enabled:process.env.PORTAL_REFERENCE_FORMS==='true',configured:!!process.env.DATABASE_URL,emailAccounts:wordpress?wordPressAuthConfigured():supabaseAuthConfigured(),accountProvider:wordpress?'wordpress':'supabase'});
+   const provider=process.env.AUTH_PARTICIPANT_PROVIDER||'native';
+   const wordpress=provider==='wordpress';
+   return ok({enabled:process.env.PORTAL_REFERENCE_FORMS==='true',configured:!!process.env.DATABASE_URL,emailAccounts:wordpress?wordPressAuthConfigured():provider==='supabase'?supabaseAuthConfigured():smtpConfigured(),accountProvider:provider});
   }
   if(process.env.PORTAL_REFERENCE_FORMS!=='true'||!process.env.DATABASE_URL)throw new AppError(503,'Registration services are being configured. Please use the current live website.');
   assertSameOrigin(request);

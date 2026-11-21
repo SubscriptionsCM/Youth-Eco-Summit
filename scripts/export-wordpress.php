@@ -6,12 +6,13 @@
 if (!defined('WP_CLI') || !WP_CLI) { exit(1); }
 global $wpdb;
 $destination = $args[0] ?? '';
+$stream = $destination === '-';
 $parent = realpath(dirname($destination));
 $web = realpath(ABSPATH);
-if (!$parent || $destination === '' || file_exists($destination) || strpos($parent . '/', $web . '/') === 0) { WP_CLI::error('Use a new private directory outside the web root.'); }
+if (!$stream && (!$parent || $destination === '' || file_exists($destination) || strpos($parent . '/', $web . '/') === 0)) { WP_CLI::error('Use a new private directory outside the web root.'); }
 umask(0077);
-if (!mkdir($destination, 0700) || !mkdir($destination . '/attachments', 0700)) { WP_CLI::error('Cannot create private export directory.'); }
-$records = array(); $attachments = array(); $issues = array();
+if (!$stream && (!mkdir($destination, 0700) || !mkdir($destination . '/attachments', 0700))) { WP_CLI::error('Cannot create private export directory.'); }
+$records = array(); $attachments = array(); $issues = array(); $source_files = array(); $accounts = array();
 $private = realpath((string)get_option('yes_native_private_upload_root'));
 $upload = wp_upload_dir(null,false); $upload_root = realpath($upload['basedir']);
 $source = untrailingslashit(home_url());
@@ -24,7 +25,7 @@ $file_candidates = function($value) use (&$file_candidates,$private,$upload_root
  $path = $value;
  if (filter_var($value,FILTER_VALIDATE_URL)) {
   if (strpos($value,trailingslashit($upload['baseurl'])) === 0) { $path = $upload_root . '/' . rawurldecode(substr($value,strlen(trailingslashit($upload['baseurl'])))); }
-  elseif (strpos($value,$source . '/yes-entry-file/') === 0 && $private) { $path = $private . '/' . rawurldecode(substr($value,strlen($source . '/yes-entry-file/'))); }
+  elseif ($private && preg_match('#^' . preg_quote($source,'#') . '/yes-entry-files?/(.+)$#', $value, $match)) { $path = $private . '/' . rawurldecode($match[1]); }
   else { return $found; }
  }
  $resolved = realpath($path);
@@ -47,8 +48,9 @@ try {
      $sha = hash_file('sha256',$path); $relative = 'attachments/' . hash('sha256',$source_id);
      // Safe filenames are hashes and numeric source IDs, never a source path.
      $relative = str_replace(':','-',$relative);
-     if (!copy($path,$destination . '/' . $relative) || hash_file('sha256',$destination . '/' . $relative) !== $sha) { throw new RuntimeException('Attachment changed or failed during export.'); }
-     $attachments[] = array('sourceId'=>$source_id,'entryId'=>(string)$entry['entry_id'],'path'=>$relative,'sha256'=>$sha,'bytes'=>filesize($destination . '/' . $relative),'filename'=>basename($path),'mimeType'=>(new finfo(FILEINFO_MIME_TYPE))->file($path));
+     if (!$stream && (!copy($path,$destination . '/' . $relative) || hash_file('sha256',$destination . '/' . $relative) !== $sha)) { throw new RuntimeException('Attachment changed or failed during export.'); }
+     $attachments[] = array('sourceId'=>$source_id,'entryId'=>(string)$entry['entry_id'],'path'=>$relative,'sha256'=>$sha,'bytes'=>filesize($path),'filename'=>basename($path),'mimeType'=>(new finfo(FILEINFO_MIME_TYPE))->file($path));
+     if ($stream) { $source_files[] = array('path'=>$relative,'sourcePath'=>$path); }
     }
    }
   }
@@ -62,15 +64,23 @@ try {
    $m['meta_value_raw_base64']=base64_encode($m['meta_value']); $m['meta_value']=$decode($m['meta_value']);$user['meta'][]=$m;
   }
   $add('user',$user['ID'],$user);
+  $status = (string) get_user_meta((int)$user['ID'],'account_status',true);
+  $accounts[] = array('sourceUserId'=>(string)$user['ID'],'username'=>$user['user_login'],'email'=>strtolower(trim($user['user_email'])),'name'=>$user['display_name'],
+   'passwordHash'=>$user['user_pass'],'active'=>(int)$user['user_status']===0 && ($status==='' || $status==='approved'),
+   'credentialFingerprint'=>hash_hmac('sha256',(string)$user['ID'] . "\0" . $user['user_pass'],wp_salt('auth')));
  }
  foreach ($wpdb->get_results("SELECT * FROM {$wpdb->posts} WHERE post_type='forminator_forms' ORDER BY ID",ARRAY_A) as $form) {
   $form['definition']=get_post_meta($form['ID'],'forminator_form_meta',true);
   $add('form',$form['ID'],$form);
  }
  foreach (array('yes_native_portal','yes_native_imported_schools','yes_native_school_catalog') as $key) { $value=get_option($key,null); if ($value!==null) { $add('option',$key,array('value'=>$value)); } }
+ if (function_exists('yes_native_school_choices')) { foreach (yes_native_school_choices() as $school) { $add('school',$school['reference'],$school); } }
  $wpdb->query('COMMIT');
  $data=array('format'=>'yes-wordpress-export/v1','source'=>$source,'capturedAt'=>gmdate('c'),'counts'=>array('records'=>count($records),'attachments'=>count($attachments)),'records'=>$records,'attachments'=>$attachments);
+ $data['nativeAccounts']=array('format'=>'yes-native-accounts/v1','source'=>$source,'capturedAt'=>$data['capturedAt'],'accounts'=>$accounts);
+ if ($stream) { $data['sourceFiles']=$source_files; $data['issues']=$issues; }
  $json=wp_json_encode($data,JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
+ if ($stream) { echo $json; return; }
  if (file_put_contents($destination . '/export.json',$json,LOCK_EX)===false) { throw new RuntimeException('Could not save export.'); }
  file_put_contents($destination . '/issues.json',wp_json_encode($issues,JSON_PRETTY_PRINT|JSON_THROW_ON_ERROR));
  WP_CLI::success(wp_json_encode(array('records'=>count($records),'entries'=>count($entries),'attachments'=>count($attachments),'issues'=>count($issues),'manifestSha256'=>hash('sha256',$json))));

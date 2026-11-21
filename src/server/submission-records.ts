@@ -28,7 +28,7 @@ export async function loadSubmissionRecords(db:Db,only?:{source?:'portal'|'wordp
  if(only?.schoolId){nativeArgs.push(only.schoolId);nativeWhere.push(`(school_id=$${nativeArgs.length} OR id IN (SELECT record_id FROM school_record_links WHERE source='portal' AND active AND school_id=$${nativeArgs.length}))`);}
  const archiveArgs:unknown[]=only?.includeUnknown?[]:[ids],archiveWhere=only?.includeUnknown?["kind='entry'"]:["kind='entry'","payload->>'form_id'=ANY($1::text[])"];
  if(only?.recordId){archiveArgs.push(only.recordId);archiveWhere.push(`id=$${archiveArgs.length}`);}
- if(only?.schoolId){archiveArgs.push(only.schoolId);archiveWhere.push(`(EXISTS(SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(payload->'meta')='array' THEN payload->'meta' ELSE '[]'::jsonb END) m WHERE m->>'meta_key' IN ('text-yes-school-id','registered-school-id','_yes_school_id') AND upper(btrim(m->>'meta_value')) IN (SELECT reference FROM school_identifiers WHERE school_id=$${archiveArgs.length}::uuid)) OR id IN (SELECT record_id FROM school_record_links WHERE source='wordpress' AND active AND school_id=$${archiveArgs.length}::uuid))`);}
+ if(only?.schoolId){archiveArgs.push(only.schoolId);archiveWhere.push(`(EXISTS(SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(payload->'meta')='array' THEN payload->'meta' ELSE '[]'::jsonb END) m WHERE m->>'meta_key' IN ('text-yes-school-id','registered-school-id','_yes_school_id','_yes_verified_school_id') AND upper(btrim(m->>'meta_value')) IN (SELECT reference FROM school_identifiers WHERE school_id=$${archiveArgs.length}::uuid)) OR id IN (SELECT record_id FROM school_record_links WHERE source='wordpress' AND active AND school_id=$${archiveArgs.length}::uuid))`);}
  const {rows:native}=only?.source==='wordpress'?{rows:[]}:await db.query('SELECT id,form_key,reference,answers,status,school_id,submitted_at,owner_id,submitter_role FROM portal_form_records'+(nativeWhere.length?' WHERE '+nativeWhere.join(' AND '):''),nativeArgs);
  const {rows:archive}=only?.source==='portal'?{rows:[]}:await db.query('SELECT id,source,source_id,payload,checksum FROM wordpress_records WHERE '+archiveWhere.join(' AND '),archiveArgs);
  const {rows:identifiers}=await db.query("SELECT i.reference,i.school_id FROM school_identifiers i JOIN schools s ON s.id=i.school_id WHERE s.trashed_at IS NULL AND NOT s.purging");
@@ -53,13 +53,13 @@ export async function loadSubmissionRecords(db:Db,only?:{source?:'portal'|'wordp
   }
   const ownerIds=['_yes_owner_user_id','_yes_entry_account_id'].flatMap(originalValues).map(v=>typeof v==='number'||typeof v==='string'?String(v).trim():'');
   const ownerIdentity=source==='portal'?(row.owner_id?'portal:'+row.owner_id:null):ownerIds.length&&ownerIds.every(v=>/^[1-9]\d*$/.test(v)&&v===ownerIds[0])?'wordpress:'+row.source+':'+ownerIds[0]:null;
-  const roleValues=[...(source==='portal'&&row.submitter_role?[row.submitter_role]:[]),...originalValues('hidden-yes-submitter')].map(v=>typeof v==='string'?v.trim():'');
+  const roleValues=[...(source==='portal'&&row.submitter_role?[row.submitter_role]:[]),...originalValues('hidden-yes-submitter'),...(source==='wordpress'?originalValues('_yes_entry_submitter_role'):[])].map(v=>typeof v==='string'?v.trim():'');
   const submitterRole=roleValues.length&&roleValues.every(v=>['student','educator'].includes(v)&&v===roleValues[0])?roleValues[0]:null;
   const draft=source==='wordpress'?row.payload.is_draft:null;
   const nonDraft=draft===undefined||draft===null||draft===false||draft===0||typeof draft==='string'&&['','0','false'].includes(draft.trim().toLowerCase());
   const status:SubmissionRecord['status']=source==='portal'?(row.status==='submitted'?'submitted':row.status==='draft'?'draft':'other'):supplemental?supplemental.status:!nonDraft?'draft':['active','submitted','completed'].includes(row.payload.status)?'submitted':'other';
   const submittedAt=originalDate(source==='portal'?row.submitted_at:supplemental?supplemental.submittedAt:row.payload.date_created);
-  const pointerKeys=['text-yes-school-id','registered-school-id','_yes_school_id'];
+  const pointerKeys=['text-yes-school-id','registered-school-id','_yes_school_id','_yes_verified_school_id'];
   // Inspect every source occurrence before collapsing metadata. HTML is not an ID.
   const pointers:unknown[]=source==='wordpress'?(Array.isArray(row.payload.meta)?row.payload.meta:[]).filter((m:any)=>pointerKeys.includes(m?.meta_key)).map((m:any)=>m.meta_value):pointerKeys.filter(k=>answers[k]!==undefined).map(k=>answers[k]);
   const schoolRefs=pointers.map((v:unknown)=>typeof v==='string'?v.trim().toUpperCase():'');

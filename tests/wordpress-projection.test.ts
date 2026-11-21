@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { testDb } from './helpers/db';
-import { archiveWordPress } from '../src/server/wordpress-migration';
-import { projectWordPressSchools, linkWordPressUser, historicalEntries, historicalEntry, historicalAttachment } from '../src/server/wordpress-projection';
+import { archiveWordPress, fingerprint } from '../src/server/wordpress-migration';
+import { projectWordPressSchools, projectCurrentWordPressSchoolAliases, linkWordPressUser, historicalEntries, historicalEntry, historicalAttachment } from '../src/server/wordpress-projection';
+import { archiveWordPressVersions } from '../scripts/lib/wordpress-versions';
 import type { Actor } from '../src/server/core';
 
 describe('operational WordPress identity migration',()=>{
@@ -178,5 +179,86 @@ describe('operational WordPress identity migration',()=>{
  it('enables row-level security on both additive identity link tables',async()=>{
   const {rows}=await fixture.db.query("SELECT relname,relrowsecurity FROM pg_class WHERE relname IN ('wordpress_school_links','wordpress_user_links') ORDER BY relname");
   expect(rows).toEqual([{relname:'wordpress_school_links',relrowsecurity:true},{relname:'wordpress_user_links',relrowsecurity:true}]);
+ });
+});
+
+describe('exact current school alias projection',()=>{
+ let fixture:Awaited<ReturnType<typeof testDb>>;
+ const source='https://current-source.example',at='2026-11-20T10:00:00Z';
+ const school=(id:string,aliases:string[]=[])=>({kind:'school' as const,sourceId:id,payload:{reference:id,name:id,address:id,city:'Delhi',legacy_ids:aliases}});
+ const envelope=(records:Record<string,any>[],capturedAt=at)=>({format:'yes-wordpress-export/v1',source,capturedAt,records,counts:{records:records.length,attachments:0},attachments:[]});
+ const archive=(records:Record<string,any>[])=>archiveWordPress(fixture.db,envelope(records),{commit:true});
+ const version=(records:Record<string,any>[],capturedAt=at)=>archiveWordPressVersions(fixture.db,envelope(records,capturedAt),{commit:true});
+ async function snapshot(schools:Record<string,string>,capturedAt=at){
+  await archiveWordPress(fixture.db,envelope([{kind:'option',sourceId:'native-current-records:'+capturedAt,payload:{format:'yes-native-source-snapshot/v1',capturedAt,records:{school:schools}}}],capturedAt),{commit:true});
+ }
+ beforeEach(async()=>{fixture=await testDb();});
+ afterEach(async()=>fixture?.close());
+ it('previews and adds current aliases idempotently while keeping original archives, school corrections and link checksums',async()=>{
+  const baseline=school('YES-CURRENT',['YES-OLD']),current=school('YES-CURRENT',['YES-OLD','YES-NEW']);
+  await archive([baseline]);await projectWordPressSchools(fixture.db,source,{commit:true});
+  await fixture.db.query("UPDATE schools SET name='Corrected school',status='inactive'");
+  await version([current]);await snapshot({'YES-CURRENT':fingerprint(current.payload)});
+  const beforeRecords=(await fixture.db.query('SELECT * FROM wordpress_records ORDER BY id')).rows,beforeLinks=(await fixture.db.query('SELECT * FROM wordpress_school_links')).rows;
+  expect(await projectCurrentWordPressSchoolAliases(fixture.db,source)).toMatchObject({schools:1,readyAliases:1,addedAliases:0,committed:false});
+  expect((await fixture.db.query("SELECT * FROM school_identifiers WHERE reference='YES-NEW'")).rows).toEqual([]);
+  expect(await projectCurrentWordPressSchoolAliases(fixture.db,source,{commit:true})).toMatchObject({readyAliases:1,addedAliases:1});
+  expect(await projectCurrentWordPressSchoolAliases(fixture.db,source,{commit:true})).toMatchObject({readyAliases:0,addedAliases:0});
+  expect((await fixture.db.query("SELECT school_id FROM school_identifiers WHERE reference='YES-NEW'")).rows[0].school_id).toBe(beforeLinks[0].school_id);
+  expect((await fixture.db.query('SELECT * FROM wordpress_records ORDER BY id')).rows).toEqual(beforeRecords);
+  expect((await fixture.db.query('SELECT * FROM wordpress_school_links')).rows).toEqual(beforeLinks);
+  expect((await fixture.db.query('SELECT name,status FROM schools')).rows).toEqual([{name:'Corrected school',status:'inactive'}]);
+ });
+ it('selects the exact manifest checksum rather than the newest retained version and preserves aliases after a source reversion',async()=>{
+  const baseline=school('YES-CURRENT',['YES-OLD']),selected=school('YES-CURRENT',['YES-CHOSEN']),newest=school('YES-CURRENT',['YES-NOT-CURRENT']);
+  await archive([baseline]);await projectWordPressSchools(fixture.db,source,{commit:true});
+  await version([selected]);await version([newest],'2026-11-21T10:00:00Z');await snapshot({'YES-CURRENT':fingerprint(selected.payload)});
+  await projectCurrentWordPressSchoolAliases(fixture.db,source,{commit:true});
+  expect((await fixture.db.query('SELECT reference FROM school_identifiers ORDER BY reference')).rows.map(row=>row.reference)).toEqual(['YES-CHOSEN','YES-CURRENT','YES-OLD']);
+  await snapshot({'YES-CURRENT':fingerprint(baseline.payload)},'2026-11-22T10:00:00Z');
+  expect(await projectCurrentWordPressSchoolAliases(fixture.db,source,{commit:true})).toMatchObject({readyAliases:0,addedAliases:0});
+  expect((await fixture.db.query("SELECT * FROM school_identifiers WHERE reference='YES-CHOSEN'")).rows).toHaveLength(1);
+ });
+ it('requires a valid source-scoped manifest, an exact retained version and the original school link before writing',async()=>{
+  const baseline=school('YES-CURRENT'),current=school('YES-CURRENT',['YES-NEW']);await archive([baseline]);
+  await expect(projectCurrentWordPressSchoolAliases(fixture.db,source,{commit:true})).rejects.toMatchObject({status:409});
+  await snapshot({'YES-CURRENT':fingerprint(current.payload)});
+  await expect(projectCurrentWordPressSchoolAliases(fixture.db,source,{commit:true})).rejects.toMatchObject({status:409});
+  await projectWordPressSchools(fixture.db,source,{commit:true});
+  await expect(projectCurrentWordPressSchoolAliases(fixture.db,source,{commit:true})).rejects.toThrow(/exact current school version/i);
+  await version([current]);
+  await fixture.db.query("UPDATE wordpress_records SET payload=payload||'{\"tampered\":true}'::jsonb WHERE kind='option'");
+  await expect(projectCurrentWordPressSchoolAliases(fixture.db,source,{commit:true})).rejects.toThrow(/checksum/i);
+  expect((await fixture.db.query("SELECT * FROM school_identifiers WHERE reference='YES-NEW'")).rows).toEqual([]);
+ });
+ it('rejects an exact version with a forged baseline checksum',async()=>{
+  const baseline=school('YES-CURRENT'),current=school('YES-CURRENT',['YES-NEW']);await archive([baseline]);await projectWordPressSchools(fixture.db,source,{commit:true});await snapshot({'YES-CURRENT':fingerprint(current.payload)});
+  const record=(await fixture.db.query("SELECT id FROM wordpress_records WHERE kind='school'")).rows[0];
+  await fixture.db.query('INSERT INTO wordpress_record_versions(id,record_id,baseline_checksum,checksum,payload,captured_at) VALUES($1,$2,$3,$4,$5,$6)',[randomUUID(),record.id,'0'.repeat(64),fingerprint(current.payload),JSON.stringify(current.payload),at]);
+  await expect(projectCurrentWordPressSchoolAliases(fixture.db,source,{commit:true})).rejects.toThrow(/version.*checksum/i);
+  expect((await fixture.db.query("SELECT * FROM school_identifiers WHERE reference='YES-NEW'")).rows).toEqual([]);
+ });
+ it('preflights all aliases and rejects a current cross-canonical claim without partially adding a safe alias',async()=>{
+  const first=school('YES-FIRST'),second=school('YES-SECOND'),currentFirst=school('YES-FIRST',['YES-SAFE']),currentSecond=school('YES-SECOND',['YES-FIRST']);
+  await archive([first,second]);await projectWordPressSchools(fixture.db,source,{commit:true});await version([currentFirst,currentSecond]);await snapshot({'YES-FIRST':fingerprint(currentFirst.payload),'YES-SECOND':fingerprint(currentSecond.payload)});
+  const before=(await fixture.db.query('SELECT * FROM school_identifiers ORDER BY reference')).rows;
+  await expect(projectCurrentWordPressSchoolAliases(fixture.db,source)).rejects.toThrow(/conflict/i);
+  await expect(projectCurrentWordPressSchoolAliases(fixture.db,source,{commit:true})).rejects.toThrow(/conflict/i);
+  expect((await fixture.db.query('SELECT * FROM school_identifiers ORDER BY reference')).rows).toEqual(before);
+ });
+ it('retains old source alias ownership even when the current source omits it and its directory row is missing',async()=>{
+  const first=school('YES-FIRST',['YES-RETAINED']),second=school('YES-SECOND'),currentFirst=school('YES-FIRST'),currentSecond=school('YES-SECOND',['YES-RETAINED']);
+  await archive([first,second]);await projectWordPressSchools(fixture.db,source,{commit:true});await fixture.db.query("DELETE FROM school_identifiers WHERE reference='YES-RETAINED'");
+  await version([currentFirst,currentSecond]);await snapshot({'YES-FIRST':fingerprint(currentFirst.payload),'YES-SECOND':fingerprint(currentSecond.payload)});
+  await expect(projectCurrentWordPressSchoolAliases(fixture.db,source,{commit:true})).rejects.toThrow(/conflict/i);
+  expect((await fixture.db.query("SELECT * FROM school_identifiers WHERE reference='YES-RETAINED'")).rows).toEqual([]);
+ });
+ it('retains ownership of aliases observed in an earlier exact version after a source reversion and missing directory row',async()=>{
+  const first=school('YES-FIRST'),second=school('YES-SECOND'),oldCurrent=school('YES-FIRST',['YES-RETAINED']),currentSecond=school('YES-SECOND',['YES-RETAINED']);
+  await archive([first,second]);await projectWordPressSchools(fixture.db,source,{commit:true});await version([oldCurrent]);await snapshot({'YES-FIRST':fingerprint(oldCurrent.payload),'YES-SECOND':fingerprint(second.payload)});
+  await projectCurrentWordPressSchoolAliases(fixture.db,source,{commit:true});await fixture.db.query("DELETE FROM school_identifiers WHERE reference='YES-RETAINED'");
+  await version([currentSecond]);await snapshot({'YES-FIRST':fingerprint(first.payload),'YES-SECOND':fingerprint(currentSecond.payload)},'2026-11-22T10:00:00Z');
+  await expect(projectCurrentWordPressSchoolAliases(fixture.db,source,{commit:true})).rejects.toThrow(/conflict/i);
+  expect((await fixture.db.query("SELECT * FROM school_identifiers WHERE reference='YES-RETAINED'")).rows).toEqual([]);
  });
 });

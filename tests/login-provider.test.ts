@@ -73,7 +73,7 @@ function element(tree: ReactNode, predicate: (element: ReactElement<any>) => boo
 
 beforeEach(() => {
   harness.values = []; harness.dependencies = []; harness.effects = []; harness.cursor = 0;
-  harness.config = { data: { emailAccounts: true }, loading: false, error: '', reload: vi.fn() };
+  harness.config = { data: { emailAccounts: true, accountProvider:'native' }, loading: false, error: '', reload: vi.fn() };
   harness.api.mockReset(); harness.assign.mockReset();
   vi.stubGlobal('window', { location: { search: '', assign: harness.assign } });
 });
@@ -82,7 +82,7 @@ afterEach(() => vi.unstubAllGlobals());
 describe('global participant login provider', () => {
   it('renders the existing email account and recovery flow when configured', () => {
     const html = renderToStaticMarkup(page());
-    expect(html).toContain('Email address');
+    expect(html).toContain('Username or email');
     expect(html).toContain('Forgot your password?');
     expect(html).not.toContain('Verified contact phone');
   });
@@ -156,7 +156,7 @@ describe('global participant login provider', () => {
     expect(harness.assign).not.toHaveBeenCalled();
     const html = renderToStaticMarkup(page());
     expect(html).toContain('role="alert"');
-    expect(html).toContain('Email address');
+    expect(html).toContain('Username or email');
   });
 
   it('offers a retry when provider configuration fails', () => {
@@ -167,6 +167,22 @@ describe('global participant login provider', () => {
     expect(html).toContain('Try again');
     expect(html).not.toContain('Verified contact phone');
   });
+});
+
+describe('native participant sign-in UI',()=>{
+ it('signs in with one password field while keeping confirmation for account creation',async()=>{
+  const props={provider:'native' as const,onSignedIn:vi.fn()};
+  let tree=account(props);
+  expect(find(tree,node=>node.props.name==='confirmPassword')).toBeUndefined();
+  element(tree,node=>node.props.name==='contact').props.onChange({target:{value:'existing-name'}});
+  vi.stubGlobal('FormData',class extends Map<string,string>{constructor(){super([['password','Existing-password-123']]);}});
+  harness.api.mockResolvedValueOnce({actor:{role:'participant',contact:'participant@example.test'}});
+  await element(account(props),node=>node.type==='form').props.onSubmit({preventDefault(){},currentTarget:{}});
+  expect(harness.api).toHaveBeenCalledWith('/api/auth/participant/login',expect.objectContaining({body:JSON.stringify({password:'Existing-password-123',contact:'existing-name'})}));
+  expect(props.onSignedIn).toHaveBeenCalledWith({email:'participant@example.test'});
+  element(tree,node=>node.type==='button'&&node.props.children==='Create a new account').props.onClick();tree=account(props);
+  expect(element(tree,node=>node.props.name==='password').props.minLength).toBe(12);expect(find(tree,node=>node.props.name==='confirmPassword')).toBeDefined();
+ });
 });
 
 describe('WordPress signup and recovery UI', () => {

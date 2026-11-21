@@ -4,6 +4,8 @@ import { db as database, type Db } from './db';
 import { AppError, type Actor, audit } from './core';
 import { supabaseParticipantAction } from './supabase-auth';
 import { environmentWordPressBridge, verifyWordPressActor, wordPressParticipantAction, type WordPressBridge } from './wordpress-auth';
+import { nativeParticipantAction } from './native-participant-auth';
+import { sendTransactionalEmail, smtpConfigured } from './email';
 
 const derive = (value: string, salt: string, length: number, options: ScryptOptions): Promise<Buffer> =>
   new Promise((resolve, reject) => {
@@ -53,15 +55,19 @@ function password(value: unknown) {
 }
 export async function hashPassword(value: string) {
   password(value);
+  return hashStoredPassword(value);
+}
+async function hashStoredPassword(value: string) {
   const salt = randomBytes(16).toString('hex');
   const result = await derive(value, salt, 64, SCRYPT_OPTIONS) as Buffer;
   return `scrypt-32768-8-3$${salt}$${result.toString('hex')}`;
 }
 async function verifyPassword(value: unknown, hash: string | null) {
-  if (typeof value !== 'string' || value.length > 256) return false;
-  const [, salt, expected] = (hash || `scrypt-32768-8-3$${'0'.repeat(32)}$${'0'.repeat(128)}`).split('$');
+  if (typeof value !== 'string' || Buffer.byteLength(value) > 4096) return false;
+  const validHash = !!hash && /^scrypt-32768-8-3\$[a-f0-9]{32}\$[a-f0-9]{128}$/.test(hash);
+  const [, salt, expected] = (validHash ? hash : `scrypt-32768-8-3$${'0'.repeat(32)}$${'0'.repeat(128)}`).split('$');
   const actual = await derive(value, salt, 64, SCRYPT_OPTIONS) as Buffer;
-  return !!hash && same(actual.toString('hex'), expected);
+  return validHash && same(actual.toString('hex'), expected);
 }
 function sessionToken(request: Request) {
   return request.headers.get('cookie')?.split(';').map(v => v.trim()).find(v => v.startsWith(`${COOKIE}=`))?.slice(COOKIE.length + 1) || '';
@@ -83,11 +89,18 @@ export function createAuth(db: Db, options: AuthOptions) {
       FROM auth_sessions s JOIN users u ON u.id=s.user_id
       WHERE s.token_hash=$1 AND s.revoked_at IS NULL AND s.expires_at>now() AND u.active=true
       AND s.auth_version=u.auth_version
-      AND NOT EXISTS(SELECT 1 FROM supabase_identities si WHERE si.user_id=u.id AND si.recovery_nonce IS NOT NULL)`;
+      ${process.env.AUTH_PARTICIPANT_PROVIDER === 'native' ? '' : 'AND NOT EXISTS(SELECT 1 FROM supabase_identities si WHERE si.user_id=u.id AND si.recovery_nonce IS NOT NULL)'}`;
     const tokenHash = digest(token);
     const { rows: [found] } = await db.query<Actor & {wordpress_bound: boolean}>(query, [tokenHash]);
     if (!found) return null;
     const { wordpress_bound: wordpressBound, ...actor } = found;
+    if (process.env.AUTH_PARTICIPANT_PROVIDER === 'native') {
+      if (actor.role !== 'participant') return actor;
+      const { rows: [native] } = await db.query<{ verified_contact: string; password_hash: string | null }>(`SELECT a.verified_contact,u.password_hash
+        FROM native_participant_accounts a JOIN users u ON u.id=a.user_id WHERE a.user_id=$1`, [actor.id]);
+      if (native) return native.verified_contact === actor.contact && !!native.password_hash ? actor : null;
+      return wordpressBound ? null : actor;
+    }
     if (!wordpressBound) return actor;
     if (!await verifyWordPressActor(db, actor, wordpressBridge)) return null;
     // Source checks cross a process boundary. Recheck local revocation/version
@@ -113,8 +126,10 @@ export function createAuth(db: Db, options: AuthOptions) {
       // lookup performed before recovery started must not create a new session.
       const { rows: [current] } = await tx.query<User>('SELECT * FROM users WHERE id=$1 FOR UPDATE', [user.id]);
       if (!current?.active || current.role !== user.role || current.auth_version !== user.auth_version) throw new AppError(403, 'This account changed. Sign in again.');
-      const pending = await tx.query('SELECT auth_user_id FROM supabase_identities WHERE user_id=$1 AND recovery_nonce IS NOT NULL', [user.id]);
-      if (pending.rows.length) throw new AppError(403, 'Password recovery is pending. Contact support to reconcile account access.');
+      if (process.env.AUTH_PARTICIPANT_PROVIDER !== 'native') {
+        const pending = await tx.query('SELECT auth_user_id FROM supabase_identities WHERE user_id=$1 AND recovery_nonce IS NOT NULL', [user.id]);
+        if (pending.rows.length) throw new AppError(403, 'Password recovery is pending. Contact support to reconcile account access.');
+      }
       await tx.query('INSERT INTO auth_sessions(token_hash,user_id,auth_version,mfa_verified,expires_at) VALUES($1,$2,$3,$4,$5)', [digest(token), user.id, current.auth_version, mfa, new Date(Date.now() + seconds * 1000)]);
     });
     const response = json({ actor: { id: user.id, role: user.role, contact: user.contact } });
@@ -139,8 +154,10 @@ export function createAuth(db: Db, options: AuthOptions) {
       // Older API clients may omit confirmation; browser forms require it.
       if (input.confirmPassword !== undefined && (typeof input.password !== 'string' || input.password !== input.confirmPassword)) throw new AppError(400, 'The passwords must match.');
       if (['participant/signup','participant/login','participant/verify','participant/resend','participant/recovery/request','participant/recovery/complete'].includes(route)) {
-        const participantProvider = process.env.AUTH_PARTICIPANT_PROVIDER === 'wordpress' ? 'wordpress' : 'supabase';
+        const participantProvider = process.env.AUTH_PARTICIPANT_PROVIDER === 'native' ? 'native' : process.env.AUTH_PARTICIPANT_PROVIDER === 'wordpress' ? 'wordpress' : 'supabase';
         await rate(request,participantProvider+'-'+route,String(input.contact||'').trim().toLowerCase(),5);
+        if (participantProvider === 'native') return await nativeParticipantAction(db,route,input,startSession,{...options,request,verifyPassword,
+          hashPassword: (value, existingPassword = false) => existingPassword ? hashStoredPassword(value) : hashPassword(value)});
         if (process.env.AUTH_PARTICIPANT_PROVIDER === 'wordpress') return await wordPressParticipantAction(db,route,input,wordpressBridge,startSession,{...options,request});
         return await supabaseParticipantAction(db,route,input,startSession);
       }
@@ -279,7 +296,9 @@ function environmentOptions(): AuthOptions {
   const wordpressBridge = environmentWordPressBridge();
   let email: ((payload: unknown) => Promise<void>) | null = null;
   if (enabled) {
-    if (process.env.AUTH_PARTICIPANT_PROVIDER === 'wordpress') {
+    if (process.env.AUTH_PARTICIPANT_PROVIDER === 'native' && smtpConfigured()) {
+      email = async payload => { await sendTransactionalEmail(payload as { to: string; subject: string; body: string }); };
+    } else if (process.env.AUTH_PARTICIPANT_PROVIDER === 'wordpress') {
       if (wordpressBridge) email = async (payload: unknown) => { await wordpressBridge.call('mail', payload as Record<string, unknown>); };
     } else if (process.env.EMAIL_WEBHOOK_URL && process.env.EMAIL_WEBHOOK_TOKEN) email = deliver(process.env.EMAIL_WEBHOOK_URL,process.env.EMAIL_WEBHOOK_TOKEN);
   }

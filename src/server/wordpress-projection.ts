@@ -84,6 +84,61 @@ export async function projectWordPressSchools(db:Db,source:string,options:{commi
  });
 }
 
+/** Adds current aliases after baseline projection without changing permanent links. */
+export async function projectCurrentWordPressSchoolAliases(db:Db,source:string,options:{commit?:boolean}={}){
+ z.url().parse(source);
+ return db.transaction(async tx=>{
+  if(options.commit)await tx.query('LOCK TABLE wordpress_records,wordpress_record_versions,wordpress_school_links,schools,school_identifiers IN EXCLUSIVE MODE');
+  const {rows:[snapshot]}=await tx.query<SourceRecord>("SELECT * FROM wordpress_records WHERE source=$1 AND kind='option' AND source_id LIKE 'native-current-records:%' ORDER BY captured_at DESC,source_id DESC LIMIT 1",[source]);
+  if(!snapshot)throw new AppError(409,'The current source snapshot is required before projecting school aliases.');
+  verify(snapshot);
+  const manifest=z.object({format:z.literal('yes-native-source-snapshot/v1'),capturedAt:z.iso.datetime({offset:true}),records:z.object({school:z.record(z.string().min(1).max(250),z.string().regex(/^[a-f0-9]{64}$/))})}).safeParse(snapshot.payload);
+  if(!manifest.success||snapshot.source_id!=='native-current-records:'+manifest.data.capturedAt)throw new AppError(409,'The current source snapshot is invalid.');
+  const {rows:records}=await tx.query<SourceRecord>("SELECT * FROM wordpress_records WHERE source=$1 AND kind='school'",[source]);
+  const baselines=new Map(records.map(record=>[record.source_id,record]));
+  const {rows:retained}=await tx.query<SourceRecord&{source_checksum:string;school_id:string}>("SELECT r.*,l.source_checksum,l.school_id FROM wordpress_school_links l JOIN wordpress_records r ON r.id=l.record_id WHERE r.kind='school'");
+  const links=new Map(retained.map(record=>[record.id,record]));
+  const {rows:identifiers}=await tx.query<{reference:string;school_id:string}>('SELECT reference,school_id FROM school_identifiers');
+  const references=new Map(identifiers.map(item=>[reference(item.reference),item.school_id]));
+  const claims=new Map<string,string>();
+  const claim=(canonical:string,aliases:string[])=>{for(const alias of aliases){if(claims.has(alias)&&claims.get(alias)!==canonical)throw new AppError(409,'School canonical or alias ownership conflict; no aliases were reassigned.');claims.set(alias,canonical);}};
+  for(const record of retained){
+   if(record.source_checksum!==record.checksum)throw new AppError(409,'School source checksum conflict.');
+   const {canonical,aliases}=schoolReferences(record);claim(canonical,aliases);
+  }
+  const {rows:versions}=await tx.query<SourceRecord&{baseline_checksum:string}>("SELECT r.id,r.source,r.source_id,v.payload,v.checksum,v.baseline_checksum FROM wordpress_record_versions v JOIN wordpress_records r ON r.id=v.record_id JOIN wordpress_school_links l ON l.record_id=r.id WHERE r.kind='school'");
+  for(const record of versions){
+   const baseline=links.get(record.id);
+   if(!baseline||record.baseline_checksum!==baseline.checksum)throw new AppError(409,'School version baseline checksum conflict.');
+   const {canonical,aliases}=schoolReferences(record);claim(canonical,aliases);
+  }
+  const plans:{schoolId:string;aliases:string[]}[]=[];
+  const result={schools:0,readyAliases:0,addedAliases:0,unchangedAliases:0,committed:!!options.commit};
+  for(const [sourceId,checksum] of Object.entries(manifest.data.records.school)){
+   const baseline=baselines.get(sourceId),link=baseline&&links.get(baseline.id);
+   if(!baseline||!link||link.source_checksum!==baseline.checksum)throw new AppError(409,'Project the original school identity before its current aliases.');
+   const original=schoolReferences(baseline);
+   let current=baseline;
+   if(checksum!==baseline.checksum){
+    const {rows:[version]}=await tx.query<{payload:Record<string,unknown>;checksum:string;baseline_checksum:string}>('SELECT payload,checksum,baseline_checksum FROM wordpress_record_versions WHERE record_id=$1 AND checksum=$2',[baseline.id,checksum]);
+    if(!version||version.baseline_checksum!==baseline.checksum)throw new AppError(409,'The exact current school version is unavailable.');
+    current={...baseline,payload:version.payload,checksum:version.checksum};
+   }
+   if(current.checksum!==checksum)throw new AppError(409,'The exact current school checksum does not verify.');
+   const {canonical,aliases}=schoolReferences(current);
+   if(canonical!==original.canonical)throw new AppError(409,'A current alias snapshot cannot change the permanent school identity.');
+   claim(canonical,aliases);
+   for(const alias of aliases)if(references.has(alias)&&references.get(alias)!==link.school_id)throw new AppError(409,'School alias conflict; no aliases were reassigned.');
+   const missing=aliases.filter(alias=>!references.has(alias));
+   for(const alias of aliases)references.set(alias,link.school_id);
+   result.schools++;result.readyAliases+=missing.length;result.unchangedAliases+=aliases.length-missing.length;
+   plans.push({schoolId:link.school_id,aliases:missing});
+  }
+  if(options.commit)for(const plan of plans)for(const alias of plan.aliases){await tx.query("INSERT INTO school_identifiers(reference,school_id,kind) VALUES($1,$2,'imported')",[alias,plan.schoolId]);result.addedAliases++;}
+  return result;
+ });
+}
+
 const linkInput=z.object({source:z.url(),sourceId:z.string().min(1).max(250),authUserId:z.uuid()});
 function sourceEmail(record:SourceRecord){const email=record.payload.user_email;return typeof email==='string'?email.trim().toLowerCase():'';}
 export async function linkWordPressUser(db:Db,actor:Actor,input:z.infer<typeof linkInput>){

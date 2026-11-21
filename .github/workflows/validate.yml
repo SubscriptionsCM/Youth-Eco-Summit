@@ -25,7 +25,8 @@ jobs:
       - run: npm run build
         env:
           NEXT_TELEMETRY_DISABLED: '1'
-          APP_ORIGIN: https://new.youthecosummit.com
+          APP_ORIGIN: https://youthecosummit.com
+          AUTH_PARTICIPANT_PROVIDER: native
           NEXT_PUBLIC_JUDGING_MODE: portal
       - name: Package Hostinger standalone release
         if: github.event_name == 'push'
@@ -37,8 +38,6 @@ jobs:
           cp -a .next/static/. .next/standalone/.next/static/
           printf '%s\n' "$RELEASE_COMMIT" > .next/standalone/REVISION
           node scripts/package-hostinger-worker.mjs
-          mkdir -p .next/standalone/wordpress-bridge
-          cp wordpress/yes-next-account-bridge/{bridge,notifications,delivery,recovery}.php .next/standalone/wordpress-bridge/
           if find .next/standalone -type f -name '.env*' -print -quit | grep -q .; then
             echo 'Unexpected environment file in standalone release'
             exit 1

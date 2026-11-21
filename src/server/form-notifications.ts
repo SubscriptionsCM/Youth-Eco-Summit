@@ -5,7 +5,7 @@ import { z } from 'zod';
 import type { Db } from './db';
 import { AppError, id } from './core';
 import { referenceForms } from '../domain/wordpress-forms';
-import { environmentWordPressBridge } from './wordpress-auth';
+import { nativeNotificationBridge } from './native-form-notifications';
 import { objectStore, type ObjectStore } from './storage/provider';
 
 export interface NotificationBridge {
@@ -102,7 +102,7 @@ async function materializeAttachments(database:Db,context:Context,packet:Packet,
  const descriptors=selected as FileDescriptor[];
  if(descriptors.reduce((sum,file)=>sum+file.byteSize,0)>=MAX_ATTACHMENT_BYTES)throw new AttachmentIntegrityError();
  if(!descriptors.length)return {attachments:[] as (FileDescriptor & {path:string})[],cleanup:async()=>{}};
- const configuredRoot=options.mailTempRoot || process.env.WORDPRESS_MAIL_TEMP_ROOT;
+ const configuredRoot=options.mailTempRoot || process.env.MAIL_TEMP_ROOT;
  if(!configuredRoot)throw unavailable();
  const root=await privateDirectory(configuredRoot),directory=await mkdtemp(join(root,'mail-'));
  const cleanup=async()=>{
@@ -153,11 +153,10 @@ async function summarize(database:Db,recordId:string):Promise<Summary> {
  return {delivered:count('delivered'),review:count('review')+count('sending'),pending:count('planned')};
 }
 
-/** A durable sending marker is committed before PHP can contact SMTP. */
+/** A durable sending marker is committed before contacting SMTP. */
 export async function deliverFormNotifications(database:Db,recordId:string,options:NotificationOptions={}):Promise<Summary> {
  z.uuid().parse(recordId);
- const run=await runContext(database,recordId),bridge=options.bridge || environmentWordPressBridge();
- if(!bridge)throw unavailable();
+ const run=await runContext(database,recordId),bridge=options.bridge || nativeNotificationBridge(database);
  await planNotifications(database,run,bridge);
  // A recovered invocation never resends an attempt whose SMTP result is unknown.
  // A still-running attempt may confirm success using its own unchanged token.

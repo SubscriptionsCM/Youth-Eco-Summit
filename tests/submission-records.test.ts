@@ -40,3 +40,57 @@ it('does not infer student self-submission from conflicting or HTML-wrapped arch
   const payload={...row.payload,meta:values.map(meta_value=>({meta_key:'hidden-yes-submitter',meta_value}))};await f.db.query('UPDATE wordpress_records SET payload=$2,checksum=$3 WHERE id=$1',[row.id,JSON.stringify(payload),fingerprint(payload)]);expect((await loadSubmissionRecords(f.db)).find(r=>r.reference==='WP-3')?.submitterRole).toBeNull();
  }
 });
+
+async function archivedMetadata(meta:{meta_key:string;meta_value:unknown}[],check:(id:string)=>Promise<void>){
+ const id=randomUUID(),payload={form_id:referenceForms.find(form=>form.key==='open-letter')!.id,status:'active',is_draft:'0',date_created:'2026-11-17 08:30:00',meta};
+ await f.db.query("INSERT INTO wordpress_records(id,source,kind,source_id,payload,checksum,captured_at) VALUES($1,'https://source.test','entry',$2,$3,$4,now())",[id,id,JSON.stringify(payload),fingerprint(payload)]);
+ try{await check(id);}finally{await f.db.query('DELETE FROM wordpress_records WHERE id=$1',[id]);}
+}
+it.each(['student','educator'])('reads the protected legacy %s role and verified school ID without relying on presentation labels',async role=>{
+ await archivedMetadata([
+  {meta_key:'_yes_entry_submitter_role',meta_value:role},
+  {meta_key:'_yes_entry_submission_by',meta_value:role==='student'?'Educator':'Student'},
+  {meta_key:'_yes_verified_school_id',meta_value:' sch-read '}
+ ],async id=>{
+  const rows=await loadSubmissionRecords(f.db,{source:'wordpress',recordId:id,schoolId});
+  expect(rows).toHaveLength(1);expect(rows[0]).toMatchObject({submitterRole:role,schoolId,directSchoolId:schoolId});
+ });
+});
+it('accepts agreeing canonical and visible pointers through an exact imported school alias',async()=>{
+ await f.db.query("INSERT INTO school_identifiers(reference,school_id,kind) VALUES('OLD-SCH-READ',$1,'imported')",[schoolId]);
+ try{
+  await archivedMetadata([
+   {meta_key:'_yes_entry_submitter_role',meta_value:'student'},{meta_key:'hidden-yes-submitter',meta_value:'student'},
+   {meta_key:'_yes_verified_school_id',meta_value:'OLD-SCH-READ'},{meta_key:'text-yes-school-id',meta_value:'SCH-READ'}
+  ],async id=>expect((await loadSubmissionRecords(f.db,{source:'wordpress',recordId:id,schoolId}))[0]).toMatchObject({submitterRole:'student',schoolId,directSchoolId:schoolId}));
+ }finally{await f.db.query("DELETE FROM school_identifiers WHERE reference='OLD-SCH-READ'");}
+});
+it.each([
+ [{meta_key:'_yes_entry_submitter_role',meta_value:'student'},{meta_key:'hidden-yes-submitter',meta_value:'educator'}],
+ [{meta_key:'_yes_entry_submitter_role',meta_value:'student'},{meta_key:'_yes_entry_submitter_role',meta_value:'educator'}],
+ [{meta_key:'_yes_entry_submitter_role',meta_value:'<b>student</b>'}],
+ [{meta_key:'_yes_entry_submission_by',meta_value:'student'}]
+])('does not authorize a role from conflicting, malformed or human-label-only legacy metadata %#',async(...meta)=>{
+ await archivedMetadata(meta,async id=>expect((await loadSubmissionRecords(f.db,{source:'wordpress',recordId:id}))[0].submitterRole).toBeNull());
+});
+it('rejects conflicting protected school IDs and conflicts between protected and visible school IDs',async()=>{
+ const otherSchool=randomUUID();await f.db.query("INSERT INTO schools(id,reference,name,address,city,state,postal_code,status) VALUES($1,'SCH-CANONICAL-OTHER','Other canonical school','Road','City','State','','active')",[otherSchool]);
+ try{
+  for(const conflictingKey of ['_yes_verified_school_id','text-yes-school-id','registered-school-id','_yes_school_id']){
+   await archivedMetadata([
+    {meta_key:'_yes_verified_school_id',meta_value:'SCH-READ'},{meta_key:conflictingKey,meta_value:'SCH-CANONICAL-OTHER'}
+   ],async id=>{
+    for(const scopedSchool of [schoolId,otherSchool])expect((await loadSubmissionRecords(f.db,{source:'wordpress',recordId:id,schoolId:scopedSchool}))[0]).toMatchObject({schoolId:null,directSchoolId:null});
+   });
+  }
+ }finally{await f.db.query('DELETE FROM schools WHERE id=$1',[otherSchool]);}
+});
+it.each(['A school','student@example.test','<b>SCH-READ</b>','UNKNOWN-SCHOOL'])('does not replace a verified school identifier with a matching name, email, HTML or unknown value: %s',async value=>{
+ await archivedMetadata([
+  {meta_key:'_yes_verified_school_id',meta_value:value},{meta_key:'text-yes-school',meta_value:'A school'},
+  {meta_key:'text-yes-name',meta_value:'Student'},{meta_key:'email-yes-student-1',meta_value:'student@example.test'}
+ ],async id=>{
+  expect((await loadSubmissionRecords(f.db,{source:'wordpress',recordId:id}))[0]).toMatchObject({schoolId:null,directSchoolId:null});
+  expect(await loadSubmissionRecords(f.db,{source:'wordpress',recordId:id,schoolId})).toEqual([]);
+ });
+});

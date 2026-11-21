@@ -5,9 +5,10 @@
 if (!defined('WP_CLI') || !WP_CLI) { exit(1); }
 global $wpdb;
 $destination=$args[0] ?? ''; $parent=realpath(dirname($destination));$web=realpath(ABSPATH);
-if (!$parent || file_exists($destination) || strpos($parent . '/',$web . '/')===0) { WP_CLI::error('Use a new private directory outside the web root.'); }
-umask(0077);mkdir($destination,0700);mkdir($destination.'/attachments',0700);
-$records=array();$attachments=array();$issues=array();$uploads=wp_upload_dir(null,false);$base=realpath($uploads['basedir']);
+$stream=$destination==='-';
+if (!$stream && (!$parent || file_exists($destination) || strpos($parent . '/',$web . '/')===0)) { WP_CLI::error('Use a new private directory outside the web root.'); }
+umask(0077);if(!$stream){mkdir($destination,0700);mkdir($destination.'/attachments',0700);}
+$records=array();$attachments=array();$issues=array();$source_files=array();$uploads=wp_upload_dir(null,false);$base=realpath($uploads['basedir']);
 $tables=$wpdb->get_col('SHOW TABLES');
 $exists=function($suffix) use($tables,$wpdb){return in_array($wpdb->prefix.$suffix,$tables,true);};
 $paths=function($value) use(&$paths,$base,$uploads){
@@ -23,11 +24,12 @@ $paths=function($value) use(&$paths,$base,$uploads){
  return $out;
 };
 $add=function($kind,$sourceId,$payload) use(&$records){$records[]=array('kind'=>$kind,'sourceId'=>(string)$sourceId,'payload'=>$payload);};
-$copy=function($entryId,$payload,$extra=array()) use(&$attachments,$paths,$destination){
+$copy=function($entryId,$payload,$extra=array()) use(&$attachments,&$source_files,$paths,$destination,$stream){
  foreach(array_values(array_unique(array_merge($paths($payload),$extra))) as $path){
   $sourceId=$entryId.':'.hash('sha256',$path);$relative='attachments/'.hash('sha256',$sourceId);$sha=hash_file('sha256',$path);
-  if(!copy($path,$destination.'/'.$relative)||hash_file('sha256',$destination.'/'.$relative)!==$sha){throw new RuntimeException('Legacy attachment changed during export.');}
-  $attachments[]=array('sourceId'=>$sourceId,'entryId'=>$entryId,'path'=>$relative,'sha256'=>$sha,'bytes'=>filesize($destination.'/'.$relative),'filename'=>basename($path),'mimeType'=>(new finfo(FILEINFO_MIME_TYPE))->file($path));
+  if(!$stream&&(!copy($path,$destination.'/'.$relative)||hash_file('sha256',$destination.'/'.$relative)!==$sha)){throw new RuntimeException('Legacy attachment changed during export.');}
+  $attachments[]=array('sourceId'=>$sourceId,'entryId'=>$entryId,'path'=>$relative,'sha256'=>$sha,'bytes'=>filesize($path),'filename'=>basename($path),'mimeType'=>(new finfo(FILEINFO_MIME_TYPE))->file($path));
+  if($stream){$source_files[]=array('path'=>$relative,'sourcePath'=>$path);}
  }
 };
 try{
@@ -57,6 +59,7 @@ try{
  }
  $wpdb->query('COMMIT');
  $data=array('format'=>'yes-wordpress-export/v1','source'=>untrailingslashit(home_url()),'capturedAt'=>gmdate('c'),'counts'=>array('records'=>count($records),'attachments'=>count($attachments)),'records'=>$records,'attachments'=>$attachments);
+ if($stream){$data['sourceFiles']=$source_files;$data['issues']=$issues;echo wp_json_encode($data,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);return;}
  $json=wp_json_encode($data,JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);file_put_contents($destination.'/export.json',$json,LOCK_EX);file_put_contents($destination.'/issues.json',wp_json_encode($issues));
  WP_CLI::success(wp_json_encode(array('records'=>count($records),'entries'=>count(array_filter($records,function($record){return $record['kind']==='entry';})),'attachments'=>count($attachments),'manifestSha256'=>hash('sha256',$json))));
 }catch(Throwable $error){$wpdb->query('ROLLBACK');WP_CLI::error('Legacy export incomplete; source records were not changed. '.$error->getMessage());}
