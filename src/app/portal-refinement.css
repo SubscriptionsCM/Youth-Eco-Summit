@@ -60,6 +60,7 @@ main.workspace-main.shell{width:calc(100% - 3rem);max-width:1480px;padding-block
 .workspace-body .notice{font-size:.9375rem}
 .workspace-body .portal-result-count{font-size:.8125rem;margin:.35rem 0 0;color:var(--portal-muted)}
 .workspace-body .portal-pagination{padding-top:.75rem;margin-top:1rem}
+.workspace-body > .portal-pagination + .panel{margin-top:1.5rem}
 .inbox-filter-bar{padding:1.25rem;background:#fff;border:1px solid var(--portal-line);border-radius:10px;margin-bottom:1.75rem}
 .inbox-search-row{display:flex;gap:.75rem;align-items:flex-end}
 .inbox-search-row .field{flex:1;min-width:0;margin:0}
