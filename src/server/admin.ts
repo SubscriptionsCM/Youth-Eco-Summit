@@ -6,6 +6,7 @@ import { competitionSchema,rubricSchema } from '../domain/rules';
 import { assign,recordDecision } from './judging';
 import { archivedEntrySummary, type SourceRecord } from './wordpress-projection';
 import {submissionInbox} from './submission-inbox';
+import {staffDisplayRole} from './staff-presentation';
 export async function overview(db:Db,edition:string){
  const {rows:[counts]}=await db.query(`SELECT
  (SELECT count(*)::int FROM portal_form_records WHERE status='submitted') reference_submissions_all_editions,
@@ -82,7 +83,7 @@ const resources:Record<string,{from:string;select:string;search:string;where?:st
  nominations:{from:'school_nominations t',select:'t.*',search:"t.name||' '||t.reference||' '||t.city",order:'t.created_at'},
  students:{from:'students t',select:studentDetails,search:"t.name||' '||t.reference||' '||t.guardian_contact",where:'t.trashed_at IS NULL',order:'t.created_at'},
  entries:{from:'submissions t JOIN competitions c ON c.id=t.competition_id JOIN student_participations p ON p.id=t.student_participation_id JOIN students st ON st.id=p.student_id JOIN schools sc ON sc.id=p.school_id',select:'t.*,c.title,c.edition_id,p.school_id,p.class,st.name student_name,sc.name school_name',search:"t.reference||' '||c.title||' '||st.name||' '||sc.name",where:'t.trashed_at IS NULL',order:'t.created_at'},
- judges:{from:'users t',select:'t.id,t.name,t.contact,t.role,t.active,t.created_at,(SELECT count(*)::int FROM judge_assignments a WHERE a.judge_id=t.id AND a.active) assigned_count,(SELECT count(*)::int FROM reviews r JOIN judge_assignments a ON a.id=r.assignment_id WHERE a.judge_id=t.id AND r.status=\'submitted\') completed_count',search:"t.name||' '||t.contact",where:"t.role IN ('judge','admin','owner')",order:'t.created_at'},
+ judges:{from:'users t',select:'t.id,t.name,t.contact,t.role,t.staff_username,t.active,t.created_at,(SELECT count(*)::int FROM judge_assignments a WHERE a.judge_id=t.id AND a.active) assigned_count,(SELECT count(*)::int FROM reviews r JOIN judge_assignments a ON a.id=r.assignment_id WHERE a.judge_id=t.id AND r.status=\'submitted\') completed_count',search:"t.name||' '||t.contact",where:"t.role IN ('judge','admin','owner')",order:'t.created_at'},
  assignments:{from:'judge_assignments t JOIN submissions s ON s.id=t.submission_id JOIN users u ON u.id=t.judge_id JOIN review_rounds rr ON rr.id=t.round_id JOIN competitions c ON c.id=s.competition_id LEFT JOIN reviews r ON r.assignment_id=t.id AND r.revision=t.revision',select:assignmentDetails,search:"s.reference||' '||u.name",order:'t.created_at'},
  rules:{from:'assignment_rules t',select:'t.*',search:'t.category_id',order:'t.created_at'},
  rounds:{from:'review_rounds t',select:'t.*',search:'t.name',order:'t.created_at'},
@@ -145,8 +146,9 @@ export async function adminList(db:Db,actor:Actor,resource:string,params:URLSear
  const filter=where.join(' AND ');const {rows:[count]}=await db.query(`SELECT count(*)::int total FROM ${r.from} WHERE ${filter}`,values);
  const stableOrder=['reference-forms','wordpress-history'].includes(resource)?',t.id DESC':'';
  const {rows:items}=await db.query(`SELECT ${r.select} FROM ${r.from} WHERE ${filter} ORDER BY ${r.order} DESC${stableOrder} LIMIT $${values.length+1} OFFSET $${values.length+2}`,[...values,pageSize,(page-1)*pageSize]);
+ const staffItems=resource==='judges'?items.map<Record<string,any>>(({staff_username,...item})=>{const displayRole=staffDisplayRole({role:item.role,staff_username});return {...item,...displayRole?{displayRole}:{}};}):items;
  const formTotals=formFacet?Object.fromEntries((await db.query<{form_key:string;total:number}>(`SELECT t.form_key,count(*)::int total FROM ${r.from} WHERE ${formFacet.filter} GROUP BY t.form_key`,formFacet.values)).rows.map(row=>[row.form_key,row.total])):undefined;
- return {items:resource==='wordpress-history'?items.map(item=>archivedEntrySummary(item as SourceRecord)):items,total:count.total,page,pageSize,...formTotals?{formTotals}:{}};
+ return {items:resource==='wordpress-history'?items.map(item=>archivedEntrySummary(item as SourceRecord)):staffItems,total:count.total,page,pageSize,...formTotals?{formTotals}:{}};
 }
 const iso=z.iso.datetime({offset:true});
 export async function adminCreate(db:Db,actor:Actor,resource:string,input:unknown){

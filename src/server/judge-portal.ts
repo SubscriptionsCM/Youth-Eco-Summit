@@ -8,6 +8,7 @@ import {judgingSource,type JudgingSnapshot,type JudgingSource} from './judge-por
 import type {RetainedDownload} from './storage/downloads';
 import {loadSubmissionRecords} from './submission-records';
 import {submissionDateOrder} from '../domain/source-dates';
+import {staffDisplayRole} from './staff-presentation';
 
 async function active(db:Db,actor:Actor,staff=false){
  if(staff)requireAdmin(actor);else if(!['judge','admin','owner'].includes(actor.role))throw new AppError(403,'Judge access required.');
@@ -105,10 +106,10 @@ export async function judgingQueue(db:Db,actor:Actor,params:URLSearchParams){
 export async function judgingAdministration(db:Db,actor:Actor,params=new URLSearchParams()){
  await active(db,actor,true);const page=Math.max(1,Math.min(100000,Math.floor(Number(params.get('page'))||1)));
  const {rows:rounds}=await db.query('SELECT * FROM judging_rounds ORDER BY created_at DESC,id LIMIT 200');
- const {rows:judges}=await db.query("SELECT u.id,u.name,u.contact,u.role,u.active,(SELECT count(*)::int FROM judging_assignments a WHERE a.judge_id=u.id AND a.active) assigned_count,(SELECT count(*)::int FROM judging_assignments a JOIN judging_reviews v ON v.assignment_id=a.id WHERE a.judge_id=u.id AND a.active AND v.status='submitted') completed_count,coalesce((SELECT jsonb_agg(DISTINCT r.form_key) FROM judging_assignments a JOIN judging_rounds r ON r.id=a.round_id WHERE a.judge_id=u.id AND a.active),'[]'::jsonb) competition_keys FROM users u WHERE u.role IN ('judge','admin','owner') ORDER BY u.name,u.contact");
+ const {rows:judges}=await db.query("SELECT u.id,u.name,u.contact,u.role,u.staff_username,u.active,(SELECT count(*)::int FROM judging_assignments a WHERE a.judge_id=u.id AND a.active) assigned_count,(SELECT count(*)::int FROM judging_assignments a JOIN judging_reviews v ON v.assignment_id=a.id WHERE a.judge_id=u.id AND a.active AND v.status='submitted') completed_count,coalesce((SELECT jsonb_agg(DISTINCT r.form_key) FROM judging_assignments a JOIN judging_rounds r ON r.id=a.round_id WHERE a.judge_id=u.id AND a.active),'[]'::jsonb) competition_keys FROM users u WHERE u.role IN ('judge','admin','owner') ORDER BY u.name,u.contact");
  const {rows:[count]}=await db.query('SELECT count(*)::int total,count(*) FILTER(WHERE active)::int active_total FROM judging_assignments');
  const {rows:assignments}=await db.query("SELECT a.id,a.round_id,a.active,a.reason,a.revoked_reason,a.judge_id,a.snapshot->>'reference' reference,a.snapshot->>'title' title,r.name round_name,r.edition,coalesce(v.status,'pending') status,v.scores,v.deductions,v.total,v.comment,v.flag,v.submitted_at FROM judging_assignments a JOIN judging_rounds r ON r.id=a.round_id LEFT JOIN judging_reviews v ON v.assignment_id=a.id ORDER BY a.created_at DESC,a.id LIMIT 50 OFFSET $1",[(page-1)*50]);
- return {rounds,judges,assignments,catalogue:judgingCatalogue,total:count.total,activeTotal:count.active_total,page,pageSize:50};
+ return {rounds,judges:judges.map<Record<string,any>>(({staff_username,...judge})=>{const displayRole=staffDisplayRole({role:judge.role,staff_username});return {...judge,...displayRole?{displayRole}:{}};}),assignments,catalogue:judgingCatalogue,total:count.total,activeTotal:count.active_total,page,pageSize:50};
 }
 export async function listJudgingEntries(db:Db,actor:Actor,params:URLSearchParams):Promise<{items:Record<string,any>[];total:number;page:number;pageSize:number}>{
  if(params.get('source')==='all'){

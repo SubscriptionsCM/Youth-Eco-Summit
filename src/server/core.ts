@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { Db } from './db';
 import type {ParticipantKind} from '../domain/participant-access';
 import type {LoginAudience} from '../domain/login-audience';
-export type Actor = { id: string; role: 'owner' | 'admin' | 'judge' | 'participant'; contact?: string; participantKind?:ParticipantKind };
+export type Actor = { id: string; role: 'owner' | 'admin' | 'judge' | 'participant'; contact?: string; participantKind?:ParticipantKind; displayRole?:'Developer' };
 export class AppError extends Error {
  constructor(public status: number, message: string, public details?: {code:'LOGIN_AUDIENCE_MISMATCH';loginAudience:LoginAudience}) { super(message); }
 }
