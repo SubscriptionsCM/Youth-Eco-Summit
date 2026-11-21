@@ -4,6 +4,14 @@ const links=(role:string,mode='portal',kind?:'student'|'educator'|'school'|'uncl
 it('does not duplicate navigation destinations across groups',()=>{
  for(const mode of ['portal','manual','legacy']){const items=links('owner',mode);expect(new Set(items).size).toBe(items.length);}
 });
+it('shows one unified submissions link for staff in every mode, including old bookmarked URLs',()=>{
+ for(const role of ['owner','admin'])for(const mode of ['portal','manual','legacy']){
+  const items=portalGroups(role,mode).flatMap(group=>group.items);
+  expect(items.filter(item=>item.label==='Forms & submissions').map(item=>item.href)).toEqual(['/admin/reference-forms']);
+  expect(items.some(item=>item.href==='/admin/wordpress-history')).toBe(false);
+  expect(items.filter(item=>isPortalLinkActive('/admin/wordpress-history',item.href)).map(item=>item.href)).toEqual(['/admin/reference-forms']);
+ }
+});
 it('exposes the new reporting and school workspaces only to the relevant roles',()=>{
  expect(links('owner')).toContain('/admin/reports');expect(links('admin')).toContain('/admin/school-access');
  expect(links('participant','portal','educator')).toContain('/school');expect(links('judge')).not.toContain('/school');

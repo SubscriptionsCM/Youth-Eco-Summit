@@ -22,7 +22,7 @@ export function portalGroups(role:string,mode='portal',kind?:ParticipantKind|nul
   {label:'Tools',root:'/admin/tools',items:['jobs','audit','trash'].map(admin)}
  ];
  return [
-  {label:'Workspace',primary:true,items:['overview','reference-forms','wordpress-history'].map(admin)},
+  {label:'Workspace',primary:true,items:['overview','reference-forms'].map(admin)},
   {label:'Judging',items:mode==='portal'?[admin('judging'),item('My assigned entries','/judge'),admin('judges')]:mode==='legacy'?['judges','assignments','rules','rounds','reviews','results'].map(admin):[]},
   {label:'People & enquiries',items:['schools','teachers','students','entries','nominations','partner-enquiries'].map(admin)},
   {label:'Summit setup',items:['editions','competitions','content'].map(admin)},
@@ -50,7 +50,7 @@ export function isWorkspacePath(path:string){
 }
 export function isPortalLinkActive(path:string,href:string){
  if(href==='/admin/tools'&&['/admin/jobs','/admin/audit','/admin/trash'].some(root=>path===root||path.startsWith(root+'/')))return true;
- const aliases:Record<string,string>={'/forms/student':'/register','/forms/teacher':'/teachers/register','/forms/school':'/schools/register'};
+ const aliases:Record<string,string>={'/admin/wordpress-history':'/admin/reference-forms','/forms/student':'/register','/forms/teacher':'/teachers/register','/forms/school':'/schools/register'};
  path=aliases[path]||path;
  return path===href||(href!=='/admin'&&path.startsWith(href+'/'));
 }
