@@ -27,6 +27,17 @@ it('keeps dedicated and legacy judging destinations separate',()=>{
  expect(links('owner','manual')).not.toContain('/admin/judging');expect(links('owner','manual')).not.toContain('/admin/judges');
  expect(links('owner','legacy')).toContain('/admin/rules');
 });
+it('takes staff to the current named-round manager in every CMS mode',()=>{
+ for(const mode of ['portal','manual','legacy']){
+  expect(currentAdminDestination('rounds',new URLSearchParams(),mode)).toBe('/admin/judging#review-round-setup');
+  for(const role of ['owner','admin']){
+   const roundLinks=portalGroups(role,mode).flatMap(group=>group.items).filter(item=>item.label==='Review rounds');
+   if(mode!=='portal')expect(roundLinks.map(item=>item.href)).toEqual(['/admin/judging#review-round-setup']);
+   expect(portalGroups(role,mode).flatMap(group=>group.items).filter(item=>isPortalLinkActive('/admin/judging',item.href))).toHaveLength(1);
+   expect(links(role,mode)).not.toContain('/admin/rounds');
+  }
+ }
+});
 it('keeps the active website admin menu focused on populated submission and judging workflows',()=>{
  for(const role of ['admin','owner']){
   expect(links(role)).toEqual(['/admin','/admin/reports','/admin/reference-forms','/admin/schools','/admin/school-access','/admin/school-records','/admin/judging','/admin/judges','/admin/jobs','/admin/audit','/admin/trash']);
@@ -47,7 +58,7 @@ it('routes older registration links into filtered current forms while preserving
  expect(currentAdminDestination('entries',new URLSearchParams(),'portal')).toBe('/admin/reference-forms');
 });
 it('replaces duplicate judging and empty configuration screens without redirecting current or legacy-mode pages',()=>{
- for(const section of ['assignments','rules','rounds','reviews','results'])expect(currentAdminDestination(section,new URLSearchParams(),'portal')).toBe('/admin/judging');
+ for(const section of ['assignments','rules','reviews','results'])expect(currentAdminDestination(section,new URLSearchParams(),'portal')).toBe('/admin/judging');
  for(const section of ['files','repairs','imports','editions','competitions','content'])expect(currentAdminDestination(section,new URLSearchParams(),'portal')).toBe('/admin/tools');
  for(const section of ['overview','judging','judges','reference-forms','schools','tools','jobs','audit','trash'])expect(currentAdminDestination(section,new URLSearchParams(),'portal')).toBeNull();
  expect(currentAdminDestination('wordpress-history',new URLSearchParams({id:'old-record',q:'Green'}),'portal')).toBe('/admin/reference-forms?q=Green&id=old-record');

@@ -20,3 +20,12 @@ it('opens staff judging management while preserving the manual staff inbox',asyn
  vi.stubEnv('NEXT_PUBLIC_JUDGING_MODE','manual');const {default:Page}=await import('../src/app/admin/[[...section]]/page');
  const view=await Page({params:Promise.resolve({section:['judging']}),searchParams:Promise.resolve({})});expect(view.type.name).toBe('JudgeAdministration');
 });
+it('opens the named-round manager before mode-specific legacy round redirects',async()=>{
+ const {default:Page}=await import('../src/app/admin/[[...section]]/page');
+ for(const mode of ['portal','manual','legacy']){
+  vi.stubEnv('NEXT_PUBLIC_JUDGING_MODE',mode);
+  await expect(Page({params:Promise.resolve({section:['rounds']}),searchParams:Promise.resolve({})})).rejects.toThrow('REDIRECT /admin/judging#review-round-setup');
+ }
+ vi.stubEnv('NEXT_PUBLIC_JUDGING_MODE','manual');
+ await expect(Page({params:Promise.resolve({section:['assignments']}),searchParams:Promise.resolve({})})).rejects.toThrow('REDIRECT /admin/reference-forms');
+});

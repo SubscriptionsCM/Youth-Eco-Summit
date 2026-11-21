@@ -14,7 +14,7 @@ export function portalGroups(role:string,mode='portal',kind?:ParticipantKind|nul
  }
  if(role==='judge')return [{label:'Review workspace',primary:true,items:[item('Assigned entries','/judge'),item('Competition guidelines','/competitions')]}];
  if(!['owner','admin'].includes(role))return [];
- const admin=(key:string)=>item(adminTitles[key],key==='overview'?'/admin':`/admin/${key}`);
+ const admin=(key:string)=>item(adminTitles[key],key==='overview'?'/admin':key==='rounds'?'/admin/judging#review-round-setup':`/admin/${key}`);
  if(mode==='portal')return [
   {label:'Daily work',primary:true,items:[item('Dashboard','/admin'),item('Submissions & quality checks','/admin/reports'),item('Forms & submissions','/admin/reference-forms')]},
   {label:'Schools',items:[admin('schools'),item('School access','/admin/school-access'),item('Link school records','/admin/school-records')]},
@@ -23,7 +23,7 @@ export function portalGroups(role:string,mode='portal',kind?:ParticipantKind|nul
  ];
  return [
   {label:'Workspace',primary:true,items:['overview','reference-forms'].map(admin)},
-  {label:'Judging',items:mode==='portal'?[admin('judging'),item('My assigned entries','/judge'),admin('judges')]:mode==='legacy'?['judges','assignments','rules','rounds','reviews','results'].map(admin):[]},
+  {label:'Judging',items:mode==='portal'?[admin('judging'),item('My assigned entries','/judge'),admin('judges')]:mode==='legacy'?['judges','assignments','rules','rounds','reviews','results'].map(admin):[admin('rounds')]},
   {label:'People & enquiries',items:['schools','teachers','students','entries','nominations','partner-enquiries'].map(admin)},
   {label:'Summit setup',items:['editions','competitions','content'].map(admin)},
   {label:'Operations',items:['files','repairs','jobs','imports','audit','trash'].map(admin)}
@@ -31,6 +31,7 @@ export function portalGroups(role:string,mode='portal',kind?:ParticipantKind|nul
 }
 /** Older menu URLs lead to the current website workflow; stored records and APIs are retained. */
 export function currentAdminDestination(section:string,query:URLSearchParams,mode='portal'):string|null{
+ if(section==='rounds')return '/admin/judging#review-round-setup';
  if(mode!=='portal')return null;
  if(section==='wordpress-history'){const filters=new URLSearchParams();for(const key of ['q','id','schoolId','formKey']){const value=query.get(key);if(value)filters.set(key,value);}return '/admin/reference-forms'+(filters.size?'?'+filters:'');}
  const forms:Record<string,string>={students:'student',teachers:'teacher',nominations:'nomination','partner-enquiries':'partner',entries:''};
@@ -40,7 +41,7 @@ export function currentAdminDestination(section:string,query:URLSearchParams,mod
   const formKey=forms[section]||query.get('formKey');if(formKey)filters.set('formKey',formKey);
   const search=filters.toString();return '/admin/reference-forms'+(search?'?'+search:'');
  }
- if(['assignments','rules','rounds','reviews','results'].includes(section))return '/admin/judging';
+ if(['assignments','rules','reviews','results'].includes(section))return '/admin/judging';
  if(['files','repairs','imports','editions','competitions','content'].includes(section))return '/admin/tools';
  return null;
 }
@@ -49,6 +50,7 @@ export function isWorkspacePath(path:string){
  return ['/admin','/dashboard','/school','/judge','/forms','/history','/entries','/files','/teams','/register','/teachers/register','/schools/register','/competitions/enter'].some(root=>path===root||path.startsWith(root+'/'));
 }
 export function isPortalLinkActive(path:string,href:string){
+ href=href.split('#')[0];
  if(href==='/admin/tools'&&['/admin/jobs','/admin/audit','/admin/trash'].some(root=>path===root||path.startsWith(root+'/')))return true;
  const aliases:Record<string,string>={'/admin/wordpress-history':'/admin/reference-forms','/forms/student':'/register','/forms/teacher':'/teachers/register','/forms/school':'/schools/register'};
  path=aliases[path]||path;

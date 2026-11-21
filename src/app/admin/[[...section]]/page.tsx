@@ -13,7 +13,6 @@ export default async function Page({ params, searchParams }: { params: Promise<{
   if(section?.[0]==='school-access'&&section.length===1)return <SchoolAccessAdministration/>;
   if(section?.[0]==='school-records'&&section.length===1)return <SchoolRecordLinks/>;
   if(section?.[0]==='judging'&&section.length===1)return <JudgeAdministration/>;
-  if(manualReviewMode()&&(!section?.length||assignedReviewSections.has(section[0])))redirect('/admin/reference-forms');
   const filters = new URLSearchParams();
   for (const key of ['id', 'q', 'formKey', 'state', 'editionId', 'competitionId', 'schoolId', 'categoryId', 'judgeId', 'roundId', 'class', 'fileStatus', 'reviewStatus', 'assignment']) {
     const value = query[key];
@@ -21,5 +20,6 @@ export default async function Page({ params, searchParams }: { params: Promise<{
   }
   const destination=currentAdminDestination(section?.[0]||'overview',filters,dedicatedJudgingMode()?'portal':manualReviewMode()?'manual':'legacy');
   if(destination)redirect(destination);
+  if(manualReviewMode()&&(!section?.length||assignedReviewSections.has(section[0])))redirect('/admin/reference-forms');
   return <AdminPage section={section?.[0]} initialFilters={filters.toString()} />;
 }
