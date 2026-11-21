@@ -20,6 +20,7 @@ describe('15 November 2026 participation cutoff',()=>{
  beforeAll(async()=>{
   store=await testDb();actor={id:id(),role:'participant',contact:'+919876500001'};school=id();edition=id();student=id();participation=id();competition=id();
   await store.db.query("INSERT INTO users(id,role,contact) VALUES($1,'participant',$2)",[actor.id,actor.contact]);
+  await store.db.query("UPDATE users SET participant_kind='student' WHERE id=$1",[actor.id]);
   await store.db.query("INSERT INTO schools(id,reference,name,address,city,state,postal_code,status) VALUES($1,$2,'Boundary school','School street','Delhi','Delhi','110001','active')",[school,school]);
   await store.db.query("INSERT INTO editions(id,label,state,registration_opens,registration_closes,config) VALUES($1,'Participation boundary fixture','open',$2,$3,$4)",[edition,participationWindow.opensAt,participationWindow.closesAt,JSON.stringify({registrationApproved:true,consentText:'Test-only consent; not production approval',consentVersion:'fixture-consent'})]);
   await store.db.query("INSERT INTO students(id,reference,name,guardian_contact) VALUES($1,$2,'Existing student',$3)",[student,student,actor.contact]);

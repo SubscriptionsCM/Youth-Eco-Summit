@@ -75,7 +75,7 @@ beforeEach(() => {
   harness.values = []; harness.dependencies = []; harness.effects = []; harness.cursor = 0;
   harness.config = { data: { emailAccounts: true, accountProvider:'native' }, loading: false, error: '', reload: vi.fn() };
   harness.api.mockReset(); harness.assign.mockReset();
-  vi.stubGlobal('window', { location: { search: '', assign: harness.assign } });
+  vi.stubGlobal('window', { location: { search: '', assign: harness.assign },dispatchEvent:vi.fn() });
 });
 afterEach(() => vi.unstubAllGlobals());
 
@@ -100,7 +100,7 @@ describe('global participant login provider', () => {
     expect(harness.api).toHaveBeenCalledWith('/api/auth/otp/request', expect.objectContaining({ body: JSON.stringify({ contact: '+919876543210' }) }));
     expect(renderToStaticMarkup(page())).toContain('Verification code');
     vi.stubGlobal('FormData', class extends Map<string, string> { constructor() { super([['code', '123456']]); } });
-    harness.api.mockResolvedValueOnce({ actor: { role: 'participant' } });
+    harness.api.mockResolvedValueOnce({ actor: { role: 'participant',participantKind:'student' } });
     await element(page(), node => node.type === 'form').props.onSubmit({ preventDefault() {}, currentTarget: {} });
     expect(harness.api).toHaveBeenCalledWith('/api/auth/otp/verify', expect.objectContaining({ body: JSON.stringify({ code: '123456', contact: '+919876543210' }) }));
     expect(harness.assign).toHaveBeenCalledWith('/dashboard');
@@ -136,7 +136,7 @@ describe('global participant login provider', () => {
     // An admin destination initially selects staff. The participant can switch back.
     element(tree, node => node.type === 'button' && node.props.children === 'Participant').props.onClick();
     tree = page();
-    harness.api.mockResolvedValueOnce({ actor: { role: 'participant' } });
+    harness.api.mockResolvedValueOnce({ actor: { role: 'participant',participantKind:'student' } });
     await element(tree, node => node.type === EmailAccount).props.onSignedIn();
     expect(harness.api).toHaveBeenCalledWith('/api/auth/session');
     expect(harness.assign).toHaveBeenCalledWith(expected);
@@ -170,6 +170,16 @@ describe('global participant login provider', () => {
 });
 
 describe('native participant sign-in UI',()=>{
+ it('keeps a school signup on its dedicated profile even if a different form type is supplied',async()=>{
+  const props={provider:'native' as const,registrationForm:'school' as const,onSignedIn:vi.fn()};
+  let tree=account(props);element(tree,node=>node.type==='button'&&node.props.children==='Create a new account').props.onClick();tree=account(props);
+  expect(find(tree,node=>node.props.name==='formKey')).toBeUndefined();
+  element(tree,node=>node.props.name==='contact').props.onChange({target:{value:'school@example.test'}});
+  vi.stubGlobal('FormData',class extends Map<string,string>{constructor(){super([['username','school-contact'],['password','Synthetic-password-123'],['confirmPassword','Synthetic-password-123'],['formKey','teacher']]);}});
+  harness.api.mockResolvedValueOnce({sent:true,message:'Check your email'});
+  await element(account(props),node=>node.type==='form').props.onSubmit({preventDefault(){},currentTarget:{}});
+  expect(harness.api).toHaveBeenCalledWith('/api/auth/participant/signup',expect.objectContaining({body:JSON.stringify({contact:'school@example.test',username:'school-contact',formKey:'school'})}));
+ });
  it('signs in with one password field while keeping confirmation for account creation',async()=>{
   const props={provider:'native' as const,onSignedIn:vi.fn()};
   let tree=account(props);

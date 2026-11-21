@@ -18,6 +18,7 @@ export function useResource<T>(path: string | null) {
     api<T>(path).then(value => { if (active) { setData(value); setDataPath(path); } }).catch(e => { if (active) setError(e.message); }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [path, version]);
+  useEffect(()=>{if(path!=='/api/auth/session')return;const refresh=()=>setVersion(v=>v+1);window.addEventListener('yes-auth-changed',refresh);window.addEventListener('focus',refresh);return()=>{window.removeEventListener('yes-auth-changed',refresh);window.removeEventListener('focus',refresh);};},[path]);
   return { data, dataPath, error, loading, reload: () => setVersion(v => v + 1), setData };
 }
 export function Notice({ children, error = false }: { children: ReactNode; error?: boolean }) {

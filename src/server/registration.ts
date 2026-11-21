@@ -2,11 +2,13 @@ import { z } from 'zod';
 import type { Db } from './db';
 import { AppError,type Actor,id,audit } from './core';
 import { schoolSchema,phone } from '../domain/rules';
+import { currentAccessActor, requireFormAccess, requireSchoolWorkspaceAccess } from './participant-access';
 export async function createSchool(db:Db,actor:Actor,input:unknown){
   if(actor.role!=='participant')throw new AppError(403,'Use a verified school contact session.');
   const v=schoolSchema.parse(input);
   if(actor.contact!==v.phone)throw new AppError(403,'Verify the school contact phone before registering.');
   return db.transaction(async tx=>{
+    await requireFormAccess(tx,actor,'school');
     const {rows:duplicates}=await tx.query("SELECT id,reference FROM schools WHERE lower(name)=lower($1) AND lower(city)=lower($2) AND postal_code=$3 AND lower(address)=lower($4) AND lower(state)=lower($5) AND trashed_at IS NULL",[v.name,v.city,v.postalCode,v.address,v.state]);
     if(duplicates.length)throw new AppError(409,'A matching school already exists. Use school search or contact support to reconcile it.');
     const schoolId=id();const reference=`SCH-${id().slice(0,12).toUpperCase()}`;
@@ -18,6 +20,7 @@ export async function createSchool(db:Db,actor:Actor,input:unknown){
 export async function claimSchool(db:Db,actor:Actor,reference:string){
  if(actor.role!=='participant'||!actor.contact)throw new AppError(403,'Verify the registered school contact phone first.');
  return db.transaction(async tx=>{
+  await requireSchoolWorkspaceAccess(tx,actor);
   const {rows:[school]}=await tx.query("SELECT * FROM schools WHERE (id::text=lower($1) OR id IN (SELECT school_id FROM school_identifiers WHERE reference=upper(trim($1)))) AND status='active' AND trashed_at IS NULL AND NOT purging FOR SHARE",[reference]);
   if(!school)throw new AppError(404,'Active registered school not found.');
   const {rows:[user]}=await tx.query("SELECT id FROM users WHERE id=$1 AND contact=$2 AND role='participant' AND active FOR SHARE",[actor.id,actor.contact]);if(!user)throw new AppError(403,'Verify the registered contact phone.');
@@ -29,6 +32,8 @@ export async function claimSchool(db:Db,actor:Actor,reference:string){
 export async function updateSchool(db:Db,actor:Actor,schoolId:string,input:unknown){
   const v=schoolSchema.parse(input);
   return db.transaction(async tx=>{
+    const current=await currentAccessActor(tx,actor);
+    if(current?.role==='participant')await requireSchoolWorkspaceAccess(tx,actor);
     const {rows:[school]}=await tx.query('SELECT * FROM schools WHERE id=$1 AND trashed_at IS NULL AND NOT purging FOR UPDATE',[schoolId]);
     if(!school)throw new AppError(404,'School not found.');
     const administrator=['owner','admin'].includes(actor.role);
@@ -54,6 +59,7 @@ export async function createStudent(db:Db,actor:Actor,input:unknown){
   if(actor.role!=='participant'||!actor.contact)throw new AppError(403,'Verify the guardian contact first.');
   const v=studentSchema.parse(input);if(v.guardianContact!==actor.contact)throw new AppError(422,'The guardian contact must be verified in this session.');
   return db.transaction(async tx=>{
+    await requireFormAccess(tx,actor,'student');
     const {rows:[edition]}=await tx.query('SELECT * FROM editions WHERE id=$1 FOR SHARE',[v.editionId]);
     const now=Date.now();
     if(!edition||edition.state!=='open'||!edition.config.registrationApproved||!edition.config.consentText||edition.config.consentVersion!==v.consentVersion||!edition.registration_opens||!edition.registration_closes||now<new Date(edition.registration_opens).getTime()||now>=new Date(edition.registration_closes).getTime())throw new AppError(409,'Registration is closed or approved consent is unavailable.');
@@ -96,6 +102,7 @@ export async function publicSchools(db:Db,params:URLSearchParams){
 
 /** School contacts see participation progress, never guardian contacts, answers or files. */
 export async function schoolDashboard(db:Db,actor:Actor,schoolId:string,params:URLSearchParams){
+ await requireSchoolWorkspaceAccess(db,actor);
  if(actor.role!=='participant'||!actor.contact)throw new AppError(403,'A verified school contact is required.');
  if(!z.uuid().safeParse(schoolId).success)throw new AppError(404,'School not found.');
  const {rows:[school]}=await db.query(`SELECT s.id,s.reference,s.name,s.city,s.state,s.status FROM schools s

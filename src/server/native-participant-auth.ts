@@ -11,7 +11,7 @@ const same = (left: string, right: string) => left.length === right.length && ti
 const response = (data: unknown) => Response.json({ data }, { headers: { 'Cache-Control': 'no-store' } });
 const email = z.string().trim().toLowerCase().pipe(z.email().max(254));
 const username = z.string().trim().toLowerCase().pipe(z.string().min(1).max(60).refine(value => !/[\u0000-\u001f\u007f]/.test(value)));
-const profileSchema = z.object({ contact: email, username, formKey: z.enum(['student', 'teacher']) });
+const profileSchema = z.object({ contact: email, username, formKey: z.enum(['student', 'teacher', 'school']) });
 type Profile = z.infer<typeof profileSchema>;
 type NativeUser = Actor & { contact: string; active: boolean; auth_version: number; password_hash: string | null; totp_secret: string | null; totp_last_counter: string | number; native_username: string; verified_contact: string };
 type Challenge = { id: string; purpose: 'signup' | 'recovery'; browser_hash: string; form_key: string; identifier: string; recipient: string; username: string; user_id: string | null; code_hash: string; consumed_at: unknown; cooling?: boolean };
@@ -156,7 +156,8 @@ export async function nativeParticipantAction(db: Db, route: string, input: Reco
     if (!current || current.code_hash !== challenge.code_hash) throw new AppError(401, 'The email code is invalid or expired.');
     await tx.query('LOCK TABLE users,native_participant_accounts IN EXCLUSIVE MODE');
     await assertAvailable(tx, profile);
-    const { rows: [created] } = await tx.query<NativeUser>("INSERT INTO users(id,contact,name,role,password_hash) VALUES($1,$2,$3,'participant',$4) RETURNING *", [id(), profile.contact, profile.username, passwordHash]);
+    const kind=profile.formKey==='teacher'?'educator':profile.formKey;
+    const { rows: [created] } = await tx.query<NativeUser>("INSERT INTO users(id,contact,name,role,password_hash,participant_kind) VALUES($1,$2,$3,'participant',$4,$5) RETURNING *", [id(), profile.contact, profile.username, passwordHash,kind]);
     await tx.query('INSERT INTO native_participant_accounts(user_id,username,verified_contact) VALUES($1,$2,$3)', [created.id, profile.username, profile.contact]);
     await tx.query('UPDATE native_participant_challenges SET consumed_at=now(),user_id=$2 WHERE id=$1', [challenge.id, created.id]);
     await audit(tx, created, 'auth.participant.register', 'user', created.id, { formKey: profile.formKey });

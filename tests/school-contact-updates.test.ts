@@ -12,6 +12,7 @@ describe('school contact correction authorization', () => {
   fixture=await testDb();schoolId=randomUUID();primaryId=randomUUID();secondaryId=randomUUID();
   const principalId=randomUUID();teacher={id:randomUUID(),role:'participant',contact:input.phone};owner={id:randomUUID(),role:'owner'};
   await fixture.db.query("INSERT INTO users(id,role,contact) VALUES($1,'participant','+919876543211'),($2,'participant',$3),($4,'owner','owner@example.org')",[principalId,teacher.id,teacher.contact,owner.id]);
+  await fixture.db.query("UPDATE users SET participant_kind='educator' WHERE role='participant'");
   await fixture.db.query("INSERT INTO schools(id,reference,name,address,city,state,postal_code,status) VALUES($1,'SCH-CONTACT-TEST','Registered School','10 School Road','Delhi','Delhi','110001','active')",[schoolId]);
   await fixture.db.query("INSERT INTO school_contacts(id,school_id,user_id,name,role,email,phone,verified_at,created_at) VALUES($1,$2,$3,'Principal','Principal','principal@example.org','+919876543211',now(),'2020-01-01'),($4,$2,$5,'Teacher','Teacher','teacher@example.org',$6,now(),'2021-01-01')",[primaryId,schoolId,principalId,secondaryId,teacher.id,teacher.contact]);
  });
@@ -35,11 +36,11 @@ describe('school contact correction authorization', () => {
   await expect(updateSchool(fixture.db,teacher,schoolId,input)).rejects.toMatchObject({status:403});
   await fixture.db.query('UPDATE school_contacts SET verified_at=now() WHERE id=$1',[secondaryId]);
   await fixture.db.query('UPDATE users SET active=false WHERE id=$1',[teacher.id]);
-  await expect(updateSchool(fixture.db,teacher,schoolId,input)).rejects.toMatchObject({status:403});
+  await expect(updateSchool(fixture.db,teacher,schoolId,input)).rejects.toMatchObject({status:401});
   await fixture.db.query("UPDATE users SET active=true,contact='+919876543299' WHERE id=$1",[teacher.id]);
-  await expect(updateSchool(fixture.db,teacher,schoolId,input)).rejects.toMatchObject({status:403});
+  await expect(updateSchool(fixture.db,teacher,schoolId,input)).rejects.toMatchObject({status:401});
   await fixture.db.query('UPDATE users SET contact=$2 WHERE id=$1',[teacher.id,teacher.contact]);
-  await expect(updateSchool(fixture.db,{...teacher,role:'judge'},schoolId,input)).rejects.toMatchObject({status:403});
+  await expect(updateSchool(fixture.db,{...teacher,role:'judge'},schoolId,input)).rejects.toMatchObject({status:401});
   await expect(updateSchool(fixture.db,teacher,schoolId,{...input,phone:'+919876543299'})).rejects.toMatchObject({status:422});
   expect((await contacts())[0]).toEqual(before[0]);
   expect((await fixture.db.query('SELECT address FROM schools WHERE id=$1',[schoolId])).rows[0].address).toBe('10 School Road');

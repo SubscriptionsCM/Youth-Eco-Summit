@@ -15,6 +15,7 @@ describe('retained registration and judging workflow',()=>{
  beforeAll(async()=>{
   store=await testDb();
   [parent,other,admin,judge,judgeB]=await Promise.all(['participant','participant','admin','judge','judge'].map(async(role,i)=>{const actor={id:id(),role:role as Actor['role'],contact:`+91900000000${i}`};await store.db.query('INSERT INTO users(id,role,contact) VALUES($1,$2,$3)',[actor.id,role,actor.contact]);return actor;}));
+  await store.db.query("UPDATE users SET participant_kind='student' WHERE role='participant'");
   schoolId=id();editionId=id();competitionId=id();roundId=id();
   await store.db.query("INSERT INTO editions(id,label,state,registration_opens,registration_closes,config) VALUES($1,'Test edition','open',now()-interval '1 day',now()+interval '1 day',$2)",[editionId,JSON.stringify({registrationApproved:true,consentVersion:'test-1',consentText:'Test guardian consent',schoolVerificationApproved:true})]);
   await store.db.query("INSERT INTO schools(id,reference,name,address,city,state,postal_code,status) VALUES($1,'SCH-TEST','School One','Street one','Delhi','Delhi','110001','active')",[schoolId]);
@@ -23,12 +24,15 @@ describe('retained registration and judging workflow',()=>{
  afterAll(async()=>{await store?.close();});
  it('retains school coordinator details on registration and audited correction',async()=>{
   const profile={name:'Coordinator school',address:'Coordinator street',city:'Delhi',state:'Delhi',postalCode:'110002',contactName:'Primary contact',contactRole:'Principal',email:'coordinator-school@example.test',phone:parent.contact!,coordinator:'Teacher One, science coordinator'};
-  const school=await createSchool(store.db,parent,profile);
+  const schoolContact:Actor={id:id(),role:'participant',contact:parent.contact};
+  await store.db.query("INSERT INTO users(id,role,contact,participant_kind) VALUES($1,'participant','+919000000099','school')",[schoolContact.id]);
+  schoolContact.contact='+919000000099';
+  const school=await createSchool(store.db,schoolContact,{...profile,phone:schoolContact.contact!});
   expect(school.coordinator).toBe(profile.coordinator);
   expect((await store.db.query('SELECT id FROM school_contacts WHERE school_id=$1',[school.id])).rows).toHaveLength(1);
-  const corrected=await updateSchool(store.db,admin,school.id,{...profile,coordinator:'Teacher Two, activities coordinator'});
+  const corrected=await updateSchool(store.db,admin,school.id,{...profile,phone:schoolContact.contact!,coordinator:'Teacher Two, activities coordinator'});
   expect(corrected.coordinator).toBe('Teacher Two, activities coordinator');
-  const dashboard=await participantDashboard(store.db,parent);
+  const dashboard=await participantDashboard(store.db,schoolContact);
   expect(dashboard.schools.filter(s=>s.id===school.id)).toHaveLength(1);
   expect(dashboard.schools.find(s=>s.id===school.id)?.coordinator).toBe(corrected.coordinator);
  });
@@ -89,6 +93,7 @@ describe('retained registration and judging workflow',()=>{
   await expect(entryAccess(store.db,judge,entryId)).rejects.toThrow();
  });
  it('binds returning school access to the verified contact and revokes a corrected old binding',async()=>{
+  await store.db.query("UPDATE users SET participant_kind='educator' WHERE id=ANY($1::uuid[])",[[parent.id,other.id]]);
   await store.db.query("INSERT INTO school_contacts(id,school_id,name,role,email,phone) VALUES($1,$2,'Teacher','Coordinator','school@example.test',$3)",[id(),schoolId,parent.contact]);
   await expect(claimSchool(store.db,other,'SCH-TEST')).rejects.toThrow();
   expect((await claimSchool(store.db,parent,'SCH-TEST')).id).toBe(schoolId);
@@ -100,6 +105,7 @@ describe('retained registration and judging workflow',()=>{
   const {rows:[revision]}=await store.db.query('SELECT context FROM submission_revisions WHERE submission_id=$1',[entryId]);expect(revision.context.school.name).toBe('School One');
  });
  it('requires matching guardian team acceptance and shows a shared receipt without granting editing',async()=>{
+  await store.db.query("UPDATE users SET participant_kind='student' WHERE id=ANY($1::uuid[])",[[parent.id,other.id]]);
   const teamCompetition=id();const teamConfig={...config,mode:'team',teamSchoolPolicy:'same_school',teamClassPolicy:'same_category',minMembers:2,maxMembers:2,files:{...config.files,minCount:0,maxCount:0}};
   await store.db.query("INSERT INTO competitions(id,edition_id,slug,title,guidelines,status,opens_at,closes_at,config) VALUES($1,$2,'team','Team activity','Test rules','approved',now()-interval '1 day',now()+interval '1 day',$3)",[teamCompetition,editionId,JSON.stringify(teamConfig)]);
   const member=await createStudent(store.db,other,{name:'Another guardian student',schoolId,editionId,class:5,guardianContact:other.contact,consent:true,consentVersion:'test-1'});

@@ -3,6 +3,7 @@ import type { Db } from './db';
 import { AppError, audit, id, requireAdmin, type Actor } from './core';
 import { createSchool, updateSchool, createStudent } from './registration';
 import { phone } from '../domain/rules';
+import { requireFormAccess } from './participant-access';
 
 const kindSchema = z.enum(['school', 'student', 'teacher']);
 const text = (max: number) => z.string().max(max).optional();
@@ -34,6 +35,7 @@ export async function saveRegistrationDraft(db: Db, actor: Actor, input: unknown
   // The owner row serializes first saves so an unverified client cannot flood drafts.
   const { rows: [existing] } = await tx.query('SELECT * FROM registration_drafts WHERE id=$1 FOR UPDATE', [v.id]);
   if (existing && (existing.owner_id !== actor.id || existing.kind !== v.kind || existing.scope !== v.scope)) throw new AppError(404, 'Saved registration not found.');
+  await requireFormAccess(tx, actor, v.kind);
   if (existing && existing.state !== 'draft') throw new AppError(409, 'This registration has already been completed or discarded.');
   if ((existing?.lock_version || 0) !== v.lockVersion) throw new AppError(409, 'This registration changed in another tab. Reload the saved draft before continuing.');
   if (!existing) {
@@ -59,6 +61,7 @@ export async function discardRegistrationDraft(db: Db, actor: Actor, draftId: st
 }
 const teacherSchema = z.object({ schoolId: z.uuid(), name: z.string().trim().min(2).max(150), role: z.string().trim().min(2).max(100), email: z.email(), subject: z.string().max(200).default(''), phone });
 async function createTeacher(db: Db, actor: Actor, input: unknown) {
+ await requireFormAccess(db, actor, 'teacher');
  const v = teacherSchema.parse(input);
  if (v.phone !== actor.contact) throw new AppError(403, 'Verify the teacher contact phone first.');
  const { rows: [school] } = await db.query("SELECT id FROM schools WHERE id=$1 AND status='active' AND trashed_at IS NULL AND NOT purging FOR SHARE", [v.schoolId]);
@@ -77,6 +80,7 @@ export async function completeRegistrationDraft(db: Db, actor: Actor, draftId: s
   const { rows: [draft] } = await tx.query('SELECT * FROM registration_drafts WHERE id=$1 AND owner_id=$2 FOR UPDATE', [draftId, actor.id]);
   if (!draft) throw new AppError(404, 'Saved registration not found.');
   if (draft.state === 'completed') return draft.receipt;
+  await requireFormAccess(tx, actor, draft.kind);
   if (draft.state !== 'draft' || draft.lock_version !== v.lockVersion) throw new AppError(409, 'Reload and review the latest saved registration before confirming.');
   const data = payloadFor(draft.kind, draft.payload);
   // These services normally start a transaction. Reuse this transaction so the
@@ -108,7 +112,7 @@ export async function reviewTeacherRegistration(db: Db, actor: Actor, teacherId:
   if (teacher.status !== 'pending') throw new AppError(409, 'This teacher registration has already been reviewed.');
   if (v.action === 'approved') {
    const { rows: [school] } = await tx.query("SELECT id FROM schools WHERE id=$1 AND status='active' AND trashed_at IS NULL AND NOT purging FOR SHARE", [teacher.school_id]);
-   const { rows: [user] } = await tx.query("SELECT id FROM users WHERE id=$1 AND contact=$2 AND role='participant' AND active FOR SHARE", [teacher.user_id, teacher.phone]);
+   const { rows: [user] } = await tx.query("SELECT id FROM users WHERE id=$1 AND contact=$2 AND role='participant' AND participant_kind='educator' AND active FOR SHARE", [teacher.user_id, teacher.phone]);
    if (!school || !user) throw new AppError(409, 'The school or verified teacher account is no longer active.');
    const { rows: existing } = await tx.query('SELECT id FROM school_contacts WHERE school_id=$1 AND user_id=$2 AND phone=$3', [teacher.school_id, teacher.user_id, teacher.phone]);
    if (existing.length) await tx.query('UPDATE school_contacts SET verified_at=now() WHERE school_id=$1 AND user_id=$2 AND phone=$3', [teacher.school_id, teacher.user_id, teacher.phone]);

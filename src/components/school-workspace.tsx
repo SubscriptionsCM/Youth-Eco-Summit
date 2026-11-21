@@ -1,4 +1,5 @@
 'use client';
+import {canUseSchoolWorkspace} from '../domain/participant-access';
 import Link from 'next/link';
 
 import { useState, type FormEvent, type ReactNode } from 'react';
@@ -77,7 +78,7 @@ function RequestCard({ request, children }: { request: SchoolRequest; children?:
 export function SchoolWorkspace() {
   return <>
     <PageTitle title="My school">Request access to view your school’s student registrations and competition progress.</PageTitle>
-    <AuthGate roles={['participant']}>{() => <ParticipantWorkspace/>}</AuthGate>
+    <AuthGate roles={['participant']}>{actor => canUseSchoolWorkspace(actor)?<ParticipantWorkspace/>:<Notice>This workspace is available to school representatives and educators with approved school access. <Link href="/dashboard">Go to your dashboard</Link>.</Notice>}</AuthGate>
   </>;
 }
 

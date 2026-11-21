@@ -127,6 +127,7 @@ describe('multipart and media authorization with real SQL', () => {
     vi.spyOn(liveDb, 'transaction').mockImplementation(fn => database.db.transaction(fn));
     vi.spyOn(provider, 'objectStore').mockReturnValue(store);
     for (const actor of [parent, stranger, judge, admin]) await database.db.query('INSERT INTO users(id,role,contact) VALUES($1,$2,$3)', [actor.id, actor.role, actor.id]);
+    await database.db.query("UPDATE users SET participant_kind='student' WHERE role='participant'");
     await database.db.query("INSERT INTO editions(id,label,state) VALUES($1,'Storage tests','open')", [edition]);
     await database.db.query("INSERT INTO schools(id,reference,name,address,city,state,postal_code,status) VALUES($1,$2,'School','Street','City','State','100000','active')", [school, school]);
     await database.db.query("INSERT INTO students(id,reference,name,guardian_contact) VALUES($1,$2,'Student','guardian')", [student, student]);

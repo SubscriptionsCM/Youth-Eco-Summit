@@ -19,6 +19,7 @@ import { importPreview,commitImport } from './imports';
 import { inviteTeam,joinTeam } from './teams';
 import { createPartnerEnquiry } from './partner-enquiries';
 import { listRegistrationDrafts,saveRegistrationDraft,completeRegistrationDraft,discardRegistrationDraft,reviewTeacherRegistration } from './registration-drafts';
+import {participantAccounts,setParticipantKind} from './participant-accounts';
 async function body(request:Request){const text=await request.text();if(text.length>2000000)throw new AppError(413,'The request is too large.');try{return text?JSON.parse(text):{};}catch{throw new AppError(400,'Send valid JSON.');}}
 async function publicRoute(request:Request,path:string[]){
  const params=new URL(request.url).searchParams;
@@ -92,6 +93,8 @@ export async function handleRequest(request:Request,path:string[]){
   }
   if(path[0]==='admin'){
    const resource=path[1],params=new URL(request.url).searchParams;
+   if(resource==='participant-accounts'&&path.length===2&&request.method==='GET')return ok(await participantAccounts(db,actor,params));
+   if(resource==='participant-accounts'&&path.length===3&&request.method==='PATCH')return ok(await setParticipantKind(db,actor,path[2],await body(request)));
    if(resource==='teachers'&&path[2]&&request.method==='PATCH')return ok(await reviewTeacherRegistration(db,actor,path[2],await body(request)));
    if(resource==='exports'&&request.method==='GET')return await exportData(db,actor,params);
    if(resource==='publications'&&request.method==='POST')return ok(await publish(db,actor,await body(request)));

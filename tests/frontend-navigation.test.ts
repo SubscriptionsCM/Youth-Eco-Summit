@@ -14,9 +14,9 @@ describe('authenticated navigation', () => {
     const href = new URL(loginPath(destination), 'https://local.test');
     expect(href.pathname).toBe('/login');
     expect(href.searchParams.get('next')).toBe(destination);
-    expect(afterLoginPath('participant', href.searchParams.get('next'))).toBe(destination);
+    expect(afterLoginPath('participant', href.searchParams.get('next'),'student')).toBe(destination);
     expect(afterLoginPath('participant', '/dashboard?competitionId=entry-choice')).toBe('/dashboard?competitionId=entry-choice');
-    expect(afterLoginPath('participant', '/register?competitionId=entry-choice')).toBe('/register?competitionId=entry-choice');
+    expect(afterLoginPath('participant', '/register?competitionId=entry-choice','student')).toBe('/register?competitionId=entry-choice');
   });
 
   it.each([

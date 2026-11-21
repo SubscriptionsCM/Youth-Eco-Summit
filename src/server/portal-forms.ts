@@ -5,6 +5,8 @@ import { AppError, id, audit, type Actor } from './core';
 import { referenceForms, formSteps, validateReferenceAnswers, type Answers } from '../domain/wordpress-forms';
 import { fingerprint } from './wordpress-migration';
 import { enqueueFormNotifications } from './form-notifications';
+import {requireFormAccess} from './participant-access';
+import {entrySubmitter} from '../domain/participant-access';
 
 export class FormValidationError extends AppError {
  constructor(public fields: Record<string,string>) { super(422,'Please check the highlighted information.'); }
@@ -15,17 +17,15 @@ export async function createFormRecord(db:Db,actor:Actor|null,input:unknown) {
  const { formKey,context={} } = z.object({formKey:z.string().max(100),context:z.record(z.string(),z.unknown()).optional()}).strict().parse(input);
  const form = referenceForms.find(form=>form.key===formKey);
  if (!form) throw new AppError(404,'Form not found.');
- const initial=validateReferenceAnswers(form,context,{final:false});
- if(Object.keys(initial.errors).length)throw new FormValidationError(initial.errors);
  if (form.key.startsWith('legacy-') && form.settings['form-type']==='registration') throw new AppError(503,'This historical account workflow needs reconciliation. Please use the current student or educator registration.');
- if ((form.competition || ['student','teacher'].includes(form.key)) && (!actor || actor.role!=='participant')) throw new AppError(401,'Sign in with your student or educator account first.');
- if (actor) {
-  const {rows:[user]}=await db.query('SELECT id FROM users WHERE id=$1 AND active',[actor.id]);
-  if(!user)throw new AppError(401,'Your account is unavailable.');
- }
- const token=randomBytes(32).toString('hex'),recordId=id();
- const {rows:[record]}=await db.query('INSERT INTO portal_form_records(id,form_key,owner_id,draft_token_hash,reference,answers) VALUES($1,$2,$3,$4,$5,$6) RETURNING *',[recordId,formKey,actor?.id??null,actor?null:hash(token),`YES-${form.id}-${recordId.slice(0,12).toUpperCase()}`,JSON.stringify(initial.answers)]);
- return {record:safeRecord(record),...(!actor?{token}:{})};
+ return db.transaction(async tx=>{
+  const current=await requireFormAccess(tx,actor,formKey,context['hidden-yes-submitter']);
+  const initial=validateReferenceAnswers(form,{...context,...form.competition?{'hidden-yes-submitter':entrySubmitter(current)}:{}},{final:false});
+  if(Object.keys(initial.errors).length)throw new FormValidationError(initial.errors);
+  const token=randomBytes(32).toString('hex'),recordId=id();
+  const {rows:[record]}=await tx.query('INSERT INTO portal_form_records(id,form_key,owner_id,draft_token_hash,reference,answers) VALUES($1,$2,$3,$4,$5,$6) RETURNING *',[recordId,formKey,current?.id??null,current?null:hash(token),`YES-${form.id}-${recordId.slice(0,12).toUpperCase()}`,JSON.stringify(initial.answers)]);
+  return {record:safeRecord(record),...(!current?{token}:{})};
+ });
 }
 function safeRecord(record:Record<string,any>) { const {draft_token_hash,...safe}=record;return safe; }
 async function owned(db:Db,actor:Actor|null,recordId:string,token?:string,options:{lock?:boolean;allowStaffRead?:boolean}={}) {
@@ -55,6 +55,7 @@ export async function saveFormRecord(db:Db,actor:Actor|null,recordId:string,inpu
   const record=await owned(tx,actor,recordId,token,{lock:true});
   if(record.status!=='draft'||record.lock_version!==v.lockVersion)throw new AppError(409,'This form changed in another tab or was already submitted. Reload before continuing.');
   const form=referenceForms.find(f=>f.key===record.form_key)!;
+  await requireFormAccess(tx,actor,form.key,v.answers['hidden-yes-submitter']??record.answers?.['hidden-yes-submitter']);
   if(v.currentStep>=formSteps(form).length)throw new AppError(422,'Choose a valid form step.');
   const checked=validateReferenceAnswers(form,v.answers,{final:false});
   if(Object.keys(checked.errors).length)throw new FormValidationError(checked.errors);
@@ -69,6 +70,7 @@ export async function submitFormRecord(db:Db,actor:Actor|null,recordId:string,in
   if(record.status==='submitted')return record.receipt;
   if(record.lock_version!==v.lockVersion)throw new AppError(409,'Reload the latest saved form before submitting.');
   const form=referenceForms.find(f=>f.key===record.form_key)!;
+  await requireFormAccess(tx,actor,form.key,v.answers['hidden-yes-submitter']??record.answers?.['hidden-yes-submitter']);
   const checked=validateReferenceAnswers(form,v.answers,{final:true,now});
   if(Object.keys(checked.errors).length)throw new FormValidationError(checked.errors);
   const answers=checked.answers;
@@ -114,6 +116,7 @@ export async function submitFormRecord(db:Db,actor:Actor|null,recordId:string,in
 }
 export async function writableFormRecord(db:Db,actor:Actor|null,recordId:string,token?:string) {
  const record=await owned(db,actor,recordId,token,{lock:true});
+ await requireFormAccess(db,actor,record.form_key,record.answers?.['hidden-yes-submitter']);
  if(record.status!=='draft')throw new AppError(409,'Submitted forms cannot be edited.');
  return record;
 }

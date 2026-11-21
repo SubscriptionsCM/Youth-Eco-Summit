@@ -1,17 +1,17 @@
 import {expect,it} from 'vitest';
 import {portalGroups,isWorkspacePath,isPortalLinkActive,currentAdminDestination} from '../src/domain/portal-navigation';
-const links=(role:string,mode='portal')=>portalGroups(role,mode).flatMap(g=>g.items).map(i=>i.href);
+const links=(role:string,mode='portal',kind?:'student'|'educator'|'school'|'unclassified')=>portalGroups(role,mode,kind).flatMap(g=>g.items).map(i=>i.href);
 it('does not duplicate navigation destinations across groups',()=>{
  for(const mode of ['portal','manual','legacy']){const items=links('owner',mode);expect(new Set(items).size).toBe(items.length);}
 });
 it('exposes the new reporting and school workspaces only to the relevant roles',()=>{
  expect(links('owner')).toContain('/admin/reports');expect(links('admin')).toContain('/admin/school-access');
- expect(links('participant')).toContain('/school');expect(links('judge')).not.toContain('/school');
+ expect(links('participant','portal','educator')).toContain('/school');expect(links('judge')).not.toContain('/school');
  expect(isWorkspacePath('/school')).toBe(true);expect(isWorkspacePath('/school-news')).toBe(false);
 });
 it('keeps administrative destinations out of judge and participant navigation',()=>{
  expect(links('judge')).toContain('/judge');expect(links('judge').some(p=>p.startsWith('/admin'))).toBe(false);
- expect(links('participant')).toContain('/teachers/register');expect(links('participant')).toContain('/schools/register');
+ expect(links('participant','portal','educator')).toContain('/teachers/register');expect(links('participant','portal','school')).toContain('/schools/register');
  expect(links('participant').some(p=>p.startsWith('/admin')||p==='/judge')).toBe(false);expect(links('unknown')).toEqual([]);
 });
 it('keeps dedicated and legacy judging destinations separate',()=>{

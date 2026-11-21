@@ -3,8 +3,8 @@ import { useState } from 'react';
 import { api, json, type Row } from './api';
 import { Errors, Field, Notice } from './shared';
 type SignedInAccount = { email: string; username?: string };
-type PendingRegistration = { username: string; formKey: 'student'|'teacher'; password: string };
-export function EmailAccount({ onSignedIn, provider = 'native', registrationForm }: { onSignedIn:(account?:SignedInAccount)=>void|Promise<void>; provider?:'supabase'|'wordpress'|'native'; registrationForm?:'student'|'teacher' }) {
+type PendingRegistration = { username: string; formKey: 'student'|'teacher'|'school'; password: string };
+export function EmailAccount({ onSignedIn, provider = 'native', registrationForm }: { onSignedIn:(account?:SignedInAccount)=>void|Promise<void>; provider?:'supabase'|'wordpress'|'native'; registrationForm?:'student'|'teacher'|'school' }) {
  const [mode,setMode]=useState<'login'|'signup'|'verify'|'recover'|'reset'>('login'),[email,setEmail]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState<unknown>(),[message,setMessage]=useState('');
  const [pendingRegistration,setPendingRegistration]=useState<PendingRegistration|null>(null);
  const namedAccounts=provider==='wordpress'||provider==='native';
@@ -22,7 +22,7 @@ export function EmailAccount({ onSignedIn, provider = 'native', registrationForm
    if(namedAccounts&&mode==='signup'){
     const password=String(values.password||'');
     if(password!==values.confirmPassword)throw new Error('The passwords must match.');
-    pending={username:String(values.username||'').trim(),formKey:registrationForm||(values.formKey==='teacher'?'teacher':'student'),password};
+    pending={username:String(values.username||'').trim(),formKey:registrationForm||(['teacher','school'].includes(String(values.formKey))?values.formKey as 'teacher'|'school':'student'),password};
     payload={contact:email.trim().toLowerCase(),username:pending.username,formKey:pending.formKey};
    }
    if(namedAccounts&&mode==='verify'){
@@ -36,6 +36,7 @@ export function EmailAccount({ onSignedIn, provider = 'native', registrationForm
    else {
     setPendingRegistration(null);
     await onSignedIn(namedAccounts?{email:response.actor?.contact||email,...mode==='verify'&&pendingRegistration?{username:pendingRegistration.username}:{}}:undefined);
+    window.dispatchEvent(new Event('yes-auth-changed'));
    }
   }catch(error){setError(error);}finally{setBusy(false);}
  }
@@ -45,7 +46,7 @@ export function EmailAccount({ onSignedIn, provider = 'native', registrationForm
   <Errors error={error}/>{message&&<Notice>{message}</Notice>}
   <form key={mode} className="form" onSubmit={submit}>
    {namedAccounts&&mode==='signup'&&<>
-    {!registrationForm&&<Field name="formKey" title="Registration type"><select name="formKey" defaultValue="student"><option value="student">Student</option><option value="teacher">Educator</option></select></Field>}
+    {!registrationForm&&<Field name="formKey" title="Registration type"><select name="formKey" defaultValue="student"><option value="student">Student</option><option value="teacher">Educator</option><option value="school">School representative</option></select></Field>}
     <Field name="username" title={registrationForm==='teacher'?'Your Name (Username)':'Name (Username)'} autoComplete="username" maxLength={60} required/>
    </>}
    <Field name="contact" title={namedAccounts&&!creating?'Username or email':'Email address'} type={namedAccounts&&!creating?'text':'email'} autoComplete="username" required value={email} readOnly={namedAccounts&&mode==='verify'} onChange={(e:React.ChangeEvent<HTMLInputElement>)=>setEmail(e.target.value)}/>

@@ -29,6 +29,7 @@ beforeAll(async () => {
   for (const [actor, contact] of [[representative, 'rep'], [outsider, 'other'], [owner, 'owner']] as const) {
     await fixture.db.query('INSERT INTO users(id,role,name,contact) VALUES($1,$2,$3,$4)', [actor.id, actor.role, contact, contact + '@example.test']);
   }
+  await fixture.db.query("UPDATE users SET participant_kind='educator' WHERE role='participant'");
   await fixture.db.query("INSERT INTO schools(id,reference,name,address,city,state,postal_code,status) VALUES($1,'YES-FIRST','First School','','City','','','active'),($2,'YES-SECOND','Second School','','City','','','active')", [schoolId, otherSchool]);
   const insert = async (id: string, key: string, ref: string, school: string, answers: object, date: string) =>
     fixture.db.query("INSERT INTO portal_form_records(id,form_key,reference,status,school_id,answers,submitted_at) VALUES($1,$2,$3,'submitted',$4,$5,$6)", [id, key, ref, school, JSON.stringify(answers), date]);

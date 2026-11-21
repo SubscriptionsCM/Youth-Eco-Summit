@@ -13,6 +13,7 @@ describe('saved multi-step registrations', () => {
   teacher = { id:randomUUID(),role:'participant',contact:'+919876543211' };
   owner = { id:randomUUID(),role:'owner',contact:'owner@example.org' };
   for (const actor of [guardian,teacher,owner]) await fixture.db.query('INSERT INTO users(id,role,contact) VALUES($1,$2,$3)',[actor.id,actor.role,actor.contact]);
+  await fixture.db.query("UPDATE users SET participant_kind=CASE WHEN id=$1 THEN 'student' ELSE 'educator' END WHERE role='participant'",[guardian.id]);
  });
  afterEach(async () => fixture?.close());
  const draft = (kind:'student'|'school'|'teacher'='student', payload:Record<string,unknown>={name:'Asha'}) => ({id:randomUUID(),kind,scope:'new',payload,currentStep:0,lockVersion:0});
@@ -66,6 +67,9 @@ describe('saved multi-step registrations', () => {
   expect(receipt.status).toBe('pending');
   await expect(schoolDashboard(fixture.db,teacher,schoolId,new URLSearchParams())).rejects.toMatchObject({status:403});
   await expect(reviewTeacherRegistration(fixture.db,teacher,receipt.id,{action:'approved',reason:'School checked'})).rejects.toMatchObject({status:403});
+  await fixture.db.query("UPDATE users SET participant_kind='student' WHERE id=$1",[teacher.id]);
+  await expect(reviewTeacherRegistration(fixture.db,owner,receipt.id,{action:'approved',reason:'School association checked'})).rejects.toMatchObject({status:409});
+  await fixture.db.query("UPDATE users SET participant_kind='educator' WHERE id=$1",[teacher.id]);
   await reviewTeacherRegistration(fixture.db,owner,receipt.id,{action:'approved',reason:'School association verified by organizer'});
   expect((await schoolDashboard(fixture.db,teacher,schoolId,new URLSearchParams())).school.id).toBe(schoolId);
  });

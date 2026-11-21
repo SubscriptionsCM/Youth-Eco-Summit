@@ -88,6 +88,7 @@ describe('durable guideline entries and import safety',()=>{
  beforeAll(async()=>{
   store=await testDb();parent={id:id(),role:'participant'};stranger={id:id(),role:'participant'};edition=id();school=id();student=id();participation=id();competition=id();
   for(const actor of [parent,stranger])await store.db.query("INSERT INTO users(id,role,contact) VALUES($1,'participant',$2)",[actor.id,actor.id]);
+  await store.db.query("UPDATE users SET participant_kind='student' WHERE role='participant'");
   await store.db.query("INSERT INTO editions(id,label,state) VALUES($1,'Guideline tests','open')",[edition]);
   await store.db.query("INSERT INTO schools(id,reference,name,address,city,state,postal_code,status) VALUES($1::uuid,$1::text,'Green School','Road','Delhi','Delhi','110001','active')",[school]);
   await store.db.query("INSERT INTO students(id,reference,name,guardian_contact) VALUES($1::uuid,$1::text,'एकता शर्मा','guardian')",[student]);

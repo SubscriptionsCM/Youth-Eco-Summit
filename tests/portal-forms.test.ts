@@ -6,10 +6,10 @@ import type { Actor } from '../src/server/core';
 
 describe('reference form persistence', () => {
  let fixture: Awaited<ReturnType<typeof testDb>>, actor:Actor;
- beforeEach(async()=>{fixture=await testDb();actor={id:randomUUID(),role:'participant',contact:'participant@example.org'};await fixture.db.query('INSERT INTO users(id,role,contact) VALUES($1,$2,$3)',[actor.id,actor.role,actor.contact]);});
+ beforeEach(async()=>{fixture=await testDb();actor={id:randomUUID(),role:'participant',contact:'participant@example.org',participantKind:'student'};await fixture.db.query("INSERT INTO users(id,role,contact,participant_kind) VALUES($1,$2,$3,'student')",[actor.id,actor.role,actor.contact]);});
  afterEach(async()=>fixture?.close());
  it('allows a private saved link for public forms and refuses another token', async()=>{
-  const created=await createFormRecord(fixture.db,null,{formKey:'school'});
+  const created=await createFormRecord(fixture.db,null,{formKey:'partner'});
   expect((await getFormRecord(fixture.db,null,created.record.id,created.token)).id).toBe(created.record.id);
   await expect(getFormRecord(fixture.db,null,created.record.id,'wrong')).rejects.toMatchObject({status:404});
   expect((await fixture.db.query('SELECT draft_token_hash FROM portal_form_records')).rows[0].draft_token_hash).not.toBe(created.token);
@@ -26,7 +26,7 @@ describe('reference form persistence', () => {
   expect((await getFormRecord(fixture.db,actor,created.record.id)).files[0].verification_failed).toBe(true);
  });
  it('allows active administrative read access only after submission', async()=>{
-  const created=await createFormRecord(fixture.db,null,{formKey:'school'});
+  const created=await createFormRecord(fixture.db,null,{formKey:'partner'});
   const admin:Actor={id:randomUUID(),role:'admin'};
   await fixture.db.query("INSERT INTO users(id,role,contact) VALUES($1,'admin','staff@example.org')",[admin.id]);
   await expect(getFormRecord(fixture.db,admin,created.record.id)).rejects.toMatchObject({status:404});
@@ -38,6 +38,7 @@ describe('reference form persistence', () => {
   await expect(getFormRecord(fixture.db,admin,created.record.id)).rejects.toMatchObject({status:401});
  });
  it('retains the declared role and entry mode immediately so an untouched saved link can be resumed',async()=>{
+  await fixture.db.query("UPDATE users SET participant_kind='educator' WHERE id=$1",[actor.id]);
   const context={'hidden-yes-submitter':'educator','radio-yes-entry-mode':'individual'};
   const created=await createFormRecord(fixture.db,actor,{formKey:'open-letter',context});
   expect((await getFormRecord(fixture.db,actor,created.record.id)).answers).toEqual(context);

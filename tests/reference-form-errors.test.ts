@@ -5,8 +5,8 @@ import {afterEach,beforeEach,expect,it,vi} from 'vitest';
 vi.mock('next/link',()=>({default:'a'}));
 vi.mock('../src/components/unsaved-navigation',()=>({useUnsavedNavigation:()=>{}}));
 const request=vi.hoisted(()=>vi.fn());
-const account=vi.hoisted(()=>({signedIn:true}));
-vi.mock('../src/components/email-account',()=>({EmailAccount:({onSignedIn}:{onSignedIn:(value:unknown)=>void})=>createElement('button',{onClick:()=>{account.signedIn=true;onSignedIn({email:'fixture@example.test',username:'fixture'});}},'Fixture sign in')}));
+const account=vi.hoisted(()=>({signedIn:true,kind:'educator',role:'participant'}));
+vi.mock('../src/components/email-account',()=>({EmailAccount:({onSignedIn}:{onSignedIn:(value:unknown)=>void})=>createElement('button',{onClick:()=>{account.signedIn=true;account.kind='educator';account.role='participant';onSignedIn({email:'fixture@example.test',username:'fixture'});}},'Fixture sign in')}));
 vi.mock('../src/components/api',async original=>({...await original<typeof import('../src/components/api')>(),api:request}));
 import {ApiError} from '../src/components/api';
 import {ReferenceControl,ReferenceFormPage} from '../src/components/reference-form';
@@ -16,14 +16,14 @@ let host:HTMLDivElement,root:Root;
 beforeEach(()=>{
  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);vi.stubGlobal('requestAnimationFrame',(callback:FrameRequestCallback)=>{callback(0);return 0;});
  window.history.replaceState(null,'','/forms/teacher#saved=fixture');request.mockReset();
- account.signedIn=true;
+ account.signedIn=true;account.kind='educator';account.role='participant';
  host=document.createElement('div');document.body.append(host);root=createRoot(host);
 });
 afterEach(async()=>{await act(async()=>root.unmount());host.remove();vi.unstubAllGlobals();});
 async function mount(formKey:string,fields:Record<string,string>){
  request.mockImplementation(async(path:string)=>{
   if(path==='/api/forms/config')return {enabled:true,accountProvider:'native'};
-  if(path==='/api/auth/session')return {actor:{role:'participant',contact:'fixture@example.test'}};
+  if(path==='/api/auth/session')return {actor:{role:account.role,participantKind:account.kind,contact:'fixture@example.test'}};
   if(path.endsWith('/submit'))throw new ApiError('Check the highlighted information.',fields,422);
   if(path==='/api/forms/records/fixture')return {id:'fixture',form_key:formKey,status:'draft',current_step:3,lock_version:0,answers:{'email-1':'fixture@example.test','hidden-yes-submitter':'educator','radio-yes-entry-mode':'individual'},files:[]};
   return {items:[],total:0};
@@ -58,7 +58,7 @@ it('opens the existing saved draft after signing in instead of starting a new fo
  account.signedIn=false;
  request.mockImplementation(async(path:string)=>{
   if(path==='/api/forms/config')return {enabled:true,accountProvider:'native'};
-  if(path==='/api/auth/session')return {actor:account.signedIn?{id:'fixture-owner',role:'participant',contact:'fixture@example.test'}:null};
+  if(path==='/api/auth/session')return {actor:account.signedIn?{id:'fixture-owner',role:account.role,participantKind:account.kind,contact:'fixture@example.test'}:null};
   if(path==='/api/forms/records/fixture')return {id:'fixture',form_key:'teacher',status:'draft',current_step:1,lock_version:0,answers:{'email-1':'fixture@example.test'},files:[]};
   throw new Error('Unexpected request '+path);
  });
@@ -73,7 +73,7 @@ it('announces a newly saved draft so the entry journey cannot change its school 
  window.history.replaceState(null,'','/forms/teacher');
  request.mockImplementation(async(path:string)=>{
   if(path==='/api/forms/config')return {enabled:true,accountProvider:'native'};
-  if(path==='/api/auth/session')return {actor:{id:'fixture-owner',role:'participant'}};
+  if(path==='/api/auth/session')return {actor:{id:'fixture-owner',role:account.role,participantKind:account.kind}};
   if(path==='/api/forms/records')return {record:{id:'new-draft',form_key:'teacher',status:'draft',current_step:0,answers:{},files:[]},token:'synthetic-key'};
   throw new Error('Unexpected request '+path);
  });
@@ -84,4 +84,35 @@ it('announces a newly saved draft so the entry journey cannot change its school 
   expect(window.location.hash).toBe('#saved=new-draft.synthetic-key');expect(changed).toHaveBeenCalled();
   expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({type:'hashchange'}));
  }finally{window.removeEventListener('hashchange',changed);dispatch.mockRestore();}
+});
+it.each([['participant','student','teacher'],['judge','school','school']])('blocks a direct registration route for %s/%s',async(role,kind,formKey)=>{
+ window.history.replaceState(null,'',`/forms/${formKey}`);account.role=role;account.kind=kind;
+ request.mockImplementation(async(path:string)=>path==='/api/forms/config'?{enabled:true,accountProvider:'native'}:path==='/api/auth/session'?{actor:{id:'fixture',role,participantKind:kind}}:Promise.reject(new Error('Unexpected request '+path)));
+ await act(async()=>root.render(createElement(ReferenceFormPage,{formKey})));
+ expect(host.textContent).toContain('not available for your account type');expect(host.textContent).not.toContain('Start form');expect(host.querySelector('form')).toBeNull();
+ expect(request.mock.calls.some(call=>call[0]==='/api/forms/records')).toBe(false);
+});
+it('retains an owned cross-kind draft as read-only without registration or upload controls',async()=>{
+ account.kind='student';
+ request.mockImplementation(async(path:string)=>path==='/api/forms/config'?{enabled:true,accountProvider:'native'}:path==='/api/auth/session'?{actor:{id:'fixture',role:'participant',participantKind:'student'}}:{id:'fixture',form_key:'teacher',status:'draft',current_step:1,answers:{'email-1':'fixture@example.test'},files:[]});
+ await act(async()=>root.render(createElement(ReferenceFormPage,{formKey:'teacher'})));
+ expect(host.textContent).toContain('read-only for your account type');expect(host.querySelector('form')).toBeNull();expect(host.querySelector('input[type=file]')).toBeNull();
+ expect(request.mock.calls.some(call=>String(call[0]).endsWith('/submit'))).toBe(false);
+});
+it('rechecks a saved draft after another account signs in and removes the former account’s values',async()=>{
+ let owner='first-owner';
+ request.mockImplementation(async(path:string)=>{
+  if(path==='/api/forms/config')return {enabled:true,accountProvider:'native'};
+  if(path==='/api/auth/session')return {actor:{id:owner,role:'participant',participantKind:'educator',contact:`${owner}@example.test`}};
+  if(path==='/api/forms/records/fixture'){
+   if(owner!=='first-owner')throw new ApiError('This saved form is unavailable.',undefined,404);
+   return {id:'fixture',form_key:'teacher',status:'draft',current_step:1,answers:{'email-1':'first-owner@example.test'},files:[]};
+  }
+  throw new Error('Unexpected request '+path);
+ });
+ await act(async()=>root.render(createElement(ReferenceFormPage,{formKey:'teacher'})));
+ expect(host.querySelector<HTMLInputElement>('input[name=email-1]')?.value).toBe('first-owner@example.test');
+ owner='second-owner';await act(async()=>window.dispatchEvent(new Event('yes-auth-changed')));
+ expect(request.mock.calls.filter(call=>call[0]==='/api/forms/records/fixture')).toHaveLength(2);
+ expect(host.textContent).toContain('This saved form is unavailable.');expect(host.querySelector('input[name=email-1]')).toBeNull();expect(host.textContent).not.toContain('first-owner@example.test');
 });

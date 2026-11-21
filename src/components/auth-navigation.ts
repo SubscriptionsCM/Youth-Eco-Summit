@@ -1,3 +1,4 @@
+import {canUseForm,canUseSchoolWorkspace,type ParticipantKind} from '../domain/participant-access';
 const localOrigin = 'https://youth-eco.local';
 
 /** Accept a local page destination without allowing an open redirect. */
@@ -32,15 +33,20 @@ export function judgeLoginPath(destination?:unknown):string{
   return next?`/judge/login?${new URLSearchParams({next})}`:'/judge/login';
 }
 
-export function afterLoginPath(role: string, destination?: unknown): string {
+export function afterLoginPath(role: string, destination?: unknown, kind?:ParticipantKind|null): string {
   const next = safeReturnPath(destination);
   if (!next) return dashboardPath(role);
-  const pathname = decodeURIComponent(new URL(next, localOrigin).pathname);
+  const parsed=new URL(next,localOrigin),pathname=decodeURIComponent(parsed.pathname).replace(/\/+$/,'')||'/',actor={role,participantKind:kind};
   if (/^\/admin(?:\/|$)/.test(pathname) && !['owner', 'admin'].includes(role)) return dashboardPath(role);
   if (/^\/judge(?:\/|$)/.test(pathname) && !['owner', 'admin', 'judge'].includes(role)) return dashboardPath(role);
-  if (/^\/(?:register|dashboard|teams)(?:\/|$)/.test(pathname) && role !== 'participant') return dashboardPath(role);
-  if (/^\/schools\/register(?:\/|$)/.test(pathname) && role !== 'participant') return dashboardPath(role);
-  if (/^\/entries(?:\/|$)/.test(pathname) && role === 'judge') return dashboardPath(role);
+  if (/^\/dashboard(?:\/|$)/.test(pathname) && role !== 'participant') return dashboardPath(role);
+  if (/^\/teams(?:\/|$)/.test(pathname) && !canUseForm(actor,'student')) return dashboardPath(role);
+  const registration=pathname==='/register'?'student':pathname==='/teachers/register'?'teacher':pathname==='/schools/register'?'school':null;
+  if(registration&&!canUseForm(actor,registration))return dashboardPath(role);
+  if(pathname==='/school'&&!canUseSchoolWorkspace(actor))return dashboardPath(role);
+  if(pathname==='/competitions/enter'&&(!canUseForm(actor,'painting',parsed.searchParams.get('submitter'))))return dashboardPath(role);
+  if(pathname.startsWith('/forms/')){const saved=new URLSearchParams(parsed.hash.slice(1)).has('saved');if(saved?!['participant','owner','admin'].includes(role):!canUseForm(actor,pathname.split('/')[2],parsed.searchParams.get('submitter')))return dashboardPath(role);}
+  if (/^\/(?:entries|history)(?:\/|$)/.test(pathname) && role === 'judge') return dashboardPath(role);
   if (/^\/files(?:\/|$)/.test(pathname) && !['participant','owner','admin'].includes(role)) return dashboardPath(role);
   return next;
 }

@@ -25,6 +25,7 @@ describe('judging revisions and prerequisite scoring rounds', () => {
       actors.push(actor);
     }
     [parent, admin, judge, secondJudge] = actors;
+    await store.db.query("UPDATE users SET participant_kind='student' WHERE role='participant'");
     editionId = id(); competitionId = id(); otherCompetitionId = id(); participationId = id();
     const schoolId = id(), studentId = id();
     await store.db.query("INSERT INTO editions(id,label,state) VALUES($1,'Revision tests','open')", [editionId]);

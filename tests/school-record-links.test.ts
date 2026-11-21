@@ -14,6 +14,7 @@ it('tracks staff-verified links without altering archived originals or exposing 
     const rep: Actor = {id: randomUUID(), role: 'participant'};
     const schoolId = randomUUID(), otherSchool = randomUUID(), recordId = randomUUID(), directId = randomUUID();
     await db.query("INSERT INTO users(id,role,name,contact,active) VALUES($1,'owner','Staff','staff@example.test',true),($2,'admin','Inactive','inactive@example.test',false),($3,'participant','Representative','rep@example.test',true)", [owner.id,inactive.id,rep.id]);
+    await db.query("UPDATE users SET participant_kind='school' WHERE id=$1",[rep.id]);
     await db.query("INSERT INTO schools(id,reference,name,address,city,state,postal_code,status) VALUES($1,'YES-LINK','Link School','','City','','','active'),($2,'YES-DIRECT','Direct School','','City','','','active')", [schoolId,otherSchool]);
     await db.query("INSERT INTO school_access_requests(id,user_id,school_id,status,reason) VALUES($1,$2,$3,'approved','Verified school representative')", [randomUUID(),rep.id,schoolId]);
     const payload = {form_id:28713,status:'active',date_created:'2024-11-17 08:30:00',meta:[{meta_key:'text-1',meta_value:'Archive Student'},{meta_key:'email-1',meta_value:'private@example.test'}]};

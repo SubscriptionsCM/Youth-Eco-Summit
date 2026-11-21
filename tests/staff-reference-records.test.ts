@@ -13,9 +13,11 @@ describe('staff access to retained reference forms',()=>{
   fixture=await testDb();owner={id:randomUUID(),role:'owner',contact:'owner@qa.example'};participant={id:randomUUID(),role:'participant',contact:'participant@qa.example'};
   for(const actor of [owner,participant])await fixture.db.query('INSERT INTO users(id,role,contact) VALUES($1,$2,$3)',[actor.id,actor.role,actor.contact]);
   schoolId=randomUUID();await fixture.db.query("INSERT INTO schools(id,reference,name,address,city,state,postal_code,status) VALUES($1,'YES-QA-STAFF','QA school','QA address','QA City','Delhi','110001','active')",[schoolId]);
-  const created=await createFormRecord(fixture.db,null,{formKey:'school'});submitted=created.record.id;
+  const created=await createFormRecord(fixture.db,null,{formKey:'partner'});submitted=created.record.id;
+  await fixture.db.query("UPDATE portal_form_records SET form_key='school' WHERE id=$1",[submitted]);
   await fixture.db.query("UPDATE portal_form_records SET status='submitted',submitted_at=now(),school_id=$2,answers=$3,receipt=$4 WHERE id=$1",[submitted,schoolId,JSON.stringify({'text-1':'QA school','email-1':'qa@example.org'}),JSON.stringify({reference:created.record.reference,schoolStatus:'pending'})]);
-  draft=(await createFormRecord(fixture.db,null,{formKey:'school'})).record.id;
+  draft=(await createFormRecord(fixture.db,null,{formKey:'partner'})).record.id;
+  await fixture.db.query("UPDATE portal_form_records SET form_key='school' WHERE id=$1",[draft]);
   await archiveWordPress(fixture.db,{format:'yes-wordpress-export/v1',source:'https://staff-source.example',capturedAt:'2026-11-11T00:00:00Z',counts:{records:2,attachments:0},records:[{kind:'user',sourceId:'10',payload:{user_pass:'NEVER DISPLAY SOURCE PASSWORD HASH'}},{kind:'entry',sourceId:'20',payload:{form_id:12146,status:'active',meta:[{meta_key:'text-1',meta_value:'Retained QA query'},{meta_key:'email-1',meta_value:'qa@example.org'},{meta_key:'password-1',meta_value:'NEVER DISPLAY PASSWORD'}]}}],attachments:[]},{commit:true});
   historyId=(await fixture.db.query("SELECT id FROM wordpress_records WHERE kind='entry'")).rows[0].id;
  });

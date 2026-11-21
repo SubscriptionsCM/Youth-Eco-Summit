@@ -6,17 +6,17 @@ import {EntryJourney,entryJourneyHref,registeredEntrySchool} from '../src/compon
 import EntryPage from '../src/app/competitions/enter/page';
 import {competitionGuidelines2027} from '../src/data/guidelines-2027';
 
-const harness=vi.hoisted(()=>({api:vi.fn(),school:{reference:'YES-SCH-0196F5E3'}}));
+const harness=vi.hoisted(()=>({api:vi.fn(),actor:null as null|{role:string;participantKind?:'student'|'educator'|'school'|'unclassified'},school:{reference:'YES-SCH-0196F5E3'}}));
 vi.mock('../src/components/api',()=>({api:harness.api}));
 vi.mock('next/link',()=>({default:({href,children}:{href:string;children:ReactNode})=>createElement('a',{href},children)}));
 vi.mock('../src/components/registration',()=>({SchoolAutocomplete:({onSelect}:{onSelect:(school:unknown)=>void})=>createElement('button',{type:'button',onClick:()=>onSelect(harness.school)},'Choose test school')}));
 vi.mock('../src/components/reference-form',()=>({ReferenceFormPage:(props:unknown)=>createElement('section',null,createElement('pre',{'data-test':'form'},JSON.stringify(props)),createElement('button',{type:'button',onClick:()=>{window.history.replaceState(null,'',window.location.pathname+window.location.search+'#saved=synthetic-saved');window.dispatchEvent(new window.Event('hashchange'));}},'Start saved fixture'))}));
-vi.mock('../src/components/shared',()=>({PageTitle:({title,children}:{title:string;children:ReactNode})=>createElement('div',null,createElement('h1',null,title),children),Notice:({children,error}:{children:ReactNode;error?:boolean})=>createElement('div',{role:error?'alert':'status'},children)}));
+vi.mock('../src/components/shared',()=>({useResource:()=>({loading:false,error:'',reload:vi.fn(),data:{actor:harness.actor}}),ResourceState:()=>null,PageTitle:({title,children}:{title:string;children:ReactNode})=>createElement('div',null,createElement('h1',null,title),children),Notice:({children,error}:{children:ReactNode;error?:boolean})=>createElement('div',{role:error?'alert':'status'},children)}));
 const school={id:'school-one',reference:'YES-SCH-0196F5E3',name:'H.R. Patel Kanya Secondary And Higher Secondary School',address:'',city:'Shirpur',alternate_references:['YEC-EDU-0196F5E3']};
 const context={submitter:'educator',competition:'waste-to-art',mode:'team',school_id:school.reference,team_size:'3'};
 let root:Root,container:HTMLDivElement;
 beforeEach(()=>{
- vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);harness.api.mockReset();harness.school={reference:school.reference};
+ vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);harness.api.mockReset();harness.actor=null;harness.school={reference:school.reference};
  window.history.replaceState(null,'','/competitions/enter?submitter=educator&competition=waste-to-art&entry_type=team&school_id='+school.reference+'&team_size=3');
  container=document.createElement('div');document.body.append(container);root=createRoot(container);
 });
@@ -76,6 +76,18 @@ it('does not let an old lookup response override a newly selected URL context',a
  await mount({submitter:'educator',competition:'waste-to-art',mode:'team',schoolId:'YES-SCH-NEW'},'new');
  expect(signal.aborted).toBe(true);await act(async()=>resolveOld({items:[school]}));
  expect(form().initialAnswers['text-yes-school-id']).toBe('YES-SCH-NEW');expect(new URLSearchParams(window.location.search).get('school_id')).toBe('YES-SCH-NEW');
+});
+it('uses the signed-in student profile instead of an educator role supplied in the URL',async()=>{
+ harness.actor={role:'participant',participantKind:'student'};harness.api.mockResolvedValue({items:[school]});
+ await mount({submitter:'educator',competition:'painting',mode:'individual',schoolId:school.reference});
+ expect(form().initialAnswers['hidden-yes-submitter']).toBe('student');
+ expect(new URLSearchParams(window.location.search).get('submitter')).toBe('student');
+ expect(container.textContent).not.toContain('I am an educator');
+});
+it.each(['judge','admin','owner','school','unclassified'])('does not offer competition submission to %s accounts',async kind=>{
+ harness.actor=['judge','admin','owner'].includes(kind)?{role:kind}:{role:'participant',participantKind:kind as 'school'|'unclassified'};
+ await mount({submitter:'student',competition:'painting',mode:'individual'});
+ expect(container.textContent).toContain('cannot create student or educator competition entries');expect(container.querySelector('[data-test="form"]')).toBeNull();expect(container.textContent).not.toContain('Choose test school');
 });
 it('recognizes a newly started saved draft and resumes it without the school-context chooser',async()=>{
  harness.api.mockResolvedValue({items:[school]});

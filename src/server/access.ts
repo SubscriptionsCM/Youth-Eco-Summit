@@ -1,6 +1,8 @@
 import type { Db } from './db';
 import { type Actor, AppError } from './core';
+import { requireFormAccess } from './participant-access';
 export async function entryAccess(db:Db,actor:Actor,entryId:string,write=false){
+  if(write)await requireFormAccess(db,actor,'student');
   const {rows:[entry]}=await db.query(`SELECT s.*,c.config,c.edition_id,c.title competition_title,c.status competition_status,c.opens_at,c.closes_at,
     p.student_id,p.school_id,p.class,p.snapshot,p.trashed_at participation_trashed,st.trashed_at student_trashed,st.purging student_purging,sc.trashed_at school_trashed,sc.purging school_purging,sc.status school_status,e.state edition_state
     FROM submissions s JOIN competitions c ON c.id=s.competition_id JOIN editions e ON e.id=c.edition_id

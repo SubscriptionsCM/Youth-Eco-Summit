@@ -75,12 +75,14 @@ describe('native participant authentication', () => {
   const verified = await action('participant/verify', { ...details, code: challenge.code, password, role: 'owner' }, challenge.cookie);
   expect(verified?.status).toBe(200);
   const cookie = verified!.headers.get('set-cookie')!;
-  expect(await auth.getActor(request('session', {}, cookie))).toMatchObject({ role: 'participant', contact: profile.contact });
+  expect(await auth.getActor(request('session', {}, cookie))).toMatchObject({ role: 'participant', contact: profile.contact,participantKind:'student' });
   expect((await fixture.db.query('SELECT password_hash FROM users')).rows[0].password_hash).toMatch(/^scrypt-32768-8-3\$/);
   expect((await fixture.db.query('SELECT username FROM native_participant_accounts')).rows).toEqual([{ username: profile.username }]);
   expect((await action('invitations', { contact: 'staff@example.org', role: 'owner' }, cookie))?.status).toBe(403);
   const educator = await register({ contact: 'educator@example.org', username: 'educator', formKey: 'teacher' });
-  expect(educator.actor.role).toBe('participant');
+  expect(educator.actor).toMatchObject({role:'participant',participantKind:'educator'});
+  const school=await register({contact:'school@example.org',username:'school',formKey:'school'});
+  expect(school.actor).toMatchObject({role:'participant',participantKind:'school'});
   expect((await fixture.db.query('SELECT * FROM supabase_identities')).rows).toHaveLength(0);
   expect((await fixture.db.query('SELECT * FROM wordpress_account_identities')).rows).toHaveLength(0);
  });

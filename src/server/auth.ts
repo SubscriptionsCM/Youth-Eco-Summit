@@ -5,6 +5,7 @@ import { AppError, type Actor, audit } from './core';
 import { supabaseParticipantAction } from './supabase-auth';
 import { environmentWordPressBridge, verifyWordPressActor, wordPressParticipantAction, type WordPressBridge } from './wordpress-auth';
 import { nativeParticipantAction } from './native-participant-auth';
+import {participantKind,type ParticipantKind} from '../domain/participant-access';
 import { sendTransactionalEmail, smtpConfigured } from './email';
 
 const derive = (value: string, salt: string, length: number, options: ScryptOptions): Promise<Buffer> =>
@@ -30,7 +31,7 @@ export interface AuthOptions {
   /** Configure only behind a proxy that overwrites this header. */
   trustedIpHeader?: string;
 }
-type User = Actor & { active: boolean; password_hash: string | null; totp_secret: string | null; totp_last_counter: string | number; auth_version: number };
+type User = Actor & { active: boolean; password_hash: string | null; totp_secret: string | null; totp_last_counter: string | number; auth_version: number; participant_kind?:ParticipantKind };
 
 function key(secret: string) {
   if (secret.length < 32) throw new AppError(503, 'Authentication is not configured.');
@@ -85,15 +86,16 @@ export function createAuth(db: Db, options: AuthOptions) {
   async function getActor(request: Request): Promise<Actor | null> {
     const token = sessionToken(request);
     if (!/^[a-f0-9]{64}$/.test(token)) return null;
-    const query = `SELECT u.id,u.role,u.contact,EXISTS(SELECT 1 FROM wordpress_account_identities w WHERE w.user_id=u.id) AS wordpress_bound
+    const query = `SELECT u.id,u.role,u.contact,u.participant_kind,EXISTS(SELECT 1 FROM wordpress_account_identities w WHERE w.user_id=u.id) AS wordpress_bound
       FROM auth_sessions s JOIN users u ON u.id=s.user_id
       WHERE s.token_hash=$1 AND s.revoked_at IS NULL AND s.expires_at>now() AND u.active=true
       AND s.auth_version=u.auth_version
       ${process.env.AUTH_PARTICIPANT_PROVIDER === 'native' ? '' : 'AND NOT EXISTS(SELECT 1 FROM supabase_identities si WHERE si.user_id=u.id AND si.recovery_nonce IS NOT NULL)'}`;
     const tokenHash = digest(token);
-    const { rows: [found] } = await db.query<Actor & {wordpress_bound: boolean}>(query, [tokenHash]);
+    const { rows: [found] } = await db.query<Actor & {wordpress_bound: boolean;participant_kind:ParticipantKind}>(query, [tokenHash]);
     if (!found) return null;
-    const { wordpress_bound: wordpressBound, ...actor } = found;
+    const { wordpress_bound: wordpressBound, participant_kind:kind,...identity } = found;
+    const actor:Actor={...identity,...identity.role==='participant'?{participantKind:participantKind({role:'participant',participantKind:kind})}:{}};
     if (process.env.AUTH_PARTICIPANT_PROVIDER === 'native') {
       if (actor.role !== 'participant') return actor;
       const { rows: [native] } = await db.query<{ verified_contact: string; password_hash: string | null }>(`SELECT a.verified_contact,u.password_hash
@@ -132,7 +134,7 @@ export function createAuth(db: Db, options: AuthOptions) {
       }
       await tx.query('INSERT INTO auth_sessions(token_hash,user_id,auth_version,mfa_verified,expires_at) VALUES($1,$2,$3,$4,$5)', [digest(token), user.id, current.auth_version, mfa, new Date(Date.now() + seconds * 1000)]);
     });
-    const response = json({ actor: { id: user.id, role: user.role, contact: user.contact } });
+    const response = json({ actor: { id: user.id, role: user.role, contact: user.contact,...user.role==='participant'?{participantKind:participantKind({role:'participant',participantKind:user.participant_kind})}:{} } });
     response.headers.set('Set-Cookie', cookie(token, seconds));
     return response;
   }

@@ -4,6 +4,7 @@ import { AppError,type Actor,id,audit } from './core';
 import { categoryFor,competitionSchema,validateAnswers } from '../domain/rules';
 import { entryAccess } from './access';
 import { anonymousFilename, ContentRejected, submissionLabel, validateFileSelection } from './storage/validation';
+import { currentAccessActor, requireFormAccess } from './participant-access';
 const answers=z.record(z.string(),z.unknown());
 const draftSchema=z.object({answers:answers.default({}),memberIds:z.array(z.uuid()).max(99).default([]),currentStep:z.enum(['details','team','upload','review']).optional()});
 async function validateMembers(tx:Db,actor:Actor,participation:any,competition:any,memberIds:string[],final=false,entryId:string|null=null){
@@ -20,6 +21,7 @@ export async function createEntry(db:Db,actor:Actor,input:unknown){
  const v=draftSchema.extend({participationId:z.uuid(),competitionId:z.uuid()}).parse(input);
  if(actor.role!=='participant')throw new AppError(403,'Participant access required.');
  return db.transaction(async tx=>{
+  await requireFormAccess(tx,actor,'student');
   const {rows:[p]}=await tx.query(`SELECT p.* FROM student_participations p JOIN participant_access a ON a.student_id=p.student_id JOIN students s ON s.id=p.student_id JOIN schools sc ON sc.id=p.school_id WHERE p.id=$1 AND a.user_id=$2 AND p.trashed_at IS NULL AND s.trashed_at IS NULL AND sc.trashed_at IS NULL AND sc.status='active' FOR SHARE OF p,s,sc`,[v.participationId,actor.id]);
   if(!p)throw new AppError(404,'Active student registration not found.');
   const {rows:[c]}=await tx.query("SELECT c.*,e.state edition_state FROM competitions c JOIN editions e ON e.id=c.edition_id WHERE c.id=$1 FOR SHARE OF c,e",[v.competitionId]);
@@ -44,6 +46,7 @@ export async function updateEntry(db:Db,actor:Actor,entryId:string,input:unknown
 }
 export async function submitEntry(db:Db,actor:Actor,entryId:string,lockVersion:number){
  return db.transaction(async tx=>{
+  await requireFormAccess(tx,actor,'student');
   await tx.query('SELECT id FROM submissions WHERE id=$1 FOR UPDATE',[entryId]);const entry=await entryAccess(tx,actor,entryId);
   if(actor.role!=='participant')throw new AppError(403,'Participant access required.');
   if(entry.state!=='draft')return {id:entry.id,reference:entry.reference,state:entry.state,revision:entry.revision};
@@ -76,6 +79,7 @@ export async function submitEntry(db:Db,actor:Actor,entryId:string,lockVersion:n
 }
 export async function entryDetail(db:Db,actor:Actor,entryId:string){
  const entry=await entryAccess(db,actor,entryId);if(actor.role==='judge')throw new AppError(403,'Use your assigned judging view.');
+ const current=await currentAccessActor(db,actor);
  const [assets,revisions,decisions,assignments,reviews,members]=await Promise.all([
   db.query('SELECT a.id,a.original_name,a.generated_name,a.role,a.metadata,a.mime_type,a.byte_size,a.status,a.revision,a.created_at FROM assets a WHERE a.submission_id=$1 AND a.trashed_at IS NULL AND ($2 OR a.revision>$3 OR EXISTS(SELECT 1 FROM submission_revisions r WHERE r.submission_id=a.submission_id AND r.version=a.revision AND r.asset_ids ? a.id::text)) ORDER BY a.created_at',[entryId,['owner','admin'].includes(actor.role),entry.revision]),
   db.query('SELECT * FROM submission_revisions WHERE submission_id=$1 ORDER BY version DESC',[entryId]),
@@ -85,5 +89,5 @@ export async function entryDetail(db:Db,actor:Actor,entryId:string){
   db.query('SELECT participation_id FROM submission_members WHERE submission_id=$1',[entryId])]);
  const {rows:leadAccess}=await db.query('SELECT 1 FROM participant_access WHERE user_id=$1 AND student_id=$2',[actor.id,entry.student_id]);
  const {rows:[competition]}=await db.query('SELECT id,title,guidelines,config FROM competitions WHERE id=$1',[entry.competition_id]);
- return {entry:{...entry,canEdit:actor.role==='participant'&&leadAccess.length>0&&entry.state==='draft',memberIds:members.rows.map(x=>x.participation_id)} as Record<string,any>,assets:assets.rows,revisions:revisions.rows,decisions:decisions.rows,assignments:assignments.rows,reviews:reviews.rows,competition};
+ return {entry:{...entry,canEdit:current?.role==='participant'&&current.participantKind==='student'&&leadAccess.length>0&&entry.state==='draft',memberIds:members.rows.map(x=>x.participation_id)} as Record<string,any>,assets:assets.rows,revisions:revisions.rows,decisions:decisions.rows,assignments:assignments.rows,reviews:reviews.rows,competition};
 }

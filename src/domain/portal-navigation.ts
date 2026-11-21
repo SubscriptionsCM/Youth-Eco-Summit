@@ -1,13 +1,17 @@
+import {canUseSchoolWorkspace,entrySubmitter,participantKind,type ParticipantKind} from './participant-access';
 export type PortalItem={label:string;href:string};
 export type PortalGroup={label:string;items:PortalItem[];primary?:boolean;root?:string};
 const item=(label:string,href:string):PortalItem=>({label,href});
 export const adminTitles:Record<string,string>={'school-records':'School record links',overview:'Overview',judging:'Manage judging','reference-forms':'Forms & submissions','wordpress-history':'Forms & submissions',files:'File library',repairs:'File recovery',schools:'Schools',nominations:'School nominations','partner-enquiries':'Partner enquiries',teachers:'Educators',students:'Students',entries:'Competition entries',judges:'Staff accounts',assignments:'Assignments',rules:'Assignment rules',rounds:'Review rounds',reviews:'Reviews',results:'Results',editions:'Summit editions',competitions:'Competitions',content:'Website content',trash:'Trash',audit:'Activity log',jobs:'Background tasks',imports:'Imports',tools:'Tools'};
-export function portalGroups(role:string,mode='portal'):PortalGroup[]{
- if(role==='participant')return [
-  {label:'Your workspace',primary:true,items:[item('My forms & entries','/dashboard'),item('New competition entry','/competitions/enter')]},
-  {label:'School workspace',items:[item('My school','/school')]},
-  {label:'Registration & schools',items:[item('Student registration','/register'),item('Educator registration','/teachers/register'),item('School registration','/schools/register'),item('Find your school','/schools')]}
- ];
+export function portalGroups(role:string,mode='portal',kind?:ParticipantKind|null):PortalGroup[]{
+ if(role==='participant'){
+  const actor={role,participantKind:kind},profile=participantKind(actor),submitter=entrySubmitter(actor);
+  return [
+   {label:'Your workspace',primary:true,items:[item('My forms & entries','/dashboard'),...submitter?[item('New competition entry',`/competitions/enter?submitter=${submitter}`)]:[]]},
+   ...canUseSchoolWorkspace(actor)?[{label:'School workspace',items:[item('My school','/school')]}]:[],
+   ...profile!=='unclassified'?[{label:'Registration & schools',items:[item(profile==='student'?'My student registration':profile==='educator'?'My educator registration':'School registration',profile==='student'?'/register':profile==='educator'?'/teachers/register':'/schools/register'),item('Find your school','/schools')]}]:[]
+  ];
+ }
  if(role==='judge')return [{label:'Review workspace',primary:true,items:[item('Assigned entries','/judge'),item('Competition guidelines','/competitions')]}];
  if(!['owner','admin'].includes(role))return [];
  const admin=(key:string)=>item(adminTitles[key],key==='overview'?'/admin':`/admin/${key}`);

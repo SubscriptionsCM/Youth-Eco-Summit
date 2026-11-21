@@ -13,6 +13,7 @@ describe('school identity, school dashboard and partner enquiries', () => {
  beforeEach(async () => {
   fixture = await testDb(); owner = { id: randomUUID(), role: 'owner' }; contact = { id: randomUUID(), role: 'participant', contact: '+919876543210' };
   await fixture.db.query("INSERT INTO users(id,role,contact) VALUES($1,'owner','owner@example.org'),($2,'participant',$3)", [owner.id, contact.id, contact.contact]);
+  await fixture.db.query("UPDATE users SET participant_kind='school' WHERE id=$1",[contact.id]);
  });
  afterEach(async () => fixture?.close());
  async function school(reference: string, address = '1 School Road') {
@@ -45,7 +46,7 @@ describe('school identity, school dashboard and partner enquiries', () => {
   expect((await fixture.db.query('SELECT reference FROM schools WHERE id=$1', [schoolId])).rows[0].reference).toBe('SCH-ORIGINAL');
   const found = await publicSchools(fixture.db, new URLSearchParams({ q: 'edu-123' }));
   expect(found.items[0].id).toBe(schoolId); expect(found.items[0].alternate_references).toEqual(['EDU-123']);
-  await expect(claimSchool(fixture.db, { ...contact, contact: '+919999999999' }, 'EDU-123')).rejects.toMatchObject({ status: 403 });
+  await expect(claimSchool(fixture.db, { ...contact, contact: '+919999999999' }, 'EDU-123')).rejects.toMatchObject({ status: 401 });
   expect((await claimSchool(fixture.db, contact, 'edu-123')).id).toBe(schoolId);
   await expect(fixture.db.query("INSERT INTO schools(id,reference,name,address,city,state,postal_code) VALUES($1,'edu-123','Other','1 Road','Delhi','Delhi','110001')", [randomUUID()])).rejects.toMatchObject({ code: '23505' });
  });
@@ -74,7 +75,7 @@ describe('school identity, school dashboard and partner enquiries', () => {
   await expect(schoolDashboard(fixture.db, contact, otherSchool, new URLSearchParams())).rejects.toMatchObject({ status: 403 });
   await expect(schoolDashboard(fixture.db, owner, ownSchool, new URLSearchParams())).rejects.toMatchObject({ status: 403 });
   await fixture.db.query('UPDATE users SET active=false WHERE id=$1', [contact.id]);
-  await expect(schoolDashboard(fixture.db, contact, ownSchool, new URLSearchParams())).rejects.toMatchObject({ status: 403 });
+  await expect(schoolDashboard(fixture.db, contact, ownSchool, new URLSearchParams())).rejects.toMatchObject({ status: 401 });
  });
  const enquiry = { submissionId: randomUUID(), organization: 'Eco Organization', contactName: 'Adult Contact', email: 'partner@example.org', phone: '', interest: 'programme', message: 'We would like to collaborate on student learning workshops.', consent: true, website: '' };
  async function approvePrivacy() { await fixture.db.query("INSERT INTO site_content(key,title,body,approved) VALUES('privacy','Privacy','Approved privacy information for enquiries.',true)"); }

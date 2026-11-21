@@ -4,6 +4,7 @@ import { referenceForms, visibleFields } from '../domain/wordpress-forms';
 import { AppError, audit, id, ok, type Actor } from './core';
 import type { Db } from './db';
 import { loadSubmissionRecords, requireActive, type SubmissionRecord } from './submission-records';
+import { requireSchoolWorkspaceAccess } from './participant-access';
 
 const participantRoles: Actor['role'][] = ['participant'];
 const staffRoles: Actor['role'][] = ['owner', 'admin'];
@@ -65,6 +66,7 @@ async function staffRequests(db: Db, page: number) {
 
 async function createRequest(db: Db, actor: Actor, body: z.infer<typeof accessRequest>) {
   await requireActive(db, actor, participantRoles);
+  await requireSchoolWorkspaceAccess(db, actor);
   const schoolId = uuid.safeParse(body.schoolId).success ? body.schoolId : null;
   const school = (await db.query<School>(`SELECT id, name, reference, city, state FROM schools s
     WHERE status='active' AND trashed_at IS NULL AND NOT purging
@@ -88,7 +90,7 @@ async function decideRequest(db: Db, actor: Actor, requestId: string, body: z.in
   }
   if (body.status === 'approved') {
     const approvable = (await db.query(`SELECT s.id FROM schools s JOIN users u ON u.id=$2
-      WHERE s.id=$1 AND s.status='active' AND s.trashed_at IS NULL AND NOT s.purging AND u.active AND u.role='participant'
+      WHERE s.id=$1 AND s.status='active' AND s.trashed_at IS NULL AND NOT s.purging AND u.active AND u.role='participant' AND u.participant_kind IN ('educator','school')
       FOR SHARE OF s,u`,
       [request.school_id, request.user_id])).rows.length;
     if (!approvable) throw new AppError(409, 'Approval requires an active school and participant account.');
@@ -102,6 +104,7 @@ async function decideRequest(db: Db, actor: Actor, requestId: string, body: z.in
 
 async function approvedSchool(db: Db, actor: Actor, schoolId: string, write = false) {
   await requireActive(db, actor, participantRoles);
+  await requireSchoolWorkspaceAccess(db, actor);
   const school = (await db.query<School>(`SELECT s.id,s.name,s.reference,s.city,s.state
     FROM school_access_requests r JOIN schools s ON s.id=r.school_id
     WHERE r.user_id=$1 AND r.school_id=$2 AND r.status='approved'
@@ -234,6 +237,7 @@ export async function schoolWorkspaceRoute(request: Request, db: Db, actor: Acto
     }
   } else {
     await requireActive(db, actor, participantRoles);
+    await requireSchoolWorkspaceAccess(db, actor);
     if (method === 'GET' && path.length === 0) return listRequests(db, actor);
     if (method === 'POST' && path[0] === 'requests' && path.length === 1) {
       const body = await input(request, accessRequest);

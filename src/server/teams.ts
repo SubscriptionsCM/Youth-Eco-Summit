@@ -4,6 +4,7 @@ import type { Db } from './db';
 import { AppError,type Actor,id,audit } from './core';
 import { entryAccess } from './access';
 import { categoryFor,competitionSchema,phone } from '../domain/rules';
+import { requireFormAccess } from './participant-access';
 const hash=(value:string)=>createHash('sha256').update(value).digest('hex');
 export async function inviteTeam(db:Db,actor:Actor,entryId:string,input:unknown){
  const v=z.object({contact:phone}).parse(input);
@@ -18,6 +19,7 @@ export async function inviteTeam(db:Db,actor:Actor,entryId:string,input:unknown)
 export async function joinTeam(db:Db,actor:Actor,input:unknown){
  const v=z.object({token:z.string().regex(/^[a-f0-9]{64}$/),participationId:z.uuid(),consent:z.literal(true)}).parse(input);
  return db.transaction(async tx=>{
+  await requireFormAccess(tx,actor,'student');
   const {rows:[invite]}=await tx.query('SELECT * FROM team_invitations WHERE token_hash=$1 AND expires_at>now() FOR UPDATE',[hash(v.token)]);
   if(!invite||invite.contact!==actor.contact||actor.role!=='participant')throw new AppError(404,'Invitation not found for this verified contact.');
   const {rows:[entry]}=await tx.query(`SELECT s.*,c.config,c.edition_id,p.school_id,p.class FROM submissions s JOIN competitions c ON c.id=s.competition_id JOIN student_participations p ON p.id=s.student_participation_id WHERE s.id=$1 AND s.state='draft' AND s.trashed_at IS NULL AND NOT s.purging FOR UPDATE OF s`,[invite.submission_id]);
