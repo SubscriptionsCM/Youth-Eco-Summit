@@ -1,5 +1,7 @@
 # Hostinger deployment
 
+> **Historical deployment record:** this page describes the 10 November 2026 shared-hosting/LiteSpeed deployment and its Supabase connection. The website subsequently migrated to its dedicated VPS. Do not use the routing paths or pending-work checklist below for current production. Read the [23 November VPS handover](live-vps-handover-2026-11-23.md) and [native VPS runbook](native-vps-migration.md) instead. The existing Hostinger Premium account remains active for email delivery.
+
 ## Deployment on 10 November 2026
 
 The Next.js application is live at https://new.youthecosummit.com/ on Hostinger through LiteSpeed's native Node.js handler and Node 22. The application connects to the existing Supabase database over certificate-verified TLS. Public DNS resolvers and the local resolver confirm an A record named `new` pointing to `145.79.212.116`, with the previous Vercel CNAME absent. HTTP redirects to HTTPS. The public HTTPS page and API endpoints return Hostinger/LiteSpeed headers and a valid Let's Encrypt certificate.
