@@ -7,6 +7,7 @@ import {ContactSubmissionDetails} from './contact-submission-summary';
 import {type Row} from './api';
 import {Empty,Field,Pagination,ResourceState,useResource} from './shared';
 import {formTitle,referenceForms} from '../domain/wordpress-forms';
+import {RegistrationDownload} from './registration-download';
 const quickTypes=[['','All forms'],['student','Students'],['teacher','Educators'],['school','Schools'],[referenceForms.find(f=>f.id===12146)!.key,'Contact'],['partner','Partners']];
 const availableForms=referenceForms.filter(f=>!f.key.startsWith('legacy-')||f.id===12146).map(f=>({key:f.key,title:formTitle(f)}));
 function title(r:Row){return r.title||availableForms.find(f=>f.key===r.form_key)?.title||'Other form';}
@@ -31,6 +32,7 @@ export function ReferenceInbox({initialFilters}:{resource:'reference-forms'|'wor
  function href(r:Row){return r.href||`/forms/${encodeURIComponent(r.form_key)}#saved=${encodeURIComponent(r.id)}`;}
  function details(r:Row){return <><JudgePickerDate source={r.dateSource||'portal'} entry={r}/>{typeof r.file_count==='number'&&<small>{r.file_count} {r.file_count===1?'attachment':'attachments'}</small>}</>;}
  return <section className="submission-inbox" aria-label="Forms and submissions" aria-busy={loading}>
+  <RegistrationDownload/>
   <form className="inbox-filter-bar" onSubmit={e=>{e.preventDefault();setQuery(input);setPage(1);}}>
    <div className="inbox-search-row"><Field name="reference-query" title="Search submissions" type="search" maxLength={200} value={input} onChange={(e:React.ChangeEvent<HTMLInputElement>)=>setInput(e.target.value)} placeholder="Reference, person, school, email, phone or message"/>
     <Field name="reference-type" title="All form types"><select name="reference-type" value={formKey} onChange={e=>chooseForm(e.target.value)}><option value="">All forms</option>{forms.map(f=><option key={f.key} value={f.key}>{f.title}</option>)}</select></Field><button type="submit">Search</button></div>

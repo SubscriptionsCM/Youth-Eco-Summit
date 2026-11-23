@@ -5,6 +5,7 @@ import {SummaryMetric} from './portal-ui';
 import type {Row} from './api';
 import {dedicatedJudgingMode, manualReviewMode} from '../domain/review-mode';
 import './admin-overview.css';
+import {RegistrationDownload} from './registration-download';
 
 const number = (value: unknown) => value === null || value === undefined ? '—'
   : Number.isFinite(Number(value)) ? Number(value).toLocaleString('en-IN') : '—';
@@ -22,6 +23,7 @@ export function AdminOverview() {
   }), {assigned: 0, completed: 0});
 
   return <div className="admin-dashboard">
+    <RegistrationDownload/>
     {counts && Number(counts.failed_jobs_all_editions) > 0 && <div className="portal-attention-banner" role="status">
       <strong>{number(counts.failed_jobs_all_editions)} website tasks need attention</strong>
       <Link href="/admin/jobs">Review tasks</Link>

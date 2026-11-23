@@ -3,9 +3,10 @@ import type { Db } from './db';
 import { type Actor,AppError,audit,id,requireAdmin } from './core';
 import { adminList } from './admin';
 import { csvCell } from '../domain/rules';
+import { exportRegistrations } from './registration-export';
 const columns:Record<string,string[]>={schools:['id','reference','name','address','city','state','postal_code','status','registered_at'],students:['id','reference','name','guardian_contact','emergency_contact','created_at'],entries:['id','reference','title','student_name','school_name','class','category_id','state','revision','submitted_at','platform_url'],reviews:['id','reference','judge_id','round_id','revision','rubric_version','scores','comment','submitted_at']};
 export async function exportData(db:Db,actor:Actor,params:URLSearchParams){
- requireAdmin(actor);const resource=params.get('resource')??'entries';const fields=columns[resource];if(!fields)throw new AppError(422,'Select schools, students, entries or reviews.');
+ requireAdmin(actor);const resource=params.get('resource')??'entries';if(resource==='registrations')return exportRegistrations(db,actor,params);const fields=columns[resource];if(!fields)throw new AppError(422,'Select schools, students, entries or reviews.');
  const format=params.get('format')??'csv';if(!['csv','xlsx'].includes(format))throw new AppError(422,'Select CSV or XLSX.');
  await audit(db,actor,'export.download','exports',id(),{resource,format,filters:Object.fromEntries(params)});
  const filters=new URLSearchParams(params);filters.set('pageSize','100');filters.set('page','1');
