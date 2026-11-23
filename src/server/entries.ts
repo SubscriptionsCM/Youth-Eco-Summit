@@ -1,3 +1,4 @@
+import { effectiveParticipationClose } from './participation-settings';
 import { z } from 'zod';
 import type { Db } from './db';
 import { AppError,type Actor,id,audit } from './core';
@@ -25,7 +26,8 @@ export async function createEntry(db:Db,actor:Actor,input:unknown){
   const {rows:[p]}=await tx.query(`SELECT p.* FROM student_participations p JOIN participant_access a ON a.student_id=p.student_id JOIN students s ON s.id=p.student_id JOIN schools sc ON sc.id=p.school_id WHERE p.id=$1 AND a.user_id=$2 AND p.trashed_at IS NULL AND s.trashed_at IS NULL AND sc.trashed_at IS NULL AND sc.status='active' FOR SHARE OF p,s,sc`,[v.participationId,actor.id]);
   if(!p)throw new AppError(404,'Active student registration not found.');
   const {rows:[c]}=await tx.query("SELECT c.*,e.state edition_state FROM competitions c JOIN editions e ON e.id=c.edition_id WHERE c.id=$1 FOR SHARE OF c,e",[v.competitionId]);
-  if(!c||c.edition_id!==p.edition_id||c.status!=='approved'||c.edition_state!=='open'||Date.now()<new Date(c.opens_at).getTime()||Date.now()>=new Date(c.closes_at).getTime())throw new AppError(409,'The competition is not open.');
+  const closesAt=c?.closes_at?await effectiveParticipationClose(tx,c.closes_at):NaN;
+  if(!c||c.edition_id!==p.edition_id||c.status!=='approved'||c.edition_state!=='open'||Date.now()<new Date(c.opens_at).getTime()||Date.now()>=closesAt)throw new AppError(409,'The competition is not open.');
   const config=competitionSchema.parse(c.config);validateAnswers(config.fields,v.answers,false,p.class);await validateMembers(tx,actor,p,c,v.memberIds);
   const {rows:[entry]}=await tx.query('INSERT INTO submissions(id,reference,student_participation_id,competition_id,category_id,answers) VALUES($1,$2,$3,$4,$5,$6) RETURNING *',[id(),`YES-${id().slice(0,12).toUpperCase()}`,p.id,c.id,categoryFor(config.categories,p.class),JSON.stringify(v.answers)]);
   for(const member of v.memberIds)await tx.query('INSERT INTO submission_members(submission_id,participation_id) VALUES($1,$2)',[entry.id,member]);
@@ -52,7 +54,8 @@ export async function submitEntry(db:Db,actor:Actor,entryId:string,lockVersion:n
   if(entry.state!=='draft')return {id:entry.id,reference:entry.reference,state:entry.state,revision:entry.revision};
   if(entry.lock_version!==lockVersion)throw new AppError(409,'This draft changed. Review the latest version before submitting.');
   await entryAccess(tx,actor,entryId,true);
-  if(entry.competition_status!=='approved'||entry.edition_state!=='open'||Date.now()<new Date(entry.opens_at).getTime()||Date.now()>=new Date(entry.closes_at).getTime())throw new AppError(409,'Submissions are closed.');
+  const entryClosesAt=entry?.closes_at?await effectiveParticipationClose(tx,entry.closes_at):NaN;
+  if(entry.competition_status!=='approved'||entry.edition_state!=='open'||Date.now()<new Date(entry.opens_at).getTime()||Date.now()>=entryClosesAt)throw new AppError(409,'Submissions are closed.');
   const config=competitionSchema.parse(entry.config);if(categoryFor(config.categories,entry.class)!==entry.category_id)throw new AppError(422,'The category does not match the registered class.');validateAnswers(config.fields,entry.answers,true,entry.class);
   const {rows:members}=await tx.query('SELECT participation_id FROM submission_members WHERE submission_id=$1',[entryId]);
   await validateMembers(tx,actor,{id:entry.student_participation_id,school_id:entry.school_id,class:entry.class},entry,members.map(m=>m.participation_id),true,entryId);
@@ -61,7 +64,8 @@ export async function submitEntry(db:Db,actor:Actor,entryId:string,lockVersion:n
   for(const pid of participants)await tx.query('SELECT id FROM student_participations WHERE id=$1 FOR UPDATE',[pid]);
   for(const pid of participants){const {rows:[parent]}=await tx.query("SELECT p.id FROM student_participations p JOIN students st ON st.id=p.student_id JOIN schools sc ON sc.id=p.school_id WHERE p.id=$1 AND p.trashed_at IS NULL AND st.trashed_at IS NULL AND NOT st.purging AND sc.trashed_at IS NULL AND NOT sc.purging AND sc.status='active' FOR SHARE OF st,sc",[pid]);if(!parent)throw new AppError(409,'A team registration is no longer active.');}
   const {rows:[current]}=await tx.query("SELECT c.status,c.opens_at,c.closes_at,e.state FROM competitions c JOIN editions e ON e.id=c.edition_id WHERE c.id=$1 FOR SHARE OF c,e",[entry.competition_id]);
-  if(current.status!=='approved'||current.state!=='open'||Date.now()<new Date(current.opens_at).getTime()||Date.now()>=new Date(current.closes_at).getTime())throw new AppError(409,'Submissions are closed.');
+  const currentClosesAt=current?.closes_at?await effectiveParticipationClose(tx,current.closes_at):NaN;
+  if(current.status!=='approved'||current.state!=='open'||Date.now()<new Date(current.opens_at).getTime()||Date.now()>=currentClosesAt)throw new AppError(409,'Submissions are closed.');
   if(config.entryLimit!==null)for(const pid of participants){const {rows:[count]}=await tx.query(`SELECT count(*)::int count FROM submissions s WHERE s.competition_id=$1 AND s.id<>$2 AND s.revision>0 AND (s.student_participation_id=$3 OR EXISTS(SELECT 1 FROM submission_members m WHERE m.submission_id=s.id AND m.participation_id=$3))`,[entry.competition_id,entryId,pid]);if(count.count>=config.entryLimit)throw new AppError(409,'The competition entry limit has been reached for a team member.');}
   const version=entry.revision+1;const {rows:assets}=await tx.query('SELECT * FROM assets WHERE submission_id=$1 AND revision=$2 AND trashed_at IS NULL FOR UPDATE',[entryId,version]);
   try{validateFileSelection(config.files,assets,true);}catch(error){if(error instanceof ContentRejected)throw new AppError(422,error.message);throw error;}

@@ -1,4 +1,5 @@
 'use client';
+import { usePublicConfig } from './use-public-config';
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { api, json, label, type PublicConfig, type Row } from './api';
@@ -11,7 +12,7 @@ import {canUseForm,entrySubmitter} from '../domain/participant-access';
 
 export function DashboardPage() { return <><PageTitle title="Your dashboard">Manage students, competition entries and saved receipts.</PageTitle><AuthGate roles={['participant']}>{actor => <Dashboard actor={actor} />}</AuthGate></>; }
 function Dashboard({ actor }: { actor: Row }) {
-  const records = useResource<Row>(actor.role === 'participant' ? '/api/participant' : null), config = useResource<PublicConfig>('/api/public/config');
+  const records = useResource<Row>(actor.role === 'participant' ? '/api/participant' : null), config = usePublicConfig();
   const [error, setError] = useState<unknown>(null), [busy, setBusy] = useState(false), [editingSchool, setEditingSchool] = useState<Row | null>(null);
   const [dashboardSchool, setDashboardSchool] = useState<Row | null>(null);
   const [participationId, setParticipationId] = useState(''), [competitionId, setCompetitionId] = useState('');

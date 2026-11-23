@@ -61,16 +61,16 @@ describe('WordPress reference forms', () => {
   expect(normalizeReferenceTitle('E\u0301cole_5_Painting')).toBe('École_5_Painting');
   for(const final of [false,true])expect(validateReferenceAnswers(form,{'text-yes-title':['School_5_Painting']},{final}).errors).toHaveProperty('text-yes-title');
  });
- it.each(['2026-11-10T12:00:00.000Z', '2026-11-15T18:29:59.999Z'])('keeps student registration and all competition submissions open at %s', timestamp => {
+ it.each(['2026-11-10T12:00:00.000Z', '2026-11-30T18:29:59.999Z'])('keeps student registration and all competition submissions open at %s', timestamp => {
   const now = new Date(timestamp);
   for (const form of referenceForms.filter(form => form.key === 'student' || form.competition)) {
    expect(validateReferenceAnswers(form, {}, { final: true, now }).errors).not.toHaveProperty('_form');
   }
  });
  it('uses the exact cutoff and keeps school and educator registrations available afterwards', () => {
-  const now = new Date('2026-11-15T18:30:00.000Z');
+  const now = new Date('2026-11-30T18:30:00.000Z');
   for (const form of referenceForms.filter(form => form.key === 'student' || form.competition)) {
-   expect(validateReferenceAnswers(form, {}, { final: true, now }).errors._form).toBe('Student registration and competition submissions are closed. The deadline is 15 November 2026, 11:59 p.m. IST.');
+   expect(validateReferenceAnswers(form, {}, { final: true, now }).errors._form).toBe('Student registration and competition submissions are closed. The deadline is 30 November 2026, 11:59 p.m. IST.');
   }
   for (const key of ['school','teacher']) expect(validateReferenceAnswers(referenceForms.find(f=>f.key===key)!, {}, { final: true, now }).errors).not.toHaveProperty('_form');
  });

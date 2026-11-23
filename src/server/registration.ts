@@ -1,3 +1,4 @@
+import { effectiveParticipationClose } from './participation-settings';
 import { z } from 'zod';
 import type { Db } from './db';
 import { AppError,type Actor,id,audit } from './core';
@@ -61,8 +62,9 @@ export async function createStudent(db:Db,actor:Actor,input:unknown){
   return db.transaction(async tx=>{
     await requireFormAccess(tx,actor,'student');
     const {rows:[edition]}=await tx.query('SELECT * FROM editions WHERE id=$1 FOR SHARE',[v.editionId]);
+    const closesAt=edition?.registration_closes?await effectiveParticipationClose(tx,edition.registration_closes):NaN;
     const now=Date.now();
-    if(!edition||edition.state!=='open'||!edition.config.registrationApproved||!edition.config.consentText||edition.config.consentVersion!==v.consentVersion||!edition.registration_opens||!edition.registration_closes||now<new Date(edition.registration_opens).getTime()||now>=new Date(edition.registration_closes).getTime())throw new AppError(409,'Registration is closed or approved consent is unavailable.');
+    if(!edition||edition.state!=='open'||!edition.config.registrationApproved||!edition.config.consentText||edition.config.consentVersion!==v.consentVersion||!edition.registration_opens||!edition.registration_closes||now<new Date(edition.registration_opens).getTime()||now>=closesAt)throw new AppError(409,'Registration is closed or approved consent is unavailable.');
     const {rows:[school]}=await tx.query("SELECT * FROM schools WHERE id=$1 AND status='active' AND trashed_at IS NULL AND NOT purging FOR SHARE",[v.schoolId]);
     if(!school)throw new AppError(422,'Select a registered, active school. Nomination alone is not registration.');
     let student;

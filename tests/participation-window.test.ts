@@ -1,3 +1,4 @@
+import { saveParticipationWindow } from '../src/server/participation-settings';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { participationWindow, participationWindowStatus } from '../src/data/participation-window';
 import { createStudent } from '../src/server/registration';
@@ -11,7 +12,7 @@ import { testDb } from './helpers/db';
 
 const opens=Date.parse(participationWindow.opensAt),closes=Date.parse(participationWindow.closesAt);
 
-describe('15 November 2026 participation cutoff',()=>{
+describe('30 November 2026 participation cutoff',()=>{
  let store:Awaited<ReturnType<typeof testDb>>,actor:Actor,school:string,edition:string,student:string,participation:string,competition:string;
  const at=(time:number)=>vi.spyOn(Date,'now').mockReturnValue(time);
  const input=()=>({name:'Boundary Student',schoolId:school,editionId:edition,class:5,guardianContact:actor.contact!,consent:true,consentVersion:'fixture-consent'});
@@ -32,7 +33,7 @@ describe('15 November 2026 participation cutoff',()=>{
  afterEach(()=>vi.restoreAllMocks());
  afterAll(async()=>await store?.close());
  it('represents the last day in India with an exclusive midnight cutoff',()=>{
-  expect(participationWindow.closesAt).toBe('2026-11-15T18:30:00.000Z');
+  expect(participationWindow.closesAt).toBe('2026-11-30T18:30:00.000Z');
   expect(participationWindowStatus(opens-1).isOpen).toBe(false);
   expect(participationWindowStatus(opens).isOpen).toBe(true);
   expect(participationWindowStatus(closes-1).isOpen).toBe(true);
@@ -42,9 +43,9 @@ describe('15 November 2026 participation cutoff',()=>{
  it.each([
   ['2026-11-05T18:30:00.000Z', 'open'],
   ['2026-11-10T12:00:00.000Z', 'open'],
-  ['2026-11-15T18:29:59.999Z', 'open'],
-  ['2026-11-15T18:30:00.000Z', 'closed'],
-  ['2026-11-15T18:30:00.001Z', 'closed'],
+  ['2026-11-30T18:29:59.999Z', 'open'],
+  ['2026-11-30T18:30:00.000Z', 'closed'],
+  ['2026-11-30T18:30:00.001Z', 'closed'],
  ] as const)('reports the current WordPress participation state at %s', (timestamp, state) => {
   expect(participationWindowStatus(new Date(timestamp)).state).toBe(state);
  });
@@ -125,4 +126,24 @@ describe('15 November 2026 participation cutoff',()=>{
    await store.db.query("UPDATE competitions SET status='approved' WHERE id=$1",[competition]);
   }
  });
+ it('rechecks the clock after waiting for deadline settings',async()=>{
+  const clock=at(closes-1);
+  const wrap=(db:Db):Db=>({query:async(sql,params)=>{if(sql.startsWith('SELECT deadline_date::text'))clock.mockReturnValue(closes);return db.query(sql,params);},transaction:fn=>db.transaction(tx=>fn(wrap(tx)))});
+  await expect(createStudent(wrap(store.db),actor,input())).rejects.toThrow('Registration is closed');
+  clock.mockReturnValue(closes-1);
+  await expect(createEntry(wrap(store.db),actor,{participationId:participation,competitionId:competition,answers:{title:'Waiting at cutoff'}})).rejects.toThrow('not open');
+ });
+ it('extends existing canonical registration and competition deadlines after an admin saves the shared date',async()=>{
+  const admin:Actor={id:id(),role:'admin'};
+  await store.db.query("INSERT INTO users(id,role,contact) VALUES($1,'admin','cutoff-admin@example.test')",[admin.id]);
+  const clock=at(closes+1);
+  await saveParticipationWindow(store.db,admin,{deadlineDate:'2026-12-03',lockVersion:0});
+  const registered=await createStudent(store.db,actor,input());expect(registered.participation.edition_id).toBe(edition);
+  const accepted=await draft(),unfinished=await draft();await retainedFile(accepted.id);await retainedFile(unfinished.id);
+  expect((await submitEntry(store.db,actor,accepted.id,0)).state).toBe('submitted');
+  clock.mockReturnValue(Date.parse('2026-12-03T18:30:00.000Z'));
+  await expect(submitEntry(store.db,actor,unfinished.id,0)).rejects.toThrow('Submissions are closed');
+  await expect(createStudent(store.db,actor,input())).rejects.toThrow('Registration is closed');
+ });
+
 });

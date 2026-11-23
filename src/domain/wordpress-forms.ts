@@ -1,6 +1,6 @@
 import snapshot from '../data/wordpress-forms.json';
 import { competitionGuidelines2027 } from '../data/guidelines-2027';
-import { participationWindow, participationWindowStatus } from '../data/participation-window';
+import { participationWindow, participationWindowStatus, type ParticipationTiming } from '../data/participation-window';
 import {nameParts} from './reference-values';
 import {nativeSchoolNomination, normalizeSchoolNominationAnswers, validateSchoolNominationAnswers} from './school-nomination';
 
@@ -49,7 +49,7 @@ export function formSteps(form: ReferenceForm) {
  return steps;
 }
 export function normalizeReferenceTitle(value:string){return value.normalize('NFC').trim().replace(/[^\p{L}\p{M}\p{N}]+/gu,'_').replace(/^_+|_+$/g,'');}
-export function validateReferenceAnswers(form: ReferenceForm, input: Answers, options: { final: boolean; now?: Date; step?: number }) {
+export function validateReferenceAnswers(form: ReferenceForm, input: Answers, options: { final: boolean; now?: Date; step?: number; participationWindow?:ParticipationTiming }) {
  if (form.id === 8916 && form.key === 'nomination') input = normalizeSchoolNominationAnswers(input);
  const answers: Answers = {}, errors: Record<string,string> = {};
  const final = options.final, guideline = competitionGuidelines2027.find(g=>g.slug===form.key);
@@ -138,6 +138,7 @@ export function validateReferenceAnswers(form: ReferenceForm, input: Answers, op
   }
  }
  if(['student','teacher'].includes(form.key)&&typeof input['registered-school-id']==='string')answers['registered-school-id']=input['registered-school-id'];
- if (final && options.step===undefined && (form.competition || form.key === 'student') && !participationWindowStatus(options.now || new Date()).isOpen) errors._form = `Student registration and competition submissions are closed. The deadline is ${participationWindow.deadlineLabel}.`;
+ const window=options.participationWindow||participationWindow;
+ if (final && options.step===undefined && (form.competition || form.key === 'student') && !participationWindowStatus(options.now || new Date(),window).isOpen) errors._form = `Student registration and competition submissions are closed. The deadline is ${window.deadlineLabel}.`;
  return { answers, errors };
 }

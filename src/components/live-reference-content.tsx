@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { shouldPlayHero } from './live-media-policy';
 import { LivePublications } from './live-publications';
+import { useParticipationWindow } from './use-participation-window';
 import dynamic from 'next/dynamic';
 import { connectWinners } from './live-winner-controls';
 import { iconMarkup, withSvgIcons } from './icon-shapes';
@@ -61,6 +62,12 @@ function connectHero(root: HTMLElement): () => void {
 /** Static reviewed markup plus scoped local controls; source JavaScript is never executed. */
 export function LiveReferenceContent({ html }: { html: string }) {
   const host = useRef<HTMLDivElement>(null);
+  const schedule=useParticipationWindow(html.includes('data-current-deadline-date'));
+  useEffect(()=>{
+    if(!schedule.status||!host.current)return;
+    host.current.querySelectorAll('[data-current-deadline-date]').forEach(node=>{node.textContent=schedule.window.dateLabel;});
+    host.current.querySelectorAll('[data-current-deadline-state]').forEach(node=>{node.textContent=schedule.status!.label+'.';});
+  },[schedule.status?.label,schedule.window.dateLabel]);
   const [publicationsTarget, setPublicationsTarget] = useState<HTMLElement | null>(null);
   const [contactTarget, setContactTarget] = useState<HTMLElement | null>(null);
   useEffect(() => {

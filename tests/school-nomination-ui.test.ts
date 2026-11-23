@@ -11,6 +11,7 @@ import { ReferenceControl, ReferenceFormPage } from '../src/components/reference
 import { SchoolAutocomplete, SchoolsPage } from '../src/components/registration';
 import { StudentWizard } from '../src/components/registration-wizard';
 import { schoolNominationHref, studentRegistrationReturnPath } from '../src/components/school-nomination-navigation';
+import { participationWindow } from '../src/data/participation-window';
 
 let host: HTMLDivElement, root: Root;
 const actor = { id: 'student-fixture', role: 'participant', participantKind: 'student', contact: 'fixture@example.test' };
@@ -82,6 +83,7 @@ it('saves the legacy student wizard without offering school registration or comp
  const edition = { id: 'edition', label: 'Fixture edition', state: 'open', registration_opens: '2020-01-01', registration_closes: '2099-01-01', config: { registrationApproved: true, consentText: 'Fixture consent', consentVersion: 'fixture' } };
  request.mockImplementation(async (path: string, options?: RequestInit) => {
   if (path === '/api/public/config') return { editions: [edition], competitions: [], content: [] };
+  if (path === '/api/public/participation-window') return { window: participationWindow, managed: false };
   if (path === '/api/participant') return { students: [] };
   if (path.startsWith('/api/registration-drafts?')) return { items: [{ id: 'legacy-draft', payload: { name: 'Legacy student' }, current_step: 0, lock_version: 1 }] };
   if (path === '/api/registration-drafts' && options?.method === 'PUT') return { id: 'legacy-draft', payload: { name: 'Legacy student' }, current_step: 0, lock_version: 2 };

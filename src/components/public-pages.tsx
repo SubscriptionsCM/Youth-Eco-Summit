@@ -1,6 +1,7 @@
 'use client';
 import { Icon } from './icon';
 import { ContactMessageForm } from './contact-message-form';
+import { usePublicConfig } from './use-public-config';
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
@@ -13,7 +14,7 @@ import { contentFor, date, type PublicConfig, type Row } from './api';
 import { Empty, PageTitle, ResourceState, useResource } from './shared';
 import { AboutPage, EditorialClosing, FAQPage, ParticipationPage } from './editorial-pages';
 import { catalogueCompetitions, competitionAvailability, competitionExcerpt, competitionPath, findProgrammeCompetition, findPublicCompetition } from './competition-public';
-import { participationWindow, participationWindowStatus } from '../data/participation-window';
+import { useParticipationWindow } from './use-participation-window';
 import '../app/editorial.css';
 
 const arrow = <span aria-hidden="true"><Icon name="arrow-right" /></span>;
@@ -24,19 +25,8 @@ export function HomePage() {
 
 function CompetitionList({ config }: { config: PublicConfig | null }) {
   const forms = useResource<{ enabled: boolean; configured: boolean }>('/api/forms/config');
-  const [participationStatus, setParticipationStatus] = useState(() => participationWindowStatus());
-  useEffect(() => {
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    function refresh() {
-      const now = Date.now();
-      const status = participationWindowStatus(now);
-      setParticipationStatus(status);
-      const boundary = status.state === 'upcoming' ? Date.parse(participationWindow.opensAt) : status.state === 'open' ? Date.parse(participationWindow.closesAt) : null;
-      if (boundary !== null) timer = setTimeout(refresh, Math.min(Math.max(boundary - now + 1, 1), 2_147_483_000));
-    }
-    refresh();
-    return () => { if (timer !== undefined) clearTimeout(timer); };
-  }, []);
+  const schedule=useParticipationWindow();
+  const participationStatus=schedule.status||{state:'closed' as const,label:'Checking the current deadline',detail:schedule.error||'Please wait while the current deadline is checked.',isOpen:false};
   const referenceFormsEnabled = !forms.loading && !forms.error && forms.data?.enabled === true && forms.data.configured === true;
   const editions = config?.editions || [];
   const competitions = catalogueCompetitions(config?.competitions || [], editions);
@@ -50,7 +40,7 @@ function CompetitionList({ config }: { config: PublicConfig | null }) {
   })}</div>}</>;
 }
 function CompetitionsContent({ id }: { id?: string }) {
-  const config = useResource<PublicConfig>('/api/public/config');
+  const config = usePublicConfig();
   const competition = id && config.data ? findPublicCompetition(config.data.competitions, id) : undefined;
   const availability = competition ? competitionAvailability(competition, config.data?.editions || []) : null;
   const competitionEdition = competition && config.data?.editions.find(item => item.id === (competition.edition_id || competition.editionId));

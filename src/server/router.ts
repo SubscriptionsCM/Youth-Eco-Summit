@@ -1,3 +1,4 @@
+import { applyParticipationWindow } from '../domain/participation-config';
 import { z } from 'zod';
 import { db } from './db';
 import { AppError,id,ok } from './core';
@@ -11,6 +12,7 @@ import {submissionReport,saveQuality,setCategoryCoordinator} from './submission-
 import {schoolWorkspaceRoute} from './school-workspace';
 import {schoolRecordLinksRoute} from './school-record-links';
 import { adminList,adminCreate,adminPatch } from './admin';
+import { adminParticipationWindow, publicParticipationWindow, saveParticipationWindow, participationSettings } from './participation-settings';
 import { deletionPreview,trash,restore,requestPurge } from './trash';
 import { exportData } from './exports';
 import { publicationConsent,publish } from './publication';
@@ -23,9 +25,10 @@ import {participantAccounts,setParticipantKind} from './participant-accounts';
 async function body(request:Request){const text=await request.text();if(text.length>2000000)throw new AppError(413,'The request is too large.');try{return text?JSON.parse(text):{};}catch{throw new AppError(400,'Send valid JSON.');}}
 async function publicRoute(request:Request,path:string[]){
  const params=new URL(request.url).searchParams;
+ if(path[1]==='participation-window'&&path.length===2&&request.method==='GET') return ok(await publicParticipationWindow(db));
  if(path[1]==='config'&&request.method==='GET'){
   if(!process.env.DATABASE_URL)return ok({configured:false,editions:[],competitions:[],content:[]});
-  const [editions,competitions,content]=await Promise.all([db.query("SELECT * FROM editions WHERE state<>'draft' ORDER BY created_at DESC"),db.query("SELECT c.* FROM competitions c JOIN editions e ON e.id=c.edition_id WHERE c.status='approved' AND e.state<>'draft' ORDER BY c.title"),db.query('SELECT * FROM site_content WHERE approved')]);return ok({configured:true,editions:editions.rows,competitions:competitions.rows,content:content.rows});
+  const [editions,competitions,content]=await Promise.all([db.query("SELECT * FROM editions WHERE state<>'draft' ORDER BY created_at DESC"),db.query("SELECT c.* FROM competitions c JOIN editions e ON e.id=c.edition_id WHERE c.status='approved' AND e.state<>'draft' ORDER BY c.title"),db.query('SELECT * FROM site_content WHERE approved')]);const schedule=await participationSettings(db);return ok(applyParticipationWindow({configured:true,editions:editions.rows,competitions:competitions.rows,content:content.rows},schedule.window,schedule.managed));
  }
  if(path[1]==='schools'&&request.method==='GET'){
   if(!process.env.DATABASE_URL)return ok({items:[],total:0,page:1,pageSize:25});
@@ -95,6 +98,11 @@ export async function handleRequest(request:Request,path:string[]){
    const resource=path[1],params=new URL(request.url).searchParams;
    if(resource==='participant-accounts'&&path.length===2&&request.method==='GET')return ok(await participantAccounts(db,actor,params));
    if(resource==='participant-accounts'&&path.length===3&&request.method==='PATCH')return ok(await setParticipantKind(db,actor,path[2],await body(request)));
+   if(resource==='participation-window'&&path.length===2){
+    if(request.method==='GET')return ok(await adminParticipationWindow(db,actor));
+    if(request.method==='PATCH')return ok(await saveParticipationWindow(db,actor,await body(request)));
+    throw new AppError(405,'Use GET or PATCH for the registration deadline.');
+   }
    if(resource==='teachers'&&path[2]&&request.method==='PATCH')return ok(await reviewTeacherRegistration(db,actor,path[2],await body(request)));
    if(resource==='exports'&&request.method==='GET')return await exportData(db,actor,params);
    if(resource==='publications'&&request.method==='POST')return ok(await publish(db,actor,await body(request)));

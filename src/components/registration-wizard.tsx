@@ -1,4 +1,5 @@
 'use client';
+import { usePublicConfig } from './use-public-config';
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { api, ApiError, json, type PublicConfig, type Row } from './api';
@@ -100,7 +101,7 @@ export function SchoolWizard({ school, onSaved }: { school?: Row; onSaved?: () =
 }
 
 export function StudentWizard({ actor }: { actor: Row }) {
- const config = useResource<PublicConfig>('/api/public/config'), records = useResource<Row>('/api/participant');
+ const config = usePublicConfig(), records = useResource<Row>('/api/participant');
  const draft = useRegistrationDraft('student','new');
  const [consent, setConsent] = useState(false), [requestedId, setRequestedId] = useState('');
  useEffect(() => { setRequestedId(new URLSearchParams(window.location.search).get('competitionId') || ''); }, []);

@@ -7,6 +7,7 @@ import { fingerprint } from './wordpress-migration';
 import { enqueueFormNotifications } from './form-notifications';
 import {requireFormAccess} from './participant-access';
 import {entrySubmitter} from '../domain/participant-access';
+import { participationSettings } from './participation-settings';
 
 export class FormValidationError extends AppError {
  constructor(public fields: Record<string,string>) { super(422,'Please check the highlighted information.'); }
@@ -63,7 +64,7 @@ export async function saveFormRecord(db:Db,actor:Actor|null,recordId:string,inpu
   return safeRecord(saved);
  });
 }
-export async function submitFormRecord(db:Db,actor:Actor|null,recordId:string,input:unknown,token?:string,now=new Date()) {
+export async function submitFormRecord(db:Db,actor:Actor|null,recordId:string,input:unknown,token?:string,now?:Date) {
  const v=z.object({lockVersion:z.number().int().min(0),answers:z.record(z.string(),z.unknown())}).strict().parse(input);
  return db.transaction(async tx=>{
   const record=await owned(tx,actor,recordId,token,{lock:true});
@@ -71,7 +72,9 @@ export async function submitFormRecord(db:Db,actor:Actor|null,recordId:string,in
   if(record.lock_version!==v.lockVersion)throw new AppError(409,'Reload the latest saved form before submitting.');
   const form=referenceForms.find(f=>f.key===record.form_key)!;
   await requireFormAccess(tx,actor,form.key,v.answers['hidden-yes-submitter']??record.answers?.['hidden-yes-submitter']);
-  const checked=validateReferenceAnswers(form,v.answers,{final:true,now});
+  const schedule=(form.competition||form.key==='student')?await participationSettings(tx,true):null;
+  const submittedNow=now||new Date();
+  const checked=validateReferenceAnswers(form,v.answers,{final:true,now:submittedNow,participationWindow:schedule?.window});
   if(Object.keys(checked.errors).length)throw new FormValidationError(checked.errors);
   const answers=checked.answers;
   let schoolId:string|null=null,identityKey:string|null=null;
@@ -107,8 +110,8 @@ export async function submitFormRecord(db:Db,actor:Actor|null,recordId:string,in
    if(file&&file.status!=='ready')throw new FormValidationError({[field.id]:'Wait for file verification to finish before submitting.'});
    if(file)answers[field.id]={id:file.id,filename:file.filename,checksum:file.expected_checksum,bytes:Number(file.expected_size)};
   }
-  const receipt={id:record.id,reference:record.reference,formKey:form.key,submittedAt:now.toISOString(),status:'submitted',...(schoolId?{schoolId}:{}),...(form.key==='school'?{schoolStatus:'pending'}:{})};
-  await tx.query("UPDATE portal_form_records SET status='submitted',answers=$2,school_id=$3,identity_key=$4,submitter_role=$5,form_snapshot=$6,receipt=$7,submitted_at=$8,updated_at=now(),lock_version=lock_version+1 WHERE id=$1",[recordId,JSON.stringify(answers),schoolId,identityKey,form.competition?answers['hidden-yes-submitter']:null,JSON.stringify(form),JSON.stringify(receipt),now]);
+  const receipt={id:record.id,reference:record.reference,formKey:form.key,submittedAt:submittedNow.toISOString(),status:'submitted',...(schoolId?{schoolId}:{}),...(form.key==='school'?{schoolStatus:'pending'}:{})};
+  await tx.query("UPDATE portal_form_records SET status='submitted',answers=$2,school_id=$3,identity_key=$4,submitter_role=$5,form_snapshot=$6,receipt=$7,submitted_at=$8,updated_at=now(),lock_version=lock_version+1 WHERE id=$1",[recordId,JSON.stringify(answers),schoolId,identityKey,form.competition?answers['hidden-yes-submitter']:null,JSON.stringify(form),JSON.stringify(receipt),submittedNow]);
   if(actor)await audit(tx,actor,'reference-form.submit','portal_form_records',recordId,{formKey:form.key,reference:record.reference});
   await enqueueFormNotifications(tx,recordId);
   return receipt;

@@ -8,6 +8,7 @@ vi.mock('../src/components/shared',async original=>{const actual=await original<
 import {AdminPage} from '../src/components/admin';
 import {AdminOverview} from '../src/components/admin-overview';
 import {AdminRecordDetails} from '../src/components/admin-details';
+vi.mock('../src/components/admin-deadline',()=>({AdminDeadline:()=>createElement('section',{id:'registration-deadline'},'Registration deadline')}));
 let host:HTMLDivElement,root:Root;
 beforeEach(()=>{(globalThis as any).IS_REACT_ACT_ENVIRONMENT=true;vi.stubEnv('NEXT_PUBLIC_JUDGING_MODE','portal');state.actor={id:'acting-admin',role:'admin'};state.resource={id:'other-owner',contact:'owner@qa.example',name:'QA owner',role:'owner',active:true,created_at:'2026-11-01T00:00:00Z'};host=document.createElement('div');document.body.append(host);root=createRoot(host);});
 afterEach(async()=>{await act(async()=>root.unmount());host.remove();vi.unstubAllEnvs();});
@@ -17,6 +18,7 @@ it('provides current operations and file access without exposing obsolete import
  for(const href of ['/admin/jobs','/admin/audit','/admin/trash','/admin/reference-forms'])expect(links).toContain(href);
  for(const href of ['/admin/imports','/admin/editions','/admin/competitions','/admin/content','/admin/rules'])expect(links).not.toContain(href);
  expect(host.textContent).not.toContain('Configuration JSON');
+ expect(host.querySelector('#registration-deadline')?.textContent).toContain('Registration deadline');
 });
 it('removes empty earlier-workflow totals from the active dashboard',async()=>{
  await act(async()=>root.render(createElement(AdminOverview)));
