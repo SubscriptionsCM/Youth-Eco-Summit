@@ -94,18 +94,23 @@ describe('database-backed authentication', () => {
     expect((await action('login',{contact:'judge@example.org',password:'Another secure password 123!'}))?.status).toBe(200);
   });
 
-  it('allows admins to invite judges while reserving elevated roles for owners', async () => {
+  it('allows admins to invite admins and judges while keeping owner invitations restricted', async () => {
     const userId=randomUUID(),token=randomBytes(32).toString('hex');
     await fixture.db.query("insert into users(id,role,contact,totp_secret) values($1,'admin','admin@example.org','enrolled-fixture')",[userId]);
     await fixture.db.query("insert into auth_sessions(token_hash,user_id,auth_version,mfa_verified,expires_at) values($1,$2,0,true,now()+interval '1 hour')",[createHash('sha256').update(token).digest('hex'),userId]);
     const cookie=`yes_session=${token}`;
     expect((await action('invitations',{contact:'judge@example.org',role:'judge'},cookie))?.status).toBe(200);
-    expect((await action('invitations',{contact:'other-admin@example.org',role:'admin'},cookie))?.status).toBe(403);
+    const judgeToken=new URL(mail.match(/https?:\/\/\S+/)![0]).searchParams.get('token');
+    expect((await action('invitations',{contact:'other-admin@example.org',role:'admin'},cookie))?.status).toBe(200);
     expect((await action('invitations',{contact:'owner@example.org',role:'owner'},cookie))?.status).toBe(403);
     const invitationToken=new URL(mail.match(/https?:\/\/\S+/)![0]).searchParams.get('token');
     expect((await action('invitation/setup',{token:invitationToken}))?.status).toBe(200);
+    expect((await action('invitation/accept',{token:invitationToken,password:'New administrator password 123!',role:'owner'}))?.status).toBe(200);
+    expect((await fixture.db.query("SELECT role FROM users WHERE contact='other-admin@example.org'")).rows[0].role).toBe('admin');
+    expect((await action('login',{contact:'other-admin@example.org',password:'New administrator password 123!'}))?.status).toBe(200);
     await fixture.db.query('update users set active=false where id=$1',[userId]);
-    expect((await action('invitation/setup',{token:invitationToken}))?.status).toBe(401);
+    expect((await action('invitation/setup',{token:judgeToken}))?.status).toBe(401);
+    expect((await action('invitation/accept',{token:judgeToken,password:'Judge password 123!'}))?.status).toBe(401);
   });
 
   it('hashes passwords using per-password salts', async () => {

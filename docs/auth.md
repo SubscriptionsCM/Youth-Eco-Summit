@@ -28,13 +28,13 @@ All routes are under `/api/auth`. Success is `{data:...}`, errors `{error:string
 | `otp/verify` | POST `{contact,code}` | `{actor}` and session cookie |
 | `login` | POST `{contact:"email@example.org",password,totp}` | `{actor}` and session cookie |
 | `logout` | POST `{}` | `{signedOut:true}`; revokes session and clears cookie |
-| `invitations` | POST `{contact,name,role}`; owner, or admin inviting a judge | `{invited:true}`; emails `/invite?token=...` |
+| `invitations` | POST `{contact,name,role}`; owner, or active admin inviting an admin or judge | `{invited:true}`; emails `/invite?token=...` |
 | `invitation/setup` | POST `{token}` | `{provisioningUri,contact}` |
 | `invitation/accept` | POST `{token,password,totp}` | `{accepted:true,message}` |
 | `recovery/request` | POST `{contact}` | Generic `{message}` regardless of account existence; active staff receive `/recover?token=...` |
 | `recovery/complete` | POST `{token,password,totp}` | `{recovered:true,message}`; revokes every old session |
 
-Invitation roles are `owner`, `admin`, or `judge`. Owners may invite every staff role; admins may invite judges only. Invitations expire after 24 hours; password recovery links expire after 15 minutes and still require the existing authenticator. Deactivated inviters, or inviters whose role no longer permits that invitation, cannot enroll new users. Invitations do not reactivate existing accounts. Lost MFA needs verified organizer support and a separately controlled account re-enrollment procedure; password recovery does not bypass MFA.
+Invitation roles are `owner`, `admin`, or `judge`. Owners may invite every staff role; active admins may invite admins and judges. Owner invitations remain owner-only. Invitations expire after 24 hours; password recovery links expire after 15 minutes and still require the existing authenticator. Deactivated inviters, or inviters whose role no longer permits that invitation, cannot enroll new users. Invitations do not reactivate existing accounts. Lost MFA needs verified organizer support and a separately controlled account re-enrollment procedure; password recovery does not bypass MFA.
 
 Public authentication actions use persistent contact and network rate limits. OTP send permits five requests per contact per fifteen minutes with a sixty-second resend interval. Verification permits at most five attempts per issued code, plus a twenty-request contact window. Staff login permits ten attempts per contact window. Network ceilings are eight times the relevant contact limit. Quotas count failed delivery and invalid credentials as well as success. Set and test the trusted proxy header before load testing a real deployment.
 

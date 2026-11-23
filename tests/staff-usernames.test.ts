@@ -91,8 +91,8 @@ describe('staff username aliases', () => {
     expect(delivered).toHaveLength(0);
   });
 
-  it('binds an admin invitation alias and role to its token and keeps the 12 character minimum', async () => {
-    const owner = await staff(), token = await invite(owner.cookie);
+  it.each(['owner','admin'])('binds an admin invitation from %s to its alias and role and keeps the 12 character minimum', async role => {
+    const inviter = await staff(role), token = await invite(inviter.cookie);
     expect((await action('invitation/setup', { token: 'invalid' }))?.status).toBe(401);
     const setup = await action('invitation/setup', { token });
     expect((await setup!.json()).data).toEqual({ contact: 'new-staff@example.test', role: 'admin', staffUsername: 'rudhraksh' });
@@ -106,6 +106,28 @@ describe('staff username aliases', () => {
     expect((await action('invitation/accept', { token, password }))?.status).toBe(401);
   });
 
+  it.each(['inactive','judge'])('rejects a pending admin invitation if its admin issuer becomes %s', async state => {
+    const admin=await staff('admin'),token=await invite(admin.cookie);
+    if(state==='inactive')await fixture.db.query('UPDATE users SET active=false WHERE id=$1',[admin.id]);
+    else await fixture.db.query("UPDATE users SET role='judge' WHERE id=$1",[admin.id]);
+    expect((await action('invitation/setup',{token}))?.status).toBe(401);
+    expect((await action('invitation/accept',{token,password}))?.status).toBe(401);
+    expect((await fixture.db.query('SELECT consumed_at FROM auth_invitations')).rows[0].consumed_at).toBeNull();
+    expect((await fixture.db.query("SELECT id FROM users WHERE contact='new-staff@example.test'")).rows).toHaveLength(0);
+  });
+
+  it('rechecks the admin issuer after reading the invitation and before consuming it', async () => {
+    const admin=await staff('admin'),token=await invite(admin.cookie);
+    const changed=createAuth({...fixture.db,transaction:async fn=>{
+      await fixture.db.query('UPDATE users SET active=false WHERE id=$1',[admin.id]);
+      return fixture.db.transaction(fn);
+    }},{origin,secret:'test-only-staff-alias-secret-at-least-32-characters',secureCookies:false});
+    const response=await changed.authAction(request('invitation/accept',{token,password}),['auth','invitation','accept']);
+    expect(response?.status).toBe(401);
+    expect((await fixture.db.query('SELECT consumed_at FROM auth_invitations')).rows[0].consumed_at).toBeNull();
+    expect((await fixture.db.query("SELECT id FROM users WHERE contact='new-staff@example.test'")).rows).toHaveLength(0);
+  });
+
   it('rolls back invitation consumption when another account claims its alias', async () => {
     const owner = await staff(), token = await invite(owner.cookie);
     await staff('judge', 'rudhraksh');
@@ -115,9 +137,9 @@ describe('staff username aliases', () => {
     expect((await action('invitation/setup', { token }))?.status).toBe(200);
   });
 
-  it('preserves email-only invitations and restricts admins to inviting judges with or without aliases', async () => {
+  it('preserves email-only judge invitations and prevents admins from inviting owners', async () => {
     const admin = await staff('admin');
-    for (const role of ['owner', 'admin']) expect((await action('invitations', { contact: `${role}-new@example.test`, role, staffUsername: 'new-staff' }, admin.cookie))?.status).toBe(403);
+    expect((await action('invitations', { contact: 'owner-new@example.test', role: 'owner', staffUsername: 'new-staff' }, admin.cookie))?.status).toBe(403);
     const token = await invite(admin.cookie, { role: 'judge', staffUsername: undefined });
     const setup = await action('invitation/setup', { token });
     expect((await setup!.json()).data).toMatchObject({ role: 'judge', staffUsername: null });

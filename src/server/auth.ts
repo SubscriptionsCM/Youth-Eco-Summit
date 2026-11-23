@@ -221,7 +221,7 @@ export function createAuth(db: Db, options: AuthOptions) {
       if (route === 'invitations') {
         const actor = await getActor(request);
         const email = contact(input.contact), role = input.role;
-        if (!actor || (actor.role !== 'owner' && !(actor.role === 'admin' && role === 'judge'))) throw new AppError(403, 'Owners can invite staff; admins can invite judges.');
+        if (!actor || (actor.role !== 'owner' && !(actor.role === 'admin' && (role === 'judge' || role === 'admin')))) throw new AppError(403, 'Active administrators can invite admins and judges. Owner invitations require an owner account.');
         if (!['owner','admin','judge'].includes(String(role))) throw new AppError(400, 'Choose an invited staff role.');
         const username = staffUsername(input.staffUsername);
         await rate(request, 'invite', actor.id, 20);
@@ -243,13 +243,13 @@ export function createAuth(db: Db, options: AuthOptions) {
         await rate(request, 'invitation', digest(token), 20);
         const invitation = (await db.query<{id:string;contact:string;name:string;role:Actor['role'];totp_secret:string;staff_username:string|null}>(`SELECT i.* FROM auth_invitations i JOIN users inviter ON inviter.id=i.invited_by
           WHERE i.token_hash=$1 AND i.consumed_at IS NULL AND i.expires_at>now() AND inviter.active=true
-          AND (inviter.role='owner' OR (inviter.role='admin' AND i.role='judge'))`, [digest(token)])).rows[0];
+          AND (inviter.role='owner' OR (inviter.role='admin' AND i.role IN ('judge','admin')))`, [digest(token)])).rows[0];
         if (!invitation) throw new AppError(401, 'Invitation is invalid or expired.');
         if (route === 'invitation/setup') return json({ contact: invitation.contact, staffUsername: invitation.staff_username, role: invitation.role });
         const hash = await hashPassword(password(input.password));
         const accepted = await db.transaction(async tx => {
           const claimed = await tx.query<typeof invitation>(`UPDATE auth_invitations SET consumed_at=now() WHERE id=$1 AND consumed_at IS NULL AND expires_at>now()
-            AND EXISTS(SELECT 1 FROM users WHERE id=auth_invitations.invited_by AND active=true AND (role='owner' OR (role='admin' AND auth_invitations.role='judge'))) RETURNING *`, [invitation.id]);
+            AND EXISTS(SELECT 1 FROM users WHERE id=auth_invitations.invited_by AND active=true AND (role='owner' OR (role='admin' AND auth_invitations.role IN ('judge','admin')))) RETURNING *`, [invitation.id]);
           if (!claimed.rows.length) throw new AppError(401, 'Invitation is invalid or expired.');
           const bound = claimed.rows[0];
           const created = await tx.query(`INSERT INTO users(id,contact,name,role,password_hash,staff_username) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING RETURNING id`, [randomUUID(), bound.contact, bound.name, bound.role, hash, bound.staff_username]);

@@ -35,7 +35,7 @@ it('shows readable staff details and removes actions the acting admin is not all
  const details=host.querySelector('[aria-label="Record details"]')!;
  expect(details.textContent).toContain('QA owner');expect(details.textContent).toContain('owner@qa.example');expect(details.textContent).not.toContain('Technical record details');
  expect(details.querySelector('select[name="action"]')).toBeNull();
- expect([...host.querySelectorAll('select[name="role"] option')].map(o=>(o as HTMLOptionElement).value)).not.toContain('admin');
+ expect([...host.querySelectorAll('select[name="role"] option')].map(o=>(o as HTMLOptionElement).value)).toContain('admin');
 });
 it('keeps the ownerâ€™s staff invitation and administrative-account management available',async()=>{
  state.actor={id:'acting-owner',role:'owner'};state.resource={...state.resource,id:'another-admin',role:'admin'};
